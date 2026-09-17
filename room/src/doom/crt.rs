@@ -13,10 +13,15 @@
 //!   so ASCII case folding matches the C originals' behavior in the
 //!   "C" locale.
 //! - `strdup`, `mkdir`, and `errno_location` forward to the POSIX or
-//!   UCRT symbol depending on the target.
+//!   UCRT symbol depending on the target. On targets with no CRT at all
+//!   (notably `wasm32-unknown-unknown`) they are still compiled so the
+//!   crate type-checks, but panic with a clear message if ever called;
+//!   the engine's wasm entry points must use the Rust-side I/O paths
+//!   instead.
 
 use std::ffi::{c_char, c_int};
 
+#[cfg(not(target_arch = "wasm32"))]
 extern "C" {
     #[cfg(unix)]
     #[link_name = "strdup"]
@@ -86,6 +91,11 @@ pub unsafe fn strdup(s: *const c_char) -> *mut c_char {
     {
         ucrt_strdup(s)
     }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = s;
+        panic!("no CRT on wasm: strdup() is unavailable on this target")
+    }
 }
 
 /// Creates a directory (POSIX `mkdir` / UCRT `_mkdir`; the mode argument
@@ -103,10 +113,17 @@ pub unsafe fn mkdir(path: *const c_char, _mode: u32) -> c_int {
     {
         ucrt_mkdir(path)
     }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = path;
+        panic!("no CRT on wasm: mkdir() is unavailable on this target")
+    }
 }
 
 /// Returns a pointer to the calling thread's C `errno`
 /// (glibc `__errno_location` / UCRT `_errno`).
+///
+/// Panics on targets with no CRT (`wasm32-unknown-unknown`).
 pub fn errno_location() -> *mut c_int {
     #[cfg(unix)]
     unsafe {
@@ -115,5 +132,50 @@ pub fn errno_location() -> *mut c_int {
     #[cfg(windows)]
     unsafe {
         ucrt_errno()
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        panic!("no CRT on wasm: errno is unavailable on this target")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{strcasecmp, strncasecmp};
+    use std::ffi::c_char;
+
+    /// Interprets a NUL-terminated byte literal as a C string pointer.
+    fn cstr(b: &[u8]) -> *const c_char {
+        b.as_ptr().cast::<c_char>()
+    }
+
+    #[test]
+    fn strcasecmp_mirrors_c_semantics() {
+        // Equal modulo ASCII case.
+        assert_eq!(
+            strcasecmp(cstr(b"ABCDEFGHIJKLMNOP\0"), cstr(b"abcdefghijklmnop\0")),
+            0
+        );
+        // Ordering is by lowercased byte value.
+        assert!(strcasecmp(cstr(b"ABC\0"), cstr(b"ABD\0")) < 0);
+        assert!(strcasecmp(cstr(b"abd\0"), cstr(b"ABC\0")) > 0);
+        // A prefix compares as smaller, matching strcmp.
+        assert!(strcasecmp(cstr(b"ABC\0"), cstr(b"AB\0")) > 0);
+        // The NUL terminator itself compares equal first.
+        assert_eq!(strcasecmp(cstr(b"AB\0"), cstr(b"ab\0")), 0);
+    }
+
+    #[test]
+    fn strncasecmp_compares_at_most_n_bytes() {
+        assert_eq!(strncasecmp(cstr(b"ABCDE\0"), cstr(b"abcde\0"), 5), 0);
+        // Differences past the n-byte window are ignored: with n = 3 only
+        // "ABC" vs "abc" is inspected, so the later D/X mismatch is not seen.
+        assert_eq!(strncasecmp(cstr(b"ABCDE\0"), cstr(b"abcX\0"), 3), 0);
+        // Within the window the difference is the lowercased byte delta.
+        assert!(strncasecmp(cstr(b"ABCDE\0"), cstr(b"abcX\0"), 4) < 0);
+        // An n larger than the strings stops at the NUL bytes.
+        assert_eq!(strncasecmp(cstr(b"AB\0"), cstr(b"ab\0"), 100), 0);
+        // n == 0 always compares equal, mirroring C.
+        assert_eq!(strncasecmp(cstr(b"ABCDE\0"), cstr(b"XXXXX\0"), 0), 0);
     }
 }
