@@ -1,240 +1,203 @@
-# Agent instructions
-
-# Memory Safety & Debugging
-
-## Lessons from C → Rust Porting
-
-- **Null-terminated strings for C FFI**: Pass `&[u8] = b"/\0"` instead of `&str = "/"` when C code will call `strlen` on the pointer. `&str` is not null-terminated and causes `global-buffer-overflow`.
-- **Avoid `ptr::write_bytes` for precise zeroing**: `ptr::write_bytes` compiles to `memset`, which under ASan may use SIMD writes that overshoot non-aligned sizes and corrupt adjacent allocator metadata. Use a byte-by-byte loop instead.
-- **Have allocators zero internally**: Rather than relying on callers to `memset`, zero user data inside `Z_Malloc` before returning.
-- **Struct padding fields and zero-initialization**: When porting C structs that contain private `_pad` fields, you cannot use struct literal syntax. Use `std::mem::zeroed()` or `MaybeUninit::zeroed().assume_init()` instead.
-- **Moving globals between ported modules**: When a global was previously accessed via `extern "C"` in one Rust module and the C source gets ported, move the `#[no_mangle] pub static mut` definition to the new module and update the consumer to access it directly (e.g., `crate::doom::r_things::spryscale`).
-- **Unsigned angle arithmetic wrapping**: C `angle_t` is `u32`, and subtraction/addition can wrap around zero. Rust's default `-` and `+` on `u32` panic in debug mode. Always use `wrapping_sub`, `wrapping_add`, `wrapping_neg` for angle arithmetic.
-- **Opaque `state_t` vs concrete `State` struct**: `d_player.rs` declares `state_t` as an empty enum for FFI, but `info.rs` defines the real `State` struct. When accessing state fields from ported code, cast the pointer to `*mut State`.
-
-## AddressSanitizer
-
-ASan gives exact line numbers for memory corruption across the Rust/C boundary. It is especially useful for `unsafe`, FFI, raw pointers, manual buffers, and ownership mistakes.
-
-### Quick Start
-
-```bash
-# Via Taskfile
-task asan:test -- test_name -- --nocapture
-
-# Manual
-ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:abort_on_error=1:symbolize=1" \
-RUST_BACKTRACE=1 \
-RUSTFLAGS="-Zsanitizer=address" \
-cargo +nightly test -Zbuild-std --target x86_64-unknown-linux-gnu
-```
-
-Use `-Zbuild-std` so `std` is also instrumented. Compile the C side with ASan too by setting `ASAN=1` (gated in `doomgeneric-sys/build.rs`).
-
-### Useful `ASAN_OPTIONS` Flags
-
-| Flag | Meaning |
-|------|---------|
-| `detect_leaks=1` | Also report leaks |
-| `halt_on_error=1` | Stop at first error |
-| `abort_on_error=1` | Generate a hard crash for debuggers/agents |
-| `symbolize=1` | Print readable stack traces |
-
-### What ASan Reports Look Like
-
-```text
-ERROR: AddressSanitizer: heap-use-after-free
-READ of size 8 at 0x...
-    #0 my_crate::module::function src/foo.rs:123
-    #1 my_crate::ffi_wrapper::call src/ffi.rs:45
-
-freed by thread T0 here:
-    #0 free
-    #1 native_destroy src/native/foo.c:88
-
-previously allocated by thread T0 here:
-    #0 malloc
-    #1 native_create src/native/foo.c:42
-```
-
-ASan reports three locations: the bad access, the free, and the allocation.
-
-### Limitations
-
-- Needs nightly Rust.
-- Slows execution and increases memory use.
-- May conflict with proc macros or dynamic libraries.
-- Best on Linux/macOS x86_64/aarch64.
-- Does not replace Miri or prove memory safety.
-
-## c2rust Intermediate Reference
-
-A fully-automated `c2rust transpile` output lives in `c2rust-intermediate/`. It is **not** linked into the main binary and is excluded from the default workspace build (`default-members`). Its sole purpose is as a behavioural reference when porting or debugging C modules.
-
-### Regenerating
-
-```bash
-./tools/c2rust-transpile.sh
-```
-
-This script:
-1. Scans `vendor/doomgeneric/*.c` and filters out non-transpilable files.
-2. Emits `compile_commands.json` with the exact flags from `doomgeneric-sys/build.rs`.
-3. Runs `c2rust transpile --emit-build-files --overwrite-existing`.
-4. Fixes up `Cargo.toml` and `src/lib.rs` so the crate is usable.
-
-### Checking the reference crate
-
-The transpiled code requires nightly because c2rust emits `extern type` declarations (still unstable):
-
-```bash
-cargo +nightly check -p c2rust-intermediate
-```
-
-### Excluded files
-
-| File | Reason |
-|------|--------|
-| `layout_probe.c` | Explicitly excluded from upstream Makefile |
-| `gusconf.c` | Requires `FEATURE_SOUND` |
-| `m_misc.c` | Contains variadic macros (`M_StringJoin`, `M_vsnprintf`) that crash c2rust |
-| `dummy.c` | Empty stub |
-| `doomdef.c` | Header-only in practice, no symbols |
-
-### How to use it
-
-- **Type layout validation**: Compare `#[repr(C)]` struct definitions against `room/src/doom/c_ffi.rs`.
-- **Behavioural comparison**: When a hand-ported module behaves differently, compare its logic to the transpiled version (which faithfully reproduces C semantics).
-- **Symbol inventory**: See exactly which functions, globals, and types a given C module exports before porting it.
-
-### Caveats
-
-- All code is `unsafe` and non-idiomatic — do not copy-paste into the hand-ported codebase.
-- Duplicate type definitions exist across modules (e.g. `mobj_t` appears in many files). This is expected because each transpiled file is standalone.
-- `#define` values are baked in at transpile time.
-- Cross-module calls remain `extern "C"` FFI; there are no Rust `use` imports between modules.
-
-## dhat Heap Profiler
-
-For callsite-level allocation tracking (volume and ownership paths), use `dhat` separately from ASan.
-
-Enable in `room/Cargo.toml`:
-
-```toml
-[features]
-dhat-heap = ["dep:dhat"]
-
-[dependencies]
-dhat = { version = "0.3", optional = true }
-```
-
-Run:
-
-```bash
-cargo run --features dhat-heap
-cargo test --test demo_playthrough --features dhat-heap
-```
-
-A `dhat-heap.json` file is produced; view it with the [dhat viewer](https://valgrind.org/docs/manual/dh-manual.html).
-
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
-
-This project is indexed by GitNexus as **room** (72941 symbols, 88747 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
-
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
-
-## Always Do
-
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
-
-## When Debugging
-
-1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
-2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/room/process/{processName}` — trace the full execution flow step by step
-4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
-
-## When Refactoring
-
-- **Renaming**: MUST use `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` first. Review the preview — graph edits are safe, text_search edits need manual review. Then run with `dry_run: false`.
-- **Extracting/Splitting**: MUST run `gitnexus_context({name: "target"})` to see all incoming/outgoing refs, then `gitnexus_impact({target: "target", direction: "upstream"})` to find all external callers before moving code.
-- After any refactor: run `gitnexus_detect_changes({scope: "all"})` to verify only expected files changed.
-
-## Never Do
-
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
-
-## Tools Quick Reference
-
-| Tool | When to use | Command |
-|------|-------------|---------|
-| `query` | Find code by concept | `gitnexus_query({query: "auth validation"})` |
-| `context` | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})` |
-| `impact` | Blast radius before editing | `gitnexus_impact({target: "X", direction: "upstream"})` |
-| `detect_changes` | Pre-commit scope check | `gitnexus_detect_changes({scope: "staged"})` |
-| `rename` | Safe multi-file rename | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
-| `cypher` | Custom graph queries | `gitnexus_cypher({query: "MATCH ..."})` |
-
-## Impact Risk Levels
-
-| Depth | Meaning | Action |
-|-------|---------|--------|
-| d=1 | WILL BREAK — direct callers/importers | MUST update these |
-| d=2 | LIKELY AFFECTED — indirect deps | Should test |
-| d=3 | MAY NEED TESTING — transitive | Test if critical path |
-
-## Resources
-
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/room/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/room/clusters` | All functional areas |
-| `gitnexus://repo/room/processes` | All execution flows |
-| `gitnexus://repo/room/process/{name}` | Step-by-step execution trace |
-
-## Self-Check Before Finishing
-
-Before completing any code modification task, verify:
-1. `gitnexus_impact` was run for all modified symbols
-2. No HIGH/CRITICAL risk warnings were ignored
-3. `gitnexus_detect_changes()` confirms changes match expected scope
-4. All d=1 (WILL BREAK) dependents were updated
-
-## Keeping the Index Fresh
-
-After committing code changes, the GitNexus index becomes stale. Re-run analyze to update it:
-
-```bash
-npx gitnexus analyze
-```
-
-If the index previously included embeddings, preserve them by adding `--embeddings`:
-
-```bash
-npx gitnexus analyze --embeddings
-```
-
-To check whether embeddings exist, inspect `.gitnexus/meta.json` — the `stats.embeddings` field shows the count (0 means no embeddings). **Running analyze without `--embeddings` will delete any previously generated embeddings.**
-
-> Claude Code users: A PostToolUse hook handles this automatically after `git commit` and `git merge`.
-
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
-<!-- gitnexus:end -->
+# AGENTS.md — woom24
+
+## Project Introduction
+
+**woom24 = W(ASM)oom(ID)24**: a WASM port of Doom (1993), written in Rust, with **ID24** as the long-range
+compatibility target. The name is the mission statement, deadpan on purpose:
+
+| Fragment | Meaning |
+|---|---|
+| **W** | **WASM** — the only shipping target is a browser, via `wasm32-unknown-unknown`. |
+| **oom** | **(D)oom** — engine work: demo-exact simulation, Boom/MBF-family compatibility. |
+| **24** | **ID24** — the compatibility ceiling the project is named after; the roadmap ends there. |
+
+Status: **forked, baseline green** — `sunsided/room` @ `main` is checked out (remote `upstream`; GitHub-side
+fork pending). `cargo build` and `cargo test` pass on the Windows host (372 unit tests + 2 demo-playthrough
+tests); demo playback is verified. The local Windows-portability patch set (`doom/crt.rs`, test `DG_*` stubs,
+`m.lib`/LFS/build.rs fixes) is pending upstreaming to room. woom24-specific feature work has not started.
+This file is the binding contract for any agent working in this
+repository. When analyzing, reviewing, or generating code, strictly align with the constraints below.
+
+### Decision Log (agents must not silently decide PENDING rows)
+
+| Decision | Status |
+|---|---|
+| Upstream strategy | **DECIDED (2026-09-17)** — fork `sunsided/room` as the implementation base; project inherits GPL-2.0. See "Fork Discipline" below. |
+| WAD parsing | **DECIDED (2026-09-17)** — extend room's `w_wad` for compat tiers; borrow browser loading UX from `crustyview`, never a second parser. |
+| WASM target | **DECIDED (2026-09-17)** — `wasm32-unknown-unknown` + wasm-bindgen. Doom's ecosystem only touches the platform at the system-I/O boundary, so the pure-Rust target is both the most compatible and a reasonable effort; Emscripten is out. |
+| Render backend | **DECIDED (2026-09-17)** — WebGL2 default + Canvas2D baseline; WebGPU as an explicitly experimental backend behind a feature flag (still evolving, non-trivial — worth attempting, never required). All backends sit behind the render trait; core never knows which one runs. |
+| Audio stack | **DECIDED (2026-09-17)** — MIDI-first SF2 synthesis with layered fallback: rustysynth + user-supplied SF2 (rustysynth is room's existing pure-Rust synth — it fills the FluidSynth role; the C FluidSynth library conflicts with the no-C-dependencies constraint) → built-in OPL2 emulation (asset-free) → silence. SF2 is loaded via the config UI; nothing is fetched at runtime. |
+| Entry API | **DECIDED (2026-09-17)** — two explicitly separated wasm exports; see "Web Entry Contract". |
+| Multiplayer | OPTIONAL — deferred; must never shape the core loop (see constraint 5) |
+
+## Non-Negotiable Product Constraints
+
+1. **Self-contained artifact.** The final `.wasm` + static assets must run standalone from any static host or
+   `file://`. At runtime the engine fetches nothing: no CDN, no `fetch()` of remote resources, no telemetry, no
+   server component, no analytics. The user supplies IWAD/PWAD files locally (file picker / IndexedDB).
+   WAD files are copyrighted — never commit, bundle, or upload them.
+2. **Low runtime requirements.** Pure Rust compiled to `wasm32-unknown-unknown` (wasm-bindgen). No Emscripten,
+   no C dependencies unless one is explicitly approved. Browser APIs only; degrade gracefully where practical.
+3. **Uncapped FPS.** Simulation is fixed at 35 tics/s; rendering runs at display rate with interpolation between
+   the last two tics (prboom+ model). Render rate must never influence simulation state.
+4. **Custom resolution & custom aspect ratio.** The renderer is resolution-independent; the vanilla 4:3 aspect
+   correction (320×200 on non-square pixels) is the correctness baseline. Widescreen/custom aspect is
+   render-side only — extra view frustum, never extra simulation.
+5. **Demo playback is a hard requirement.** Record + playback across complevels: vanilla LMP (incl. longtics),
+   Boom / MBF / MBF21 extended formats. Demos double as our regression vectors (see Testing Standards).
+6. **Multiplayer is optional.** Core simulation stays single-player deterministic. Networking lives behind a
+   feature boundary and must never leak into the core loop's structure or determinism.
+7. **WAD compatibility levels.** REQUIRED: **Vanilla, Limit-Removing, Boom (2.02), MBF**. NAMED TARGET:
+   **MBF21, ID24**. Behavior is selected by an explicit complevel value; never silently mix behaviors across
+   tiers, and never let a higher tier change a lower tier's observable behavior.
+
+## Compatibility Strategy (Spec-First, No ZDoom)
+
+Resolution order for any compatibility question: **(1) published spec → (2) mature reference port → (3)
+original source**. The ZDoom family (ZDoom/GZDoom/UZDoom) is excluded as a reference.
+
+**Reference policy (decided 2026-09-17):** the implementation base is our fork of `sunsided/room`
+(Vanilla-exact core); every tier above Vanilla is additive engine work validated against the references in the
+table — reading material, never wholesale pasted code. Other Rust Doom projects (rust-doom, iron-doom, doome,
+ferrum-doom, …) are **not** references. WASM-layer references: `crustyview` (browser WAD loading UX, automap
+rendering ideas) and `GMH-Code/Dwasm` (uncapped FPS, custom resolution/aspect, single-file self-contained
+deployment; GPL-2.0 — code-level borrowing is license-compatible).
+
+| Tier | Spec? | Primary reference | Secondary |
+|---|---|---|---|
+| Vanilla | No (semantics = linuxdoom-1.10) | `id-Software/DOOM`; Chocolate Doom as the vanilla-accuracy checklist (`PHILOSOPHY`, `NOT-BUGS`) | Doom Wiki |
+| Limit-Removing | No | Crispy Doom — enumerate exactly which limits are lifted (visplanes, SPECHITS, plats, openings, …) | Doom Wiki "Limit removing" |
+| Boom | No | Boom 2.02 source (`doom-cross-port-collab/boom`) + its `BOOMREF.TXT` / `BOOMDEH.TXT` / `BOOMLUMP.TXT`; complevel table in prboom-plus docs | dsda-doom compat switches |
+| MBF | No | MBF 2.03 source (`doom-cross-port-collab/mbf`, Boom-based) | Woof! (MBF continuation) |
+| MBF21 | **Yes** — `kraflab/mbf21` `docs/spec.md` + `docs/developer_spec.md` (v1.4) | dsda-doom (first implementation, complevel 21) | Woof! |
+| ID24 | **Yes** — `doom-cross-port-collab/id24` (v0.99.2 draft) | Woof! 16.x (most complete community implementation) | spec repo's `source_code_reference/` |
+
+Notes:
+- prboom-plus (`coelckers/prboom-plus`) was archived 2023 — treat it as a frozen snapshot; its successor is
+  dsda-doom.
+- ID24 is a pre-1.0 draft and **not** fully Boom/MBF21-compatible (demos, weapon behavior differ). Implement it
+  **last**, as an additive layer; keep the DeHacked layer DSDHacked-ready so ID24 slots in without rework.
+- Full research with URLs and the port×complevel matrix lives in `docs/research/references-and-specs.md`.
+
+## Architecture
+
+- Workspace: `core` (the single source of truth for all engine logic) + thin platform shells (a `web` shell on
+  wasm-bindgen; a native dev shell is allowed). Shells own only rendering surfaces, input plumbing, and platform
+  concerns — never logic. Logic is never duplicated between shells.
+- `core` must not depend on `wasm-bindgen`, `web-sys`, `winit`, or any DOM/OS API. The shell↔core boundary is a
+  small trait set modeled on doomgeneric's minimal interface (init / draw frame / get ticks / get keys).
+- **Determinism is a feature, not an optimization detail.** Simulation is integer/fixed-point exactly as
+  vanilla used it: no floats in sim, no hash-map iteration order reaching sim state, seeded deterministic RNG.
+  When vanilla relied on accidental behavior, replicate that behavior explicitly and mark it with `//!`.
+- One `Complevel` enum drives every compat switch. Per-tier behavior gets its own table in `core`, reviewed
+  against that tier's primary reference.
+
+### Fork Discipline (`sunsided/room`)
+
+- The upstream is **active** — keep an `upstream` remote, merge room master regularly, and never rewrite
+  history in ways that block future merges.
+- Preserve room's module layout, file names, and its C-vs-Rust differential-test culture; deviation needs a
+  stated reason. Merge friction is a real cost.
+- Keep changes upstreamable: bugfixes and general improvements (the WASM platform layer itself is a prime
+  candidate) stay PR-shaped and go back to room. This is how the DOOM community works — participate.
+- GPL-2.0 inheritance is accepted: keep `LICENSE`, preserve copyright/provenance headers, add ours on new
+  files.
+- First milestones on the fork: (1) run upstream's `cargo test --test demo_playthrough` to establish the
+  demo-playback baseline (upstream already ships this regression — it is the evidence that demo playback
+  works there); (2) carve the platform layer (winit/wgpu/rodio) into a shell trait so the native dev shell
+  and the new wasm shell can coexist.
+
+### Upstream Engineering References
+
+- room's own engineering/agent doc is preserved in-tree at `docs/upstream/room-AGENTS.md` (moved from the
+  repo root, tracked as a rename). It documents the C→Rust porting lessons that MUST be followed when
+  touching ported modules — e.g. `angle_t` (`u32`) arithmetic must use `wrapping_*`, FFI strings must be
+  null-terminated byte slices, `#[repr(C)]` padding/zeroing rules — plus the ASan workflow and the
+  `c2rust-intermediate/` behavioral reference crate (excluded from default build; nightly-only). Read it
+  before editing anything under `room/src/doom/`.
+- The GitNexus sections inside that doc apply only when the GitNexus MCP server is connected; it is not part
+  of this environment's toolset — ignore those instructions and keep the rest.
+
+### Web Entry Contract (two explicit exports)
+
+The wasm surface exposes two entry functions that MUST stay explicitly separated — their behaviors differ by
+design, and one must never degrade into the other via optional parameters or flags:
+
+- **Minimal entry** — arguments: device metadata (at minimum the maximum render resolution the host allows,
+  so the engine caps its framebuffer to the device) + the loaded IWAD. It boots the engine into **launcher
+  mode**: the config UI is shown first, where the user supplies PWADs, SF2/MIDI assets, and options; the game
+  starts only after that.
+- **Standard entry** — arguments: a complete boot profile (IWAD, PWADs and their order, options, assets). It
+  starts the game directly with no config UI. Intended for hosts that bring their own UI.
+
+Separation lives at the contract surface only: internally both entries converge on the same init pipeline
+with different boot profiles — never two divergent init code paths. The PWAD/asset set is fixed at boot;
+mid-game asset swaps are out of scope until explicitly designed (they are determinism hazards).
+
+## Code Formatting & Style Guidelines
+
+- `rustfmt` is authoritative; run `cargo fmt` on touched files. **Zero `cargo clippy` warnings is the goal.**
+  For unavoidable findings, suppress with an inline reason (`#![allow(...)] // ! Reason…`). Deprecated APIs are
+  never used.
+- Comment prefix system:
+  - `//*` — explains something important.
+  - `//!` — explains something edgy, counterintuitive, or footgunny.
+  - `//?` — confusion, TODO, FIX.
+- Comments explain **why, not what**; no doc block on the self-evident. Comments default to **Chinese**, always
+  half-width ASCII punctuation; follow file-local convention when a file already uses another language.
+- Always use guard clauses; prefer expression bodies for one-liners. Self-descriptive names; readability over
+  brevity — long but meaningful names are acceptable.
+- Temporary mess is acceptable inside module boundaries; anything crossing a declared boundary must be clean.
+- Model WAD/lump data as typed structs — no `serde_json::Value` or weakly-typed maps as DTO substitutes.
+- `unsafe` only with local justification and a `// SAFETY:` comment. Code reachable from WAD input must not
+  panic — parse with `Result` and report errors.
+
+## Tooling & Workflow Protocols
+
+1. Any file referenced here or in `docs/` must be read via file-reading tools before writing code that depends
+   on it.
+2. **Verification before done:** `cargo build` + `cargo clippy` + `cargo test` on host, plus
+   `cargo build --target wasm32-unknown-unknown` whenever the web layer is touched. Never claim success without
+   running them; report failures with real output.
+3. **Timeout discipline:** every build/test/run command carries an explicit bounded timeout. Exit 124 = timed
+   out = FAILED; record partial evidence, report the stall — never retry blindly, and never raise the limit.
+   A command needing >300 s is a signal to **decompose** the work.
+4. **No concurrent heavy commands.** Never run two builds/tests in parallel (not as parallel tool-call batches,
+   not across subagents) — this machine freezes. Use `--no-<phase>` flags to keep re-runs cheap.
+5. **Dependency freeze.** Introducing any new crate requires explicit user approval. Prefer zero-dependency,
+   wasm-clean pure-Rust crates. The approved list starts empty and grows only via the Open Decisions table.
+6. **Reference clones are read-only.** Vendored upstream sources (Chocolate, Crispy, Boom/MBF sources,
+   dsda-doom, Woof!, Dwasm, crustyview, …) live under `reference/` and are never built into our targets,
+   never modified, never committed inside. Cite their files as evidence; write shipped code fresh in Rust.
+   The exception is the fork itself — room code in our tree is ours to change (see Fork Discipline).
+7. Never commit unless the user explicitly asks; inspect `git status` / `git diff` first, stage only intended
+   files, never commit secrets or WAD files.
+8. PowerShell invocations use `-NoProfile`. Long-running scripts the user waits on end with
+   `[console]::beep(880, 250)`.
+
+## Testing Standards
+
+- Tests never hit the network and never require commercial IWADs. Use tiny synthetic WAD fixtures built
+  in-test or committed fixtures we generate ourselves.
+- **Golden demo tests are mandatory:** a fixed demo input must produce byte-identical simulation state hashes
+  across runs **and across host/wasm targets**. This is the project's core regression mechanism — demo-exact
+  determinism is both a product requirement (constraint 5) and the test oracle.
+- Where a GPL reference's behavior must be matched but its code cannot be reused, use differential testing:
+  run reference and ours side-by-side on the same inputs and compare observable outputs (the
+  `sunsided/room` C-vs-Rust harness pattern), rather than copying code.
+- When a shared test helper exists for a fixture type, using it is mandatory; no ad-hoc inline duplicates.
+
+## Documentation Standards
+
+- After a task changes design or usage, synchronize `docs/DESIGN.md` and `README.md`.
+- Compatibility decisions are recorded per complevel in a decision log under `docs/`, each entry citing the
+  spec section or reference-port file it was derived from. No uncited compat behavior.
+- Changelogs (once shipping) are user-facing: no implementation details, no `[Unreleased]` header churn;
+  feature → minor bump, fix → patch bump.
+
+## CRITICAL PROTOCOL: SKILL ENFORCEMENT & HARD STOP
+
+Before starting any task, check the harness's available-skills list. If a skill matches the task (creative
+work, debugging, planning, verification, parallel dispatch, …), you are expressly forbidden from solving the
+task directly: invoke the matching skill and follow it. If no skill applies, proceed. If the skill system is
+inaccessible, state exactly that once, then proceed with the discipline this file already prescribes.
