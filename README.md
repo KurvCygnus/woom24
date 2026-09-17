@@ -73,14 +73,19 @@ room/
 
 ## Building
 
+The workspace splits the project in two: the `room` crate is the engine
+library (no windowing/GPU/audio dependencies), and `shells/native` (package
+`room-shell-native`) is the native platform shell (winit/wgpu/rodio).
+Build the shell with:
+
 ```bash
-cargo build --release
+cargo build -p room-shell-native --release
 ```
 
 ## Running
 
 ```bash
-cargo run --release -- -iwad /path/to/doom1.wad
+cargo run -p room-shell-native --bin room -- -iwad doom1.wad
 ```
 
 Any arguments after `--` are forwarded to the Doom engine unchanged.

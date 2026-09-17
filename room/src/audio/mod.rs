@@ -14,8 +14,8 @@
 //! is both safe and the simplest place to hold the backend handle without
 //! introducing any global lock.
 
-pub mod sfx;
 pub(crate) mod music;
+pub mod sfx;
 
 pub use music::{mus2midi, SAMPLE_RATE};
 pub use sfx::{decode_doom_sfx, gains_from, PanState};
@@ -116,7 +116,10 @@ mod noop_tests {
     #[test]
     fn noop_backend_reports_silence() {
         let mut b = NoopBackend;
-        assert!(b.start_sound(&[], 100, 128, 0), "Noop accepts sounds (silent success)");
+        assert!(
+            b.start_sound(&[], 100, 128, 0),
+            "Noop accepts sounds (silent success)"
+        );
         assert!(!b.is_playing(0), "Noop never reports playback");
         assert!(!b.is_music_playing(), "Noop never reports music");
         b.stop_sound(0);

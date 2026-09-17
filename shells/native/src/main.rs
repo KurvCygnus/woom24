@@ -273,7 +273,8 @@ fn main() {
     // Install the native audio backend before the event loop (and therefore
     // the engine) starts; `doom::i_sound` builds it when audio is initialised.
     room::audio::set_backend_factory(|| {
-        RodioBackend::new().map(|b| Box::new(b) as Box<dyn room::audio::AudioBackend>)
+        RodioBackend::new()
+            .map(|b| Box::new(b) as Box<dyn room::audio::AudioBackend>)
             .map_err(|e| e.to_string())
     });
 

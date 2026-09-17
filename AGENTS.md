@@ -11,10 +11,7 @@ compatibility target. The name is the mission statement, deadpan on purpose:
 | **oom** | **(D)oom** — engine work: demo-exact simulation, Boom/MBF-family compatibility. |
 | **24** | **ID24** — the compatibility ceiling the project is named after; the roadmap ends there. |
 
-Status: **forked, baseline green** — `sunsided/room` @ `main` is checked out (remote `upstream`; GitHub-side
-fork pending). `cargo build` and `cargo test` pass on the Windows host (372 unit tests + 2 demo-playthrough
-tests); demo playback is verified. The local Windows-portability patch set (`doom/crt.rs`, test `DG_*` stubs,
-`m.lib`/LFS/build.rs fixes) is pending upstreaming to room. woom24-specific feature work has not started.
+Status: **spec ① implemented** — platform layer lives in `shells/native`; `room` lib carries no windowing/GPU/audio deps; audio goes through the `AudioBackend` control plane. Wasm gap (CRT externs + LP64 guards) enumerated in the spec and handed to specs ②/③. GitHub-side fork: KurvCygnus/woom24 (origin); upstream: sunsided/room.
 This file is the binding contract for any agent working in this
 repository. When analyzing, reviewing, or generating code, strictly align with the constraints below.
 

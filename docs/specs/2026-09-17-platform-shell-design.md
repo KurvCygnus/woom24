@@ -1,7 +1,7 @@
 # Design: Platform shell carve-out (`shells/native`, wasm-clean `room` lib)
 
 **Date:** 2026-09-17
-**Status:** Approved (design; implementation plan pending)
+**Status:** Implemented (2026-09-17; Goal 1 amended — wasm CRT gap handed to specs ②/③, see Goals)
 **Series:** ① this spec (platform seam) → ② wasm shell (`wasm-bindgen`) → ③ c_tests LP64 strategy
 
 ## Problem
