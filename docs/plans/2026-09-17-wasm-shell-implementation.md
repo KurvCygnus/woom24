@@ -1578,6 +1578,7 @@ impl WebAudioBackend {
         Some(buf)
     }
 }
+```
 
 Add `font: Option<SynthFont>` to the struct and constructor (`font: None` initially, set in `preload_sound_font`). Then the trait impl:
 
