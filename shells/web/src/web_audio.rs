@@ -146,7 +146,12 @@ impl BackendCore {
         // 音乐调度：时间线上保持 0.2s 领先。
         while self.music.is_some() && self.music_next_time < now + 0.2 {
             let Some(buf) = self.render_block_buffer() else {
-                break; // 序列结束且已排空
+                // 序列排空: 会话归位 (fix round 2)。若不置 None, engine 会话
+                // 永不结束 -- scheduled 每块累积一个已播完的节点包装
+                // (长曲数万个), 且 is_music_playing 恒 true, 卡死引擎经
+                // i_sound 的会话轮询。
+                self.music = None;
+                break;
             };
             let Ok(src) = self.ctx.create_buffer_source() else {
                 break;
@@ -158,7 +163,9 @@ impl BackendCore {
             self.music_next_time += BLOCK_SIZE as f64 / 44100.0;
         }
         if self.music.is_none() && !self.scheduled.is_empty() {
-            // 序列结束后仅当尾块播完才真正归位。
+            // 排空当帧即到此处 (fix round 2 后本分支真正可达): 丢弃已排入
+            // 的节点包装。浏览器侧已 start() 的尾块照常播完 (音频图持有
+            // 节点直到播完), Rust 侧只丢包装, 不泄漏。
             self.scheduled.clear();
         }
     }
