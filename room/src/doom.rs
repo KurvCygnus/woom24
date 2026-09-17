@@ -17,6 +17,7 @@
 
 pub mod am_map;
 pub mod c_ffi;
+pub mod crt;
 
 pub mod d_event;
 pub mod d_items;
@@ -99,5 +100,8 @@ pub mod w_wad;
 pub mod wi_stuff;
 pub mod z_zone;
 
-#[cfg(test)]
+// Differential C-vs-Rust tests assume the LP64 data model
+// (`c_long`/`c_ulong` == 8 bytes, see `c_tests/harness.rs`); Windows is
+// LLP64, so this suite is Unix-only until that is audited.
+#[cfg(all(test, unix))]
 mod c_tests;

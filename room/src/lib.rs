@@ -55,6 +55,34 @@ pub mod doom;
 pub mod headless;
 pub mod types;
 
+/// No-op doomgeneric platform callbacks for the unit-test binary.
+///
+/// The unit tests link the engine library without the real platform layer
+/// (`src/platform`, included only by the player binary in `main.rs`) that
+/// defines the `DG_*` callbacks, so the test binary cannot resolve them on
+/// its own. Integration tests (`tests/demo_playthrough.rs`) carry their own
+/// copies of these stubs; this module only exists under `cfg(test)` and is
+/// never part of the shipped library.
+#[cfg(test)]
+mod dg_test_stubs {
+    #[no_mangle]
+    extern "C" fn DG_Init() {}
+    #[no_mangle]
+    extern "C" fn DG_DrawFrame() {}
+    #[no_mangle]
+    extern "C" fn DG_SleepMs(_ms: u32) {}
+    #[no_mangle]
+    extern "C" fn DG_GetTicksMs() -> u32 {
+        0
+    }
+    #[no_mangle]
+    extern "C" fn DG_GetKey(_pressed: *mut i32, _doom_key: *mut u8) -> i32 {
+        0
+    }
+    #[no_mangle]
+    extern "C" fn DG_SetWindowTitle(_title: *const std::ffi::c_char) {}
+}
+
 // Re-export `dhat` when the `dhat-heap` Cargo feature is enabled so binaries
 // can install the heap profiler without listing `dhat` as a direct dependency.
 #[cfg(feature = "dhat-heap")]

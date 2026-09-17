@@ -231,5 +231,7 @@ fn main() {
     build.compile("doomgeneric");
 
     // Link against libm for math functions used by the engine.
+    // MSVC's UCRT provides the math functions inline; there is no libm.
+    #[cfg(unix)]
     println!("cargo:rustc-link-lib=m");
 }

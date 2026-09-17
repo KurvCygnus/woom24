@@ -98,8 +98,6 @@ const fn cfg(name: &'static [u8], ty: DefaultType) -> Default {
 extern "C" {
     /// libc `printf`: used for the boot-time status messages.
     fn printf(fmt: *const c_char, ...) -> c_int;
-    /// libc `strdup`: heap-duplicate a string (for `String` variables).
-    fn strdup(s: *const c_char) -> *mut c_char;
     /// libc `strcmp`: compare two C strings.
     fn strcmp(a: *const c_char, b: *const c_char) -> c_int;
     /// libc `atof`: parse a `c_char*` as a double-precision number.
@@ -107,6 +105,8 @@ extern "C" {
     /// libc `malloc`: used by `GetDefaultConfigDir`.
     fn malloc(n: usize) -> *mut c_void;
 }
+
+use crate::doom::crt::strdup;
 
 use crate::doom::m_argv::{myargv, M_CheckParmWithArgs};
 use crate::doom::m_misc::{M_MakeDirectory, M_StringJoinA};

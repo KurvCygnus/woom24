@@ -22,6 +22,7 @@ use crate::doom::w_file::{wad_file_t, W_OpenFile, W_Read};
 use crate::doom::d_iwad::D_SuggestGameName;
 use crate::doom::d_mode::D_GameMissionString;
 use crate::doom::i_video::{I_BeginRead, I_EndRead};
+use crate::doom::crt::{strcasecmp, strncasecmp};
 use crate::doom::m_misc::M_ExtractFileBase;
 use crate::doom::z_zone::{Z_ChangeTag2, Z_ChangeUser, Z_Free, Z_Malloc, PU_CACHE, PU_STATIC};
 
@@ -91,10 +92,6 @@ pub static mut numlumps: c_uint = 0;
 static mut lumphash: *mut *mut lumpinfo_t = ptr::null_mut();
 
 extern "C" {
-    /// libc: case-insensitive compare of first `n` bytes.
-    fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    /// libc: case-insensitive string compare.
-    fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
     /// libc: byte-equal compare of first `n` bytes.
     fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     /// libc: copy up to `n` bytes, NUL-padding the destination.

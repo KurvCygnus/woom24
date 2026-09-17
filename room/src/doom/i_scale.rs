@@ -58,14 +58,25 @@ use crate::doom::z_zone::{Z_Free, Z_Malloc};
 use std::ffi::{c_int, c_void};
 use std::ptr;
 
-extern "C" {
-    /// libc `stdout` stream, referenced for `fflush` during the
-    /// "Generating lookup tables.." progress prints.
-    static mut stdout: *mut libc::FILE;
-}
-
 use crate::doom::i_video::{SCREENHEIGHT, SCREENWIDTH};
 use crate::doom::z_zone::PU_STATIC;
+
+/// `stdout` for the progress-print flushes. UCRT exposes no `stdout`
+/// data symbol, so Windows flushes the NULL stream (i.e. all streams)
+/// instead of the POSIX `stdout` object.
+unsafe fn stdout_placeholder() -> *mut libc::FILE {
+    #[cfg(unix)]
+    {
+        extern "C" {
+            static mut stdout: *mut libc::FILE;
+        }
+        std::ptr::addr_of_mut!(stdout)
+    }
+    #[cfg(windows)]
+    {
+        std::ptr::null_mut()
+    }
+}
 
 /// Source framebuffer for the current scale call, set by
 /// [`I_InitScale`]. Points to Doom's `SCREENWIDTH * SCREENHEIGHT`
@@ -393,10 +404,10 @@ unsafe extern "C" fn i_init_stretch_tables(palette: *mut u8) {
         return;
     }
     libc::printf(c"I_InitStretchTables: Generating lookup tables..".as_ptr());
-    libc::fflush(stdout);
+    libc::fflush(stdout_placeholder());
     stretch_tables[0] = generate_stretch_table(palette, 20);
     libc::printf(c"..".as_ptr());
-    libc::fflush(stdout);
+    libc::fflush(stdout_placeholder());
     stretch_tables[1] = generate_stretch_table(palette, 40);
     libc::puts(c"".as_ptr());
 }
@@ -413,7 +424,7 @@ unsafe extern "C" fn i_init_squash_table(palette: *mut u8) {
         return;
     }
     libc::printf(c"I_InitSquashTable: Generating lookup table..".as_ptr());
-    libc::fflush(stdout);
+    libc::fflush(stdout_placeholder());
     half_stretch_table = generate_stretch_table(palette, 50);
     libc::puts(c"".as_ptr());
 }

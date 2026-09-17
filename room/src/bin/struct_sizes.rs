@@ -16,6 +16,29 @@
 //!
 //! No options, no output parsing: it just prints to stdout.
 
+/// No-op stand-ins for the six doomgeneric platform callbacks.
+///
+/// This diagnostic binary links the engine library without the winit/wgpu
+/// platform layer (`src/platform`, included only by the player binary)
+/// that provides the `DG_*` callbacks; the stubs satisfy those link-time
+/// references. The engine is never run here.
+#[no_mangle]
+extern "C" fn DG_Init() {}
+#[no_mangle]
+extern "C" fn DG_DrawFrame() {}
+#[no_mangle]
+extern "C" fn DG_SetWindowTitle(_title: *const std::ffi::c_char) {}
+#[no_mangle]
+extern "C" fn DG_GetKey(_pressed: *mut i32, _doom_key: *mut u8) -> i32 {
+    0
+}
+#[no_mangle]
+extern "C" fn DG_GetTicksMs() -> u32 {
+    0
+}
+#[no_mangle]
+extern "C" fn DG_SleepMs(_ms: u32) {}
+
 /// Program entry point: dump struct sizes and field offsets to stdout.
 ///
 /// Each block of `println!` calls follows the same pattern: one heading line,

@@ -35,8 +35,6 @@ pub static mut myargc: c_int = 0;
 pub static mut myargv: *mut *mut c_char = std::ptr::null_mut();
 
 extern "C" {
-    /// libc `strcasecmp` — case-insensitive string compare.
-    fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
     /// libc `fopen` — open a file by path with the given mode string.
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut FILE;
     /// libc `fread` — read up to `nmemb` elements of `size` bytes each.
@@ -55,6 +53,7 @@ extern "C" {
     fn printf(format: *const c_char, ...) -> c_int;
 }
 
+use crate::doom::crt::strcasecmp;
 use crate::doom::m_misc::{M_FileLength, FILE as MiscFILE};
 
 /// `int M_CheckParmWithArgs(char *check, int num_args)` — search the

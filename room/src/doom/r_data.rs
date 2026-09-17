@@ -226,14 +226,10 @@ struct spritedef_t {
 }
 
 // ---------------------------------------------------------------------------
-// Externs from other modules
+// Imports from other modules
 // ---------------------------------------------------------------------------
 
-extern "C" {
-    /// POSIX case-insensitive string comparison, at most `n` bytes.
-    fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-}
-
+use crate::doom::crt::strncasecmp;
 use crate::doom::g_game::demoplayback;
 use crate::doom::i_system::I_ConsoleStdout;
 use crate::doom::m_misc::M_StringCopy;

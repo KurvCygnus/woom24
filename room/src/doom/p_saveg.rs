@@ -2187,6 +2187,9 @@ mod tests {
 
     /// Runs `f` with `save_stream` pointed at an in-memory buffer backed by
     /// `data`, then restores the original stream and error globals on exit.
+    // glibc `fmemopen` has no MSVC equivalent; Unix-only until the savegame
+    // stream source is abstracted.
+    #[cfg(unix)]
     unsafe fn with_mem_stream<F: FnOnce()>(data: &mut [u8], f: F) {
         let old_stream = save_stream;
         let old_error = savegame_error;
@@ -2205,6 +2208,8 @@ mod tests {
         savegamelength = old_len;
     }
 
+    // glibc `fmemopen` (see `with_mem_stream`) is unavailable on Windows.
+    #[cfg(unix)]
     #[test]
     fn saveg_read_thinker_t_zero_fn_ptr_becomes_none() {
         let _g = LOCK.lock().unwrap();
@@ -2226,6 +2231,8 @@ mod tests {
         }
     }
 
+    // glibc `fmemopen` (see `with_mem_stream`) is unavailable on Windows.
+    #[cfg(unix)]
     #[test]
     fn saveg_read_mobj_t_zero_fn_ptr_becomes_none() {
         use crate::doom::c_ffi::mobj_t;

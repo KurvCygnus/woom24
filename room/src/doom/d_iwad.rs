@@ -21,6 +21,7 @@ use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
 use crate::doom::d_mode;
+use crate::doom::crt::{strcasecmp, strdup};
 use crate::doom::m_misc::M_StringJoinA;
 use crate::i_error;
 
@@ -46,8 +47,6 @@ extern "C" {
     /// Returns non-zero if `filename` names an existing regular file.
     fn M_FileExists(filename: *mut c_char) -> c_int;
 
-    /// Case-insensitive string comparison (POSIX).
-    fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int;
     /// Locates the last occurrence of character `c` in string `s`.
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     /// Case-sensitive string comparison.
@@ -55,8 +54,6 @@ extern "C" {
     /// Returns the length of a null-terminated C string (not including the
     /// terminator).
     fn strlen(s: *const c_char) -> usize;
-    /// Duplicates a C string, returning a heap-allocated copy.
-    fn strdup(s: *const c_char) -> *mut c_char;
     /// Frees a heap-allocated block.
     fn free(ptr: *mut c_void);
     /// Allocates `size` bytes of uninitialised heap memory.

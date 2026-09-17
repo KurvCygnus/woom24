@@ -111,14 +111,10 @@ struct column_t {
 }
 
 // ---------------------------------------------------------------------------
-// Externs from other modules
+// Imports from other modules
 // ---------------------------------------------------------------------------
 
-extern "C" {
-    /// Case-insensitive string comparison of at most `n` bytes.
-    /// Used to match 4-character sprite names from WAD lump headers.
-    fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-}
+use crate::doom::crt::strncasecmp;
 
 use crate::doom::doomstat::modifiedgame;
 use crate::doom::r_bsp::{drawsegs, ds_p};

@@ -60,18 +60,10 @@ extern "C" {
     fn calloc(nmemb: usize, size: usize) -> *mut c_void;
     /// libc `free`: release memory previously returned by `malloc`/`calloc`.
     fn free(ptr: *mut c_void);
-    /// libc `strdup`: allocate a malloc'd copy of a null-terminated string.
-    fn strdup(s: *const c_char) -> *mut c_char;
-    /// libc per-thread errno location, used by [`errno`].
-    fn __errno_location() -> *mut c_int;
-    /// libc `mkdir`: create `path` with the given permission bits.
-    fn mkdir(path: *const c_char, mode: u32) -> c_int;
     /// libc `toupper`: convert an ASCII character to upper case.
     fn toupper(c: c_int) -> c_int;
     /// libc `tolower`: convert an ASCII character to lower case.
     fn tolower(c: c_int) -> c_int;
-    /// libc `strncasecmp`: case-insensitive compare of the first `n` bytes.
-    fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
     /// libc `strlen`: length of a null-terminated string.
     fn strlen(s: *const c_char) -> usize;
     /// libc `strcmp`: compare two null-terminated strings.
@@ -92,6 +84,7 @@ extern "C" {
     fn vsnprintf(s: *mut c_char, n: usize, format: *const c_char, arg: ...) -> c_int;
 }
 
+use crate::doom::crt::{strncasecmp, strdup};
 use crate::doom::z_zone::Z_Malloc;
 
 /// Returns the current value of libc `errno` for the calling thread.
@@ -102,7 +95,7 @@ use crate::doom::z_zone::Z_Malloc;
 /// caller must not retain the returned `int` across operations that may
 /// reset `errno`.
 unsafe fn errno() -> c_int {
-    *__errno_location()
+    *crate::doom::crt::errno_location()
 }
 
 /// Create the directory at `path` with permissions `0o755`.
@@ -113,7 +106,7 @@ unsafe fn errno() -> c_int {
 #[no_mangle]
 pub extern "C" fn M_MakeDirectory(path: *mut c_char) {
     unsafe {
-        mkdir(path, 0o755);
+        crate::doom::crt::mkdir(path, 0o755);
     }
 }
 
