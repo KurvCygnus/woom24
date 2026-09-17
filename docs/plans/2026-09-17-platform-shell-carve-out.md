@@ -85,7 +85,11 @@ dhat = { version = "0.3", optional = true }
 - [ ] **Step 3: Edit `room/Cargo.toml`**
 
 Remove the whole `[[bin]]` table, and remove these dependency lines (they are bin-only):
-`winit`, `wgpu`, `pollster`, `env_logger`, `dhat` optional dep, and the `dhat-heap` feature entry.
+`winit`, `wgpu`, `pollster`, `env_logger`.
+**Keep** `dhat` (optional) and the `dhat-heap` feature — they gate lib-side heap profiling for
+`cargo test --features dhat-heap --test demo_playthrough` (documented in
+`docs/upstream/room-AGENTS.md`); `shells/native` gets its own copy of both for the binary
+allocator.
 Keep: `bytemuck`, `log`, `libc`, `rustysynth`, `rodio` (still used by the lib audio module until Task 3),
 `[dev-dependencies] doomgeneric-sys`, and the `[lib]` table.
 
