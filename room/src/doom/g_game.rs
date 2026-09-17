@@ -41,13 +41,14 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use std::ptr;
 
-use crate::doom::crt::c_printf3;
+use crate::doom::crt::{c_printf3, c_snprintf1, c_snprintf2};
 use crate::doom::d_mode::{
     commercial, doom, exe_chex, exe_doom_1_2, exe_doom_1_666, exe_doom_1_7, exe_doom_1_8,
     exe_final2, exe_ultimate, shareware,
 };
 use crate::doom::d_player::{PlayerT, TiccmdT, MAXPLAYERS};
 use crate::doom::doomstat::{gamemission, gamemode, gameversion};
+use crate::doom::i_system::I_Error;
 use crate::doom::m_random::P_Random;
 use crate::doom::p_inter::maxammo;
 use crate::doom::p_setup::{
@@ -651,13 +652,6 @@ static mut DEMOVERSIONBUF: [c_char; 16] = [0; 16];
 // ---------------------------------------------------------------------------
 
 extern "C" {
-    /// libc `snprintf` - variadic; only the buffer-pointer / length form is
-    /// actually invoked from this module (turbo banner and demo-version text).
-    fn snprintf(buf: *mut c_char, len: usize, fmt: *const c_char, ...) -> c_int;
-
-    /// Engine-wide fatal error from `i_system.c`. Kept variadic because call
-    /// sites pass `printf`-style format arguments.
-    fn I_Error(format: *const c_char, ...) -> !;
     /// Engine-wide clean shutdown from `i_system.c` (used by single demos).
     fn I_Quit() -> !;
 }
@@ -1547,7 +1541,7 @@ pub unsafe extern "C" fn G_Ticker() {
                 M_snprintf_clamp(
                     std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
                     80,
-                    snprintf(
+                    c_snprintf1(
                         std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
                         80,
                         c"%s is turbo!".as_ptr(),
@@ -1560,11 +1554,7 @@ pub unsafe extern "C" fn G_Ticker() {
 
             if netgame != 0 && netdemo == 0 && (gametic % ticdup) == 0 {
                 if gametic > BACKUPTICS as c_int && consistancy[i][buf] != (*cmd).consistancy {
-                    I_Error(
-                        c"consistency failure (%i should be %i)".as_ptr(),
-                        (*cmd).consistancy as c_int,
-                        consistancy[i][buf] as c_int,
-                    );
+                    I_Error(c"consistency failure (%i should be %i)".as_ptr());
                 }
                 let mo = players[i].mo as *mut mobj_t;
                 if !mo.is_null() {
@@ -1808,7 +1798,7 @@ pub unsafe extern "C" fn G_CheckSpot(playernum: c_int, mthing: *mut mapthing_t) 
             ya = finesine[an_raw as usize];
         }
         _ => {
-            I_Error(c"G_CheckSpot: unexpected angle %d\n".as_ptr(), an_raw);
+            I_Error(c"G_CheckSpot: unexpected angle %d\n".as_ptr());
         }
     }
 
@@ -1841,7 +1831,7 @@ pub unsafe extern "C" fn G_CheckSpot(playernum: c_int, mthing: *mut mapthing_t) 
 pub unsafe extern "C" fn G_DeathMatchSpawnPlayer(playernum: c_int) {
     let selections = deathmatch_p.offset_from(std::ptr::addr_of!(deathmatchstarts[0])) as c_int;
     if selections < 4 {
-        I_Error(c"Only %i deathmatch spots, 4 required".as_ptr(), selections);
+        I_Error(c"Only %i deathmatch spots, 4 required".as_ptr());
     }
 
     for _ in 0..20 {
@@ -2274,8 +2264,6 @@ pub unsafe extern "C" fn G_DoSaveGame() {
         if save_stream.is_null() {
             I_Error(
                 c"Failed to open either '%s' or '%s' to write savegame.".as_ptr() as *const c_char,
-                temp_savegame_file,
-                recovery_savegame_file,
             );
         }
     } else {
@@ -2300,8 +2288,6 @@ pub unsafe extern "C" fn G_DoSaveGame() {
     if !recovery_savegame_file.is_null() {
         I_Error(
             c"Failed to open savegame file '%s' for writing.\nBut your game has been saved to '%s' for recovery.".as_ptr(),
-            temp_savegame_file,
-            recovery_savegame_file,
         );
     }
 
@@ -2709,7 +2695,7 @@ pub unsafe extern "C" fn G_RecordDemo(name: *mut c_char) {
     M_snprintf_clamp(
         demoname,
         demoname_size,
-        snprintf(demoname, demoname_size, c"%s.lmp".as_ptr(), name),
+        c_snprintf1(demoname, demoname_size, c"%s.lmp".as_ptr(), name),
     );
     let mut maxsize: c_int = 0x20000;
     let i = M_CheckParmWithArgs(c"-maxdemo".as_ptr().cast_mut(), 1);
@@ -2739,9 +2725,7 @@ pub unsafe extern "C" fn G_VanillaVersionCode() -> c_int {
 /// exercise the table directly.
 fn g_vanilla_version_code_for(gv: c_int) -> c_int {
     match gv {
-        v if v == exe_doom_1_2 => unsafe {
-            I_Error(c"Doom 1.2 does not have a version code!".as_ptr())
-        },
+        v if v == exe_doom_1_2 => I_Error(c"Doom 1.2 does not have a version code!".as_ptr()),
         v if v == exe_doom_1_666 => 106,
         v if v == exe_doom_1_7 => 107,
         v if v == exe_doom_1_8 => 108,
@@ -2842,7 +2826,7 @@ unsafe fn demo_version_description(version: c_int) -> *const c_char {
                 M_snprintf_clamp(
                     std::ptr::addr_of_mut!(DEMOVERSIONBUF[0]),
                     16,
-                    snprintf(
+                    c_snprintf2(
                         std::ptr::addr_of_mut!(DEMOVERSIONBUF[0]),
                         16,
                         c"%i.%i (unknown)".as_ptr(),
@@ -2922,10 +2906,7 @@ pub unsafe extern "C" fn G_DoPlayDemo() {
     consoleplayer = *demo_p as c_int;
     demo_p = demo_p.add(1);
     if consoleplayer < 0 || consoleplayer >= MAXPLAYERS as c_int {
-        I_Error(
-            c"G_DoPlayDemo: consoleplayer %d out of range\n".as_ptr(),
-            consoleplayer,
-        );
+        I_Error(c"G_DoPlayDemo: consoleplayer %d out of range\n".as_ptr());
     }
 
     for i in 0..MAXPLAYERS {
@@ -2998,17 +2979,9 @@ pub unsafe extern "C" fn G_TimeDemo(name: *mut c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn G_CheckDemoStatus() -> boolean {
     if timingdemo != 0 {
-        let endtime = I_GetTime();
-        let realtics = endtime - starttime;
-        let fps = (gametic as f32 * 35.0) / realtics as f32;
         timingdemo = 0;
         demoplayback = 0;
-        I_Error(
-            c"timed %i gametics in %i realtics (%f fps)".as_ptr(),
-            gametic,
-            realtics,
-            fps as f64,
-        );
+        I_Error(c"timed %i gametics in %i realtics (%f fps)".as_ptr());
     }
 
     if demoplayback != 0 {
@@ -3043,7 +3016,7 @@ pub unsafe extern "C" fn G_CheckDemoStatus() -> boolean {
         );
         Z_Free(demobuffer as *mut c_void);
         demorecording = 0;
-        I_Error(c"Demo %s recorded".as_ptr(), demoname);
+        I_Error(c"Demo %s recorded".as_ptr());
     }
 
     0

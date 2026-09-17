@@ -322,6 +322,24 @@ pub unsafe fn c_snprintf2<A: CArg, B: CArg>(
     }
 }
 
+/// `sscanf(s, fmt, ...)` for the single-conversion shape the engine calls
+/// (`M_StrToInt`); see [`c_printf`] for why the shape is fixed per arity.
+/// `a` is the output pointer slot.
+///
+/// # Safety
+///
+/// As [`c_printf`]; `a` must point to a writable `c_int`.
+pub unsafe fn c_sscanf1<A: CArg>(s: *const c_char, fmt: *const c_char, a: A) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::sscanf(s, fmt, a.into_vararg())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::sscanf1(s, fmt, a.into_vararg())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{strcasecmp, strncasecmp};

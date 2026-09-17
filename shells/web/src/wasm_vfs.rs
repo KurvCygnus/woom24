@@ -164,6 +164,111 @@ pub(crate) fn format(fmt: &[u8], args: &[FmtArg], out: &mut [u8]) -> usize {
 }
 
 // ---------------------------------------------------------------------------
+// sscanf 子集: M_StrToInt 的四个格式串所需的最小解析器 (纯逻辑, 宿主机可测)
+// ---------------------------------------------------------------------------
+
+/// C `isspace` 子集 (空格/制表/换行等).
+fn is_c_space(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r')
+}
+
+/// 吃掉一个可选符号, 返回 (是否负号, 剩余输入).
+fn take_sign(input: &[u8]) -> (bool, &[u8]) {
+    match input.first() {
+        Some(b'-') => (true, &input[1..]),
+        Some(b'+') => (false, &input[1..]),
+        _ => (false, input),
+    }
+}
+
+/// 按给定进制吃数字, 返回 (值, 剩余输入); 一个数字都没有则返回 None.
+fn take_digits(mut input: &[u8], base: u32) -> Option<(i64, &[u8])> {
+    let mut val: i64 = 0;
+    let mut any = false;
+    while let Some(&b) = input.first() {
+        let d = match b {
+            b'0'..=b'9' => (b - b'0') as u32,
+            b'a'..=b'f' if base == 16 => (b - b'a' + 10) as u32,
+            b'A'..=b'F' if base == 16 => (b - b'A' + 10) as u32,
+            _ => break,
+        };
+        if d >= base {
+            break;
+        }
+        val = val.saturating_mul(base as i64).saturating_add(d as i64);
+        any = true;
+        input = &input[1..];
+    }
+    if any { Some((val, input)) } else { None }
+}
+
+/// `sscanf` 单转换最小子集: 只实现引擎审计过的格式语法 --
+/// 空格 = 跳过输入空白, 其余字面量逐字节匹配, `%x`/`%o`/`%d` 整数转换
+/// (M_StrToInt 的 ` 0x%x` / ` 0X%x` / ` 0%o` / ` %d` 全部覆盖).
+/// 返回成功赋值的转换数 (0 或 1); 失败时不动 `out`, 绝不 panic.
+pub(crate) fn sscanf_parse1(fmt: &[u8], input: &[u8], out: &mut i64) -> usize {
+    let mut inp = input;
+    let mut i = 0usize;
+    let mut assigned = 0usize;
+    while i < fmt.len() {
+        match fmt[i] {
+            b' ' => {
+                while inp.first().is_some_and(|&b| is_c_space(b)) {
+                    inp = &inp[1..];
+                }
+                i += 1;
+            }
+            b'%' => {
+                i += 1;
+                let Some(&spec) = fmt.get(i) else { break };
+                i += 1;
+                let parsed = match spec {
+                    b'x' | b'X' => {
+                        let (neg, rest) = take_sign(inp);
+                        // C %x 接受输入侧可选 0x/0X 前缀.
+                        let rest = if rest.len() >= 2
+                            && rest[0] == b'0'
+                            && (rest[1] | 0x20) == b'x'
+                        {
+                            &rest[2..]
+                        } else {
+                            rest
+                        };
+                        take_digits(rest, 16).map(|(v, r)| (if neg { -v } else { v }, r))
+                    }
+                    b'o' => {
+                        let (neg, rest) = take_sign(inp);
+                        take_digits(rest, 8).map(|(v, r)| (if neg { -v } else { v }, r))
+                    }
+                    b'd' | b'i' => {
+                        let (neg, rest) = take_sign(inp);
+                        take_digits(rest, 10).map(|(v, r)| (if neg { -v } else { v }, r))
+                    }
+                    // 未审计转换: 降级为匹配失败 (D1: log + degrade, never trap).
+                    _ => None,
+                };
+                match parsed {
+                    Some((v, rest)) => {
+                        *out = v;
+                        inp = rest;
+                        assigned += 1;
+                    }
+                    None => return 0,
+                }
+            }
+            lit => {
+                if inp.first() != Some(&lit) {
+                    return 0;
+                }
+                inp = &inp[1..];
+                i += 1;
+            }
+        }
+    }
+    assigned
+}
+
+// ---------------------------------------------------------------------------
 // malloc / memset / free: 转发到 Rust 全局分配器 + 布局跟踪表 (D1)
 // ---------------------------------------------------------------------------
 
@@ -498,6 +603,30 @@ pub unsafe extern "C" fn snprintf2(
     out.len() as c_int
 }
 
+/// sscanf 单转换导出: 对应 M_StrToInt 的调用形状 (1 个输出指针槽,
+/// 见 [`sscanf_parse1`]). C 语义: 返回成功赋值的转换数, 不匹配为 0.
+///
+/// # Safety
+/// `s`/`fmt` 必须是 NUL 结尾 C 字符串; `a0` 必须指向可写的 `c_int`.
+#[no_mangle]
+pub unsafe extern "C" fn sscanf1(s: *const c_char, fmt: *const c_char, a0: usize) -> c_int {
+    if s.is_null() || fmt.is_null() || a0 == 0 {
+        return 0;
+    }
+    // SAFETY: 调用方保证 NUL 结尾.
+    let input = unsafe { copy_cstr(s as u32) };
+    let f = unsafe { copy_cstr(fmt as u32) };
+    let mut v: i64 = 0;
+    let n = sscanf_parse1(&f, &input, &mut v);
+    if n == 1 {
+        // SAFETY: a0 是调用方提供的可写 c_int 槽.
+        unsafe {
+            *(a0 as *mut c_int) = v as c_int;
+        }
+    }
+    n as c_int
+}
+
 /// # Safety
 /// `s` 必须是 NUL 结尾 C 字符串.
 #[no_mangle]
@@ -697,5 +826,42 @@ mod tests {
             assert!(b.iter().all(|&x| x == 0));
         }
         shm_free(p);
+    }
+
+    // ---- sscanf 子集 (M_StrToInt 的四个 golden 格式串) ----
+
+    fn scan1(fmt: &str, input: &str) -> Option<i64> {
+        let mut v: i64 = 0;
+        let n = sscanf_parse1(fmt.as_bytes(), input.as_bytes(), &mut v);
+        (n == 1).then_some(v)
+    }
+
+    #[test]
+    fn sscanf_hex_lower_and_upper_prefix() {
+        // m_misc.rs M_StrToInt 的两条十六进制路径.
+        assert_eq!(scan1(" 0x%x", "0x1f"), Some(0x1f));
+        assert_eq!(scan1(" 0X%x", "0X10"), Some(0x10));
+    }
+
+    #[test]
+    fn sscanf_octal_leading_zero() {
+        assert_eq!(scan1(" 0%o", "0755"), Some(0o755));
+    }
+
+    #[test]
+    fn sscanf_decimal_with_whitespace_and_sign() {
+        assert_eq!(scan1(" %d", "   -42"), Some(-42));
+        assert_eq!(scan1(" %d", "+7"), Some(7));
+        assert_eq!(scan1(" %d", "0"), Some(0));
+    }
+
+    #[test]
+    fn sscanf_no_match_returns_zero_conversions() {
+        // 字面量不匹配: 输入没有 0x 前缀.
+        assert_eq!(scan1(" 0x%x", "12"), None);
+        // 转换前输入耗尽.
+        assert_eq!(scan1(" %d", "   "), None);
+        // 前缀后没有合法八进制数字.
+        assert_eq!(scan1(" 0%o", "0Z"), None);
     }
 }

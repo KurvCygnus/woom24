@@ -278,7 +278,7 @@ unsafe fn ZenityErrorBox(message: *const c_char) -> c_int {
 /// pre-formatted C string - the `i_error!` macro takes care of
 /// formatting on the caller side.
 #[no_mangle]
-pub extern "C" fn I_Error(msg: *const c_char) {
+pub extern "C" fn I_Error(msg: *const c_char) -> ! {
     unsafe {
         static mut already_quitting: bool = false;
 
@@ -305,7 +305,7 @@ pub extern "C" fn I_Error(msg: *const c_char) {
             ZenityErrorBox(msg);
         }
 
-        std::process::exit(-1);
+        std::process::exit(-1)
     }
 }
 

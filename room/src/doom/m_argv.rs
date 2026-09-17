@@ -49,11 +49,9 @@ extern "C" {
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
     /// libc `isspace` — classify `c` as whitespace.
     fn isspace(c: c_int) -> c_int;
-    /// libc `printf` — formatted output to stdout.
-    fn printf(format: *const c_char, ...) -> c_int;
 }
 
-use crate::doom::crt::strcasecmp;
+use crate::doom::crt::{c_printf, c_printf1, strcasecmp};
 use crate::doom::m_misc::{M_FileLength, FILE as MiscFILE};
 
 /// `int M_CheckParmWithArgs(char *check, int num_args)` — search the
@@ -108,11 +106,11 @@ unsafe fn LoadResponseFile(argv_index: c_int) {
 
     let handle: *mut FILE = fopen(response_filename as *const c_char, c"rb".as_ptr());
     if handle.is_null() {
-        printf(c"\nNo such response file!".as_ptr());
+        c_printf(c"\nNo such response file!".as_ptr());
         return;
     }
 
-    printf(c"Found response file %s!\n".as_ptr(), response_filename);
+    c_printf1(c"Found response file %s!\n".as_ptr(), response_filename);
 
     let size: c_long = M_FileLength(handle as *mut MiscFILE);
 

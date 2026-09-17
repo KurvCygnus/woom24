@@ -96,8 +96,6 @@ const fn cfg(name: &'static [u8], ty: DefaultType) -> Default {
 }
 
 extern "C" {
-    /// libc `printf`: used for the boot-time status messages.
-    fn printf(fmt: *const c_char, ...) -> c_int;
     /// libc `strcmp`: compare two C strings.
     fn strcmp(a: *const c_char, b: *const c_char) -> c_int;
     /// libc `atof`: parse a `c_char*` as a double-precision number.
@@ -106,7 +104,7 @@ extern "C" {
     fn malloc(n: usize) -> *mut c_void;
 }
 
-use crate::doom::crt::strdup;
+use crate::doom::crt::{c_printf1, strdup};
 
 use crate::doom::m_argv::{myargv, M_CheckParmWithArgs};
 use crate::doom::m_misc::{M_MakeDirectory, M_StringJoinA};
@@ -748,19 +746,19 @@ pub extern "C" fn M_LoadDefaults() {
         let i = M_CheckParmWithArgs(c"-config".as_ptr().cast_mut(), 1);
         if i != 0 {
             doom_defaults.filename = *myargv.offset((i + 1) as isize);
-            printf(c"\tdefault file: %s\n".as_ptr(), doom_defaults.filename);
+            c_printf1(c"\tdefault file: %s\n".as_ptr(), doom_defaults.filename);
         } else {
             let strs: [*const c_char; 3] = [configdir, default_main_config, std::ptr::null()];
             // SAFETY: null-terminated pointer array; result lives for the duration of the program.
             doom_defaults.filename = M_StringJoinA(strs.as_ptr());
         }
 
-        printf(c"saving config in %s\n".as_ptr(), doom_defaults.filename);
+        c_printf1(c"saving config in %s\n".as_ptr(), doom_defaults.filename);
 
         let i = M_CheckParmWithArgs(c"-extraconfig".as_ptr().cast_mut(), 1);
         if i != 0 {
             extra_defaults.filename = *myargv.offset((i + 1) as isize);
-            printf(
+            c_printf1(
                 c"        extra configuration file: %s\n".as_ptr(),
                 extra_defaults.filename,
             );
@@ -889,7 +887,7 @@ pub extern "C" fn M_SetConfigDir(dir: *mut c_char) {
         }
 
         if strcmp(configdir, c"".as_ptr()) != 0 {
-            printf(
+            c_printf1(
                 c"Using %s for configuration and saves\n".as_ptr(),
                 configdir,
             );
@@ -923,7 +921,7 @@ pub extern "C" fn M_GetSaveGameDir(_iwadname: *mut c_char) -> *mut c_char {
             // SAFETY: null-terminated pointer array; ownership transferred to caller via return.
             let savegamedir = M_StringJoinA(strs.as_ptr());
             M_MakeDirectory(savegamedir);
-            printf(c"Using %s for savegames\n".as_ptr(), savegamedir);
+            c_printf1(c"Using %s for savegames\n".as_ptr(), savegamedir);
             savegamedir
         }
     }

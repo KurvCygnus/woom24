@@ -37,6 +37,8 @@ extern "C" {
     pub fn printf4(fmt: *const c_char, a0: usize, a1: usize, a2: usize, a3: usize) -> c_int;
     pub fn snprintf1(s: *mut c_char, n: usize, fmt: *const c_char, a0: usize) -> c_int;
     pub fn snprintf2(s: *mut c_char, n: usize, fmt: *const c_char, a0: usize, a1: usize) -> c_int;
+    // sscanf 同理: 引擎唯一调用形状是单转换 (M_StrToInt), a0 = 输出指针槽.
+    pub fn sscanf1(s: *const c_char, fmt: *const c_char, a0: usize) -> c_int;
     pub fn puts(s: *const c_char) -> c_int;
     pub fn putchar(c: c_int) -> c_int;
     pub fn malloc(size: usize) -> *mut c_void;

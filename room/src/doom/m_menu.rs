@@ -901,7 +901,6 @@ extern "C" fn M_DrawReadThis1() {
             }
             _ => {
                 i_error!("Unhandled game version");
-                return;
             }
         }
 

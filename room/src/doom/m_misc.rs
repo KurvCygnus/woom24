@@ -78,13 +78,9 @@ extern "C" {
     fn strchr(s: *const c_char, c: c_int) -> *mut c_char;
     /// libc `strstr`: locate the first occurrence of a substring.
     fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
-    /// libc `sscanf`: variadic formatted input parser.
-    fn sscanf(s: *const c_char, format: *const c_char, ...) -> c_int;
-    /// libc `vsnprintf`: bounded formatted output with a `va_list`.
-    fn vsnprintf(s: *mut c_char, n: usize, format: *const c_char, arg: ...) -> c_int;
 }
 
-use crate::doom::crt::{strncasecmp, strdup};
+use crate::doom::crt::{c_sscanf1, strdup, strncasecmp};
 use crate::doom::z_zone::Z_Malloc;
 
 /// Returns the current value of libc `errno` for the calling thread.
@@ -214,16 +210,16 @@ pub extern "C" fn M_TempFile(s: *mut c_char) -> *mut c_char {
 #[no_mangle]
 pub extern "C" fn M_StrToInt(str: *const c_char, result: *mut c_int) -> c_int {
     unsafe {
-        if sscanf(str, c" 0x%x".as_ptr(), result) == 1 {
+        if c_sscanf1(str, c" 0x%x".as_ptr(), result) == 1 {
             return 1;
         }
-        if sscanf(str, c" 0X%x".as_ptr(), result) == 1 {
+        if c_sscanf1(str, c" 0X%x".as_ptr(), result) == 1 {
             return 1;
         }
-        if sscanf(str, c" 0%o".as_ptr(), result) == 1 {
+        if c_sscanf1(str, c" 0%o".as_ptr(), result) == 1 {
             return 1;
         }
-        if sscanf(str, c" %d".as_ptr(), result) == 1 {
+        if c_sscanf1(str, c" %d".as_ptr(), result) == 1 {
             return 1;
         }
         0
@@ -364,7 +360,6 @@ pub extern "C" fn M_StringReplace(
         let result = malloc(result_len) as *mut c_char;
         if result.is_null() {
             i_error!("M_StringReplace: Failed to allocate new string");
-            return std::ptr::null_mut();
         }
         let mut dst = result;
         let mut dst_len = result_len;
@@ -450,11 +445,6 @@ pub extern "C" fn M_StringEndsWith(s: *const c_char, suffix: *const c_char) -> B
     }
 }
 
-extern "C" {
-    /// libc `snprintf`: variadic bounded formatted output.
-    fn snprintf(s: *mut c_char, n: usize, format: *const c_char, ...) -> c_int;
-}
-
 /// Array-form replacement for the C variadic `M_StringJoin`.
 ///
 /// Takes a pointer to a NULL-terminated array of C-string pointers and
@@ -476,7 +466,6 @@ pub extern "C" fn M_StringJoinA(strs: *const *const c_char) -> *mut c_char {
         let result = malloc(result_len) as *mut c_char;
         if result.is_null() {
             i_error!("M_StringJoinA: Failed to allocate new string");
-            return std::ptr::null_mut();
         }
 
         let mut dst = result;

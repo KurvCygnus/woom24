@@ -20,8 +20,8 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+use crate::doom::crt::{c_printf, c_printf1, strcasecmp, strdup};
 use crate::doom::d_mode;
-use crate::doom::crt::{strcasecmp, strdup};
 use crate::doom::m_misc::M_StringJoinA;
 use crate::i_error;
 
@@ -40,10 +40,6 @@ const DIR_SEPARATOR: c_char = b'/' as c_char;
 const DIR_SEPARATOR_S: &[u8] = b"/\0";
 
 extern "C" {
-    /// C standard `printf`; used to emit diagnostic messages during IWAD
-    /// search.
-    fn printf(fmt: *const c_char, ...) -> c_int;
-
     /// Returns non-zero if `filename` names an existing regular file.
     fn M_FileExists(filename: *mut c_char) -> c_int;
 
@@ -280,7 +276,7 @@ unsafe fn CheckDirectoryHasIWAD(dir: *mut c_char, iwadname: *mut c_char) -> *mut
         M_StringJoinA(strs.as_ptr())
     };
 
-    printf(c"Trying IWAD file:%s\n".as_ptr(), filename);
+    c_printf1(c"Trying IWAD file:%s\n".as_ptr(), filename);
 
     if M_FileExists(filename) != 0 {
         return filename;
@@ -473,7 +469,7 @@ pub unsafe extern "C" fn D_FindIWAD(mask: c_int, mission: *mut c_int) -> *mut c_
         *mission = IdentifyIWADByName(result, mask);
         result
     } else {
-        printf(c"-iwad not specified, trying a few iwad names\n".as_ptr());
+        c_printf(c"-iwad not specified, trying a few iwad names\n".as_ptr());
 
         let mut result: *mut c_char = ptr::null_mut();
 
