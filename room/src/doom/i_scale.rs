@@ -53,6 +53,7 @@
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 use crate::doom::c_ffi::screen_mode_t;
+use crate::doom::crt::c_printf;
 use crate::doom::m_argv::M_CheckParm;
 use crate::doom::z_zone::{Z_Free, Z_Malloc};
 use std::ffi::{c_int, c_void};
@@ -405,10 +406,10 @@ unsafe extern "C" fn i_init_stretch_tables(palette: *mut u8) {
     if !stretch_tables[0].is_null() {
         return;
     }
-    libc::printf(c"I_InitStretchTables: Generating lookup tables..".as_ptr());
+    c_printf(c"I_InitStretchTables: Generating lookup tables..".as_ptr());
     libc::fflush(stdout_placeholder());
     stretch_tables[0] = generate_stretch_table(palette, 20);
-    libc::printf(c"..".as_ptr());
+    c_printf(c"..".as_ptr());
     libc::fflush(stdout_placeholder());
     stretch_tables[1] = generate_stretch_table(palette, 40);
     libc::puts(c"".as_ptr());
@@ -425,7 +426,7 @@ unsafe extern "C" fn i_init_squash_table(palette: *mut u8) {
     if !half_stretch_table.is_null() {
         return;
     }
-    libc::printf(c"I_InitSquashTable: Generating lookup table..".as_ptr());
+    c_printf(c"I_InitSquashTable: Generating lookup table..".as_ptr());
     libc::fflush(stdout_placeholder());
     half_stretch_table = generate_stretch_table(palette, 50);
     libc::puts(c"".as_ptr());
@@ -449,13 +450,13 @@ pub unsafe extern "C" fn I_ResetScaleTables(palette: *mut u8) {
     if !stretch_tables[0].is_null() {
         Z_Free(stretch_tables[0] as *mut c_void);
         Z_Free(stretch_tables[1] as *mut c_void);
-        libc::printf(c"I_ResetScaleTables: Regenerating lookup tables..\n".as_ptr());
+        c_printf(c"I_ResetScaleTables: Regenerating lookup tables..\n".as_ptr());
         stretch_tables[0] = generate_stretch_table(palette, 20);
         stretch_tables[1] = generate_stretch_table(palette, 40);
     }
     if !half_stretch_table.is_null() {
         Z_Free(half_stretch_table as *mut c_void);
-        libc::printf(c"I_ResetScaleTables: Regenerating lookup table..\n".as_ptr());
+        c_printf(c"I_ResetScaleTables: Regenerating lookup table..\n".as_ptr());
         half_stretch_table = generate_stretch_table(palette, 50);
     }
 }

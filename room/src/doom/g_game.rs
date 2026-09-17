@@ -41,6 +41,7 @@ use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use std::ptr;
 
+use crate::doom::crt::c_printf3;
 use crate::doom::d_mode::{
     commercial, doom, exe_chex, exe_doom_1_2, exe_doom_1_666, exe_doom_1_7, exe_doom_1_8,
     exe_final2, exe_ultimate, shareware,
@@ -2896,7 +2897,7 @@ pub unsafe extern "C" fn G_DoPlayDemo() {
             See: https://www.doomworld.com/classicdoom/info/patches.php\n\
             This appears to be %s.\0";
         // C code uses printf (not I_Error) here so demo playback continues
-        libc::printf(
+        c_printf3(
             message.as_ptr() as *const libc::c_char,
             demoversion,
             G_VanillaVersionCode(),

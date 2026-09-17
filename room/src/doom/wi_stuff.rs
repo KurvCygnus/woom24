@@ -32,6 +32,7 @@ use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+use crate::doom::crt::c_printf1;
 use crate::doom::d_event::event_t;
 use crate::doom::d_mode;
 use crate::doom::d_player::MAXPLAYERS;
@@ -867,7 +868,7 @@ unsafe fn WI_drawOnLnode(n: c_int, c: *mut *mut patch_t) {
             *c.offset(i as isize),
         );
     } else {
-        libc::printf(c"Could not place patch on level %d".as_ptr(), n + 1);
+        c_printf1(c"Could not place patch on level %d".as_ptr(), n + 1);
     }
 }
 

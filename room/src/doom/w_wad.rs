@@ -19,10 +19,10 @@ use std::ptr;
 
 use crate::doom::w_file::{wad_file_t, W_OpenFile, W_Read};
 
+use crate::doom::crt::{c_printf1, strcasecmp, strncasecmp};
 use crate::doom::d_iwad::D_SuggestGameName;
 use crate::doom::d_mode::D_GameMissionString;
 use crate::doom::i_video::{I_BeginRead, I_EndRead};
-use crate::doom::crt::{strcasecmp, strncasecmp};
 use crate::doom::m_misc::M_ExtractFileBase;
 use crate::doom::z_zone::{Z_ChangeTag2, Z_ChangeUser, Z_Free, Z_Malloc, PU_CACHE, PU_STATIC};
 
@@ -191,7 +191,7 @@ pub extern "C" fn W_AddFile(filename: *mut c_char) -> *mut wad_file_t {
     unsafe {
         let wad_file = W_OpenFile(filename);
         if wad_file.is_null() {
-            libc::printf(c" couldn't open %s\n".as_ptr(), filename);
+            c_printf1(c" couldn't open %s\n".as_ptr(), filename);
             return ptr::null_mut();
         }
 

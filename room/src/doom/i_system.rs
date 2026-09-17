@@ -12,6 +12,7 @@
 
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
+use crate::doom::crt::{c_printf, c_printf2};
 use crate::doom::m_argv::{myargc, myargv, M_CheckParmWithArgs, M_ParmExists};
 use crate::doom::m_misc::M_StrToInt;
 use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
@@ -131,7 +132,7 @@ pub extern "C" fn I_ZoneBase(size: *mut c_int) -> *mut u8 {
 
         let zonemem = AutoAllocMemory(size, default_ram, min_ram);
 
-        libc::printf(
+        c_printf2(
             c"zone memory: %p, %x allocated for zone\n".as_ptr(),
             zonemem,
             *size,
@@ -179,7 +180,7 @@ pub extern "C" fn I_PrintStartupBanner(gamedescription: *mut c_char) {
         I_PrintDivider();
         I_PrintBanner(gamedescription);
         I_PrintDivider();
-        libc::printf(
+        c_printf(
             c" Room, like Doom Generic, is free software, covered by the GNU General Public\n License.  There is NO warranty; not even for MERCHANTABILITY or FITNESS\n FOR A PARTICULAR PURPOSE. You are welcome to change and distribute\n copies under certain conditions. See the source for more information.\n".as_ptr(),
         );
         I_PrintDivider();

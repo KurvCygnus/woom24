@@ -9,6 +9,7 @@
 use std::ffi::{c_int, c_short, c_uint};
 use std::ptr;
 
+use crate::doom::crt::c_printf;
 use crate::doom::d_player::PlayerT;
 use crate::doom::i_video::{SCREENHEIGHT as SCREENHEIGHT_IV, SCREENWIDTH as SCREENWIDTH_IV};
 use crate::doom::m_bbox::BBox;
@@ -942,19 +943,19 @@ pub unsafe extern "C" fn R_ExecuteSetViewSize() {
 #[no_mangle]
 pub unsafe extern "C" fn R_Init() {
     R_InitData();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_InitPointToAngle();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_InitTables();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_SetViewSize(screenblocks, detailLevel);
     R_InitPlanes();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_InitLightTables();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     crate::doom::r_sky::R_InitSkyMap();
     R_InitTranslationTables();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
 
     framecount = 0;
 }

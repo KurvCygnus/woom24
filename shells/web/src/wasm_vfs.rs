@@ -4,9 +4,11 @@
 //! - `libc::` 路径的类型解析由 `shells/web/crt` (woom24-libc) 承担;
 //!   本模块通过 `#[no_mangle]` / `#[export_name]` 提供同名符号的实现,
 //!   在最终 cdylib 链接时闭合引擎的全部未解析引用.
-//! - printf 家族: 声明是变参 (调用点 0..4 个变参都存在),
-//!   实现是固定 4 个参数槽的 `#[export_name]` 函数 -- 已探针验证
-//!   该组合在 stable 的 wasm32-unknown-unknown 上可编译可链接.
+//! - printf 家族: wasm rust-lld 严格检查符号签名, 变参声明的调用点会
+//!   按实参数量生成不同签名, 与固定槽位实现链接时会被 lld 换成
+//!   `signature_mismatch` 陷阱桩 (已探针实证: 链接有 warning, 运行即 trap).
+//!   因此声明与实现都按引擎审计过的固定参数形状逐一定义
+//!   (printf0..4 / snprintf1..2, 见 woom24-libc 与计划附录 A);
 //!   未用的槽是垃圾值, 但格式串里没有的说明符永远不去读它.
 //! - 超出已审计说明符集合 (`%s %d %i %u %x %c %p %%` + 宽度) 时:
 //!   记录日志并降级输出, 绝不 trap (D1).
@@ -366,25 +368,56 @@ pub unsafe extern "C" fn fflush(_stream: *mut c_void) -> c_int {
     0
 }
 
-/// printf: 变参声明 + 固定 4 槽实现 (见模块头注释).
+/// printf 家族导出: 每个审计过的调用形状一个符号, 与 woom24-libc 的
+/// 固定参数声明一一对应 (见模块头注释); 未传的槽不读.
 ///
 /// # Safety
 /// `fmt` 必须是 NUL 结尾 C 字符串.
-#[export_name = "printf"]
-pub unsafe extern "C" fn printf_shim(
-    fmt: *const c_char,
-    a0: u32,
-    a1: u32,
-    a2: u32,
-    a3: u32,
-) -> c_int {
-    let out = printf_impl(fmt, &[a0, a1, a2, a3]);
+#[no_mangle]
+pub unsafe extern "C" fn printf0(fmt: *const c_char) -> c_int {
+    let out = printf_impl(fmt, &[]);
     // stdout 在浏览器里落到 console (经 web 控制台可见).
     log::info!("{}", String::from_utf8_lossy(&out));
     out.len() as c_int
 }
 
-unsafe fn printf_impl(fmt: *const c_char, slots: &[u32; 4]) -> Vec<u8> {
+/// # Safety
+/// `fmt` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn printf1(fmt: *const c_char, a0: u32) -> c_int {
+    let out = printf_impl(fmt, &[a0]);
+    log::info!("{}", String::from_utf8_lossy(&out));
+    out.len() as c_int
+}
+
+/// # Safety
+/// `fmt` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn printf2(fmt: *const c_char, a0: u32, a1: u32) -> c_int {
+    let out = printf_impl(fmt, &[a0, a1]);
+    log::info!("{}", String::from_utf8_lossy(&out));
+    out.len() as c_int
+}
+
+/// # Safety
+/// `fmt` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn printf3(fmt: *const c_char, a0: u32, a1: u32, a2: u32) -> c_int {
+    let out = printf_impl(fmt, &[a0, a1, a2]);
+    log::info!("{}", String::from_utf8_lossy(&out));
+    out.len() as c_int
+}
+
+/// # Safety
+/// `fmt` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn printf4(fmt: *const c_char, a0: u32, a1: u32, a2: u32, a3: u32) -> c_int {
+    let out = printf_impl(fmt, &[a0, a1, a2, a3]);
+    log::info!("{}", String::from_utf8_lossy(&out));
+    out.len() as c_int
+}
+
+unsafe fn printf_impl(fmt: *const c_char, slots: &[u32]) -> Vec<u8> {
     let f = copy_cstr(fmt as u32);
     // 逐说明符解析原始槽: %s 取指针解引用, 数值类直取槽值.
     let mut args: Vec<FmtArg> = Vec::new();
@@ -425,21 +458,38 @@ unsafe fn printf_impl(fmt: *const c_char, slots: &[u32; 4]) -> Vec<u8> {
     out
 }
 
-/// snprintf: 同 printf, 写目标缓冲区并返回本应长度 (d_main.rs 依赖此值).
+/// snprintf 导出: 同 printf 家族, 写目标缓冲区并返回本应长度
+/// (d_main.rs 依赖此值).
 ///
 /// # Safety
 /// `s`/`fmt` 必须有效; `s` 至少可写 `n` 字节.
-#[export_name = "snprintf"]
-pub unsafe extern "C" fn snprintf_shim(
+#[no_mangle]
+pub unsafe extern "C" fn snprintf1(
+    s: *mut c_char,
+    n: usize,
+    fmt: *const c_char,
+    a0: u32,
+) -> c_int {
+    let out = printf_impl(fmt, &[a0]);
+    if !s.is_null() && n > 0 {
+        let w = (out.len()).min(n - 1);
+        std::ptr::copy_nonoverlapping(out.as_ptr(), s as *mut u8, w);
+        *s.add(w) = 0;
+    }
+    out.len() as c_int
+}
+
+/// # Safety
+/// `s`/`fmt` 必须有效; `s` 至少可写 `n` 字节.
+#[no_mangle]
+pub unsafe extern "C" fn snprintf2(
     s: *mut c_char,
     n: usize,
     fmt: *const c_char,
     a0: u32,
     a1: u32,
-    a2: u32,
-    a3: u32,
 ) -> c_int {
-    let out = printf_impl(fmt, &[a0, a1, a2, a3]);
+    let out = printf_impl(fmt, &[a0, a1]);
     if !s.is_null() && n > 0 {
         let w = (out.len()).min(n - 1);
         std::ptr::copy_nonoverlapping(out.as_ptr(), s as *mut u8, w);

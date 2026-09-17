@@ -671,6 +671,7 @@ pub(crate) fn write_c_buf(buf: &mut [c_char], s: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::doom::crt::c_snprintf1;
     use std::ffi::CString;
 
     // -----------------------------------------------------------------------
@@ -1046,7 +1047,7 @@ mod tests {
     fn test_snprintf_then_clamp_substitutes_format_args() {
         let mut buf = [0i8; 32];
         let result = unsafe {
-            libc::snprintf(
+            c_snprintf1(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"say %s".as_ptr(),

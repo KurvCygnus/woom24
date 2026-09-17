@@ -139,6 +139,189 @@ pub fn errno_location() -> *mut c_int {
     }
 }
 
+// ---------------------------------------------------------------------------
+// printf / snprintf shape wrappers
+// ---------------------------------------------------------------------------
+
+/// Values passable as a C variadic printf argument: integers and pointers
+/// (the engine's audited format set never passes floats).
+pub trait CArg {
+    fn into_vararg(self) -> usize;
+}
+
+impl CArg for usize {
+    fn into_vararg(self) -> usize {
+        self
+    }
+}
+
+impl CArg for c_int {
+    fn into_vararg(self) -> usize {
+        self as usize
+    }
+}
+
+impl CArg for u32 {
+    fn into_vararg(self) -> usize {
+        self as usize
+    }
+}
+
+impl<T> CArg for *const T {
+    fn into_vararg(self) -> usize {
+        self as usize
+    }
+}
+
+impl<T> CArg for *mut T {
+    fn into_vararg(self) -> usize {
+        self as usize
+    }
+}
+
+/// `printf(fmt, ...)` for the exact shapes the engine calls, so each call
+/// site keeps natural argument types on every target. Host targets keep the
+/// real variadic `libc::printf`; `wasm32` binds the per-shape symbols
+/// `printf0`..`printf4` exported by the web shell's CRT shim — rust-lld
+/// checks call signatures strictly there and would otherwise replace any
+/// arity-mismatched call with a trapping `signature_mismatch` stub.
+///
+/// # Safety
+///
+/// `fmt` must be a NUL-terminated C string and the arguments must match
+/// its format specifiers, mirroring the C `printf` contract.
+pub unsafe fn c_printf(fmt: *const c_char) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::printf(fmt)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::printf0(fmt)
+    }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf1<A: CArg>(fmt: *const c_char, a: A) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::printf(fmt, a.into_vararg())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::printf1(fmt, a.into_vararg())
+    }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf2<A: CArg, B: CArg>(fmt: *const c_char, a: A, b: B) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::printf(fmt, a.into_vararg(), b.into_vararg())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::printf2(fmt, a.into_vararg(), b.into_vararg())
+    }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf3<A: CArg, B: CArg, C: CArg>(fmt: *const c_char, a: A, b: B, c: C) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::printf(fmt, a.into_vararg(), b.into_vararg(), c.into_vararg())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::printf3(fmt, a.into_vararg(), b.into_vararg(), c.into_vararg())
+    }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf4<A: CArg, B: CArg, C: CArg, D: CArg>(
+    fmt: *const c_char,
+    a: A,
+    b: B,
+    c: C,
+    d: D,
+) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::printf(
+            fmt,
+            a.into_vararg(),
+            b.into_vararg(),
+            c.into_vararg(),
+            d.into_vararg(),
+        )
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::printf4(
+            fmt,
+            a.into_vararg(),
+            b.into_vararg(),
+            c.into_vararg(),
+            d.into_vararg(),
+        )
+    }
+}
+
+/// `snprintf(s, n, fmt, ...)` for the shapes the engine calls; see
+/// [`c_printf`] for why the shapes are fixed per call arity.
+///
+/// # Safety
+///
+/// As [`c_printf`]; `s` must be writable for at least `n` bytes.
+pub unsafe fn c_snprintf1<A: CArg>(s: *mut c_char, n: usize, fmt: *const c_char, a: A) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::snprintf(s, n, fmt, a.into_vararg())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::snprintf1(s, n, fmt, a.into_vararg())
+    }
+}
+
+/// See [`c_snprintf1`].
+///
+/// # Safety
+///
+/// As [`c_snprintf1`].
+pub unsafe fn c_snprintf2<A: CArg, B: CArg>(
+    s: *mut c_char,
+    n: usize,
+    fmt: *const c_char,
+    a: A,
+    b: B,
+) -> c_int {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        libc::snprintf(s, n, fmt, a.into_vararg(), b.into_vararg())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::snprintf2(s, n, fmt, a.into_vararg(), b.into_vararg())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{strcasecmp, strncasecmp};

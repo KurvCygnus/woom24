@@ -9,7 +9,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::doom::crt::{strcasecmp, strncasecmp};
+use crate::doom::crt::{c_snprintf2, strcasecmp, strncasecmp};
 use crate::doom::d_mode;
 use crate::doom::d_player::{consoleplayer, players, MAXPLAYERS};
 use crate::doom::doomstat::{gamedescription, gamemission, gamemode, gameversion, modifiedgame};
@@ -1129,7 +1129,7 @@ unsafe fn GetGameName(gamename: *mut c_char) -> *mut c_char {
             // exactly two `%i` specifiers (matching the banner patterns), and `version/100` /
             // `version%100` are both `c_int` values that satisfy them. `expanded` has room for
             // `gamename_size` bytes. Dynamic format from DEH — cannot use c_write! (not a literal).
-            let result = libc::snprintf(
+            let result = c_snprintf2(
                 expanded,
                 gamename_size,
                 deh_sub,
