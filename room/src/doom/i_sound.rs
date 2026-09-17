@@ -161,7 +161,7 @@ pub extern "C" fn I_GetSfxLumpNum(sfxinfo: *mut c_void) -> c_int {
     }
 }
 
-/// Per-frame sound update hook. The rustysynth/rodio backend mixes
+/// Per-frame sound update hook. The platform audio backend mixes
 /// audio on its own thread so this is a no-op; the symbol exists
 /// because the engine main loop calls it every tic.
 #[no_mangle]
@@ -192,7 +192,7 @@ pub extern "C" fn I_UpdateSoundParams(channel: c_int, vol: c_int, sep: c_int) {
 /// rejection).
 ///
 /// Loads the sample data via `W_CacheLumpNum` with `PU_CACHE`, then
-/// hands a borrowed byte slice to `crate::audio::AudioState::start_sound`.
+/// hands a borrowed byte slice to the audio backend's `start_sound`.
 /// The cache tag means the data may be evicted once the SFX finishes.
 #[no_mangle]
 pub extern "C" fn I_StartSound(
@@ -263,7 +263,7 @@ pub extern "C" fn I_SoundIsPlaying(channel: c_int) -> c_int {
 }
 
 /// Hook for the SDL backend to pre-cache a batch of sounds. The
-/// rustysynth/rodio backend caches lazily on `I_StartSound`, so this
+/// platform audio backend caches lazily on `I_StartSound`, so this
 /// is a no-op. Kept for API compatibility with the engine.
 #[no_mangle]
 pub extern "C" fn I_PrecacheSounds(_sounds: *mut c_void, _num_sounds: c_int) {}

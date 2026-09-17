@@ -3,8 +3,9 @@
 //! `room` is a Rust port of `chocolate-doom`/`doomgeneric`.  This file is the
 //! library crate root that re-exports the major subsystems:
 //!
-//! - `audio` (crate-private) - rodio-based sound and music backend that
-//!   replaces the SDL2 audio plumbing in `i_sound.c` / `i_oplmusic.c`.
+//! - [`audio`] - audio backend control plane ([`AudioBackend`] trait,
+//!   shell-installed factory) plus the pure SFX/music decoding helpers that
+//!   replace the SDL2 audio plumbing in `i_sound.c` / `i_oplmusic.c`.
 //! - [`doom`] - per-`.c`-file Rust ports living under `vendor/doomgeneric/`.
 //! - [`headless`] - thread-local frame/tick counters used by the testing and
 //!   benchmarking harnesses to run the engine without a window or audio device.
@@ -50,7 +51,7 @@
 // so converting to iterators would require from_raw_parts complexity.
 #![allow(clippy::needless_range_loop, clippy::explicit_counter_loop)]
 
-pub(crate) mod audio;
+pub mod audio;
 pub mod doom;
 pub mod headless;
 pub mod types;

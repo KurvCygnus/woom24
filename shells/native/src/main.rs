@@ -44,8 +44,10 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
+mod audio_music;
 mod gpu;
 mod platform;
+mod rodio_backend;
 
 use std::ffi::{c_char, c_int, CString};
 
@@ -61,6 +63,7 @@ use room::doom::doomgeneric::{DOOMGENERIC_RESX, DOOMGENERIC_RESY};
 use gpu::GpuState;
 use platform::keys::to_doom_key;
 use platform::{GPU, KEY_QUEUE, QUIT_REQUESTED, WINDOW};
+use rodio_backend::RodioBackend;
 
 // ---------------------------------------------------------------------------
 // App – the winit ApplicationHandler
@@ -266,6 +269,13 @@ fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     log::info!("room – doomgeneric Rust port");
+
+    // Install the native audio backend before the event loop (and therefore
+    // the engine) starts; `doom::i_sound` builds it when audio is initialised.
+    room::audio::set_backend_factory(|| {
+        RodioBackend::new().map(|b| Box::new(b) as Box<dyn room::audio::AudioBackend>)
+            .map_err(|e| e.to_string())
+    });
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
 

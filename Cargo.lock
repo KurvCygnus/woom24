@@ -1994,7 +1994,6 @@ dependencies = [
  "env_logger",
  "libc",
  "log",
- "rodio",
  "rustysynth",
 ]
 
@@ -2008,6 +2007,7 @@ dependencies = [
  "pollster",
  "rodio",
  "room",
+ "rustysynth",
  "wgpu",
  "winit",
 ]
