@@ -346,6 +346,139 @@ unsafe fn copy_cstr(p: u32) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
+// 第二批 CRT 符号: 字符/字符串/atof/calloc (fix round 1; 纯逻辑宿主机可测)
+// ---------------------------------------------------------------------------
+
+/// C `toupper` ASCII 子集 (引擎输入恒为 ASCII).
+fn c_toupper(c: c_int) -> c_int {
+    let b = c as u8;
+    if b.is_ascii_lowercase() { (b - 32) as c_int } else { c }
+}
+
+/// C `tolower` ASCII 子集.
+fn c_tolower(c: c_int) -> c_int {
+    let b = c as u8;
+    if b.is_ascii_uppercase() { (b + 32) as c_int } else { c }
+}
+
+/// C `isspace` ("C" locale): 空格/\t/\n/\v/\f/\r, 非 0 表示真.
+fn c_isspace(c: c_int) -> c_int {
+    c_int::from(is_c_space(c as u8))
+}
+
+/// Ordering → C 比较约定的 <0/0/>0.
+fn order_to_c_int(o: std::cmp::Ordering) -> c_int {
+    match o {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    }
+}
+
+/// C `strcmp`: 按无符号字节逐位比较; 一方先到 NUL 则短者小.
+fn c_strcmp(a: &[u8], b: &[u8]) -> c_int {
+    let n = a.len().min(b.len());
+    match a[..n].iter().zip(b).position(|(x, y)| x != y) {
+        Some(i) => order_to_c_int(a[i].cmp(&b[i])),
+        None => order_to_c_int(a.len().cmp(&b.len())),
+    }
+}
+
+/// C `strncmp`: 最多比较 n 字节; 截断后即 strcmp 语义 (NUL 终止保证等价).
+fn c_strncmp(a: &[u8], b: &[u8], n: usize) -> c_int {
+    c_strcmp(&a[..n.min(a.len())], &b[..n.min(b.len())])
+}
+
+/// C `strncpy` 核心: 复制 min(src.len, n) 字节, 不足补 NUL 到 n;
+/// src 不短于 n 时恰复制 n 字节、不写终止符. `dst.len()` 即 n.
+fn c_strncpy_into(dst: &mut [u8], src: &[u8]) {
+    let copy = src.len().min(dst.len());
+    dst[..copy].copy_from_slice(&src[..copy]);
+    dst[copy..].fill(0);
+}
+
+/// C `strrchr`: 最后一次出现 `(c as u8)` 的偏移; c=0 命中结束 NUL 槽;
+/// 未找到返回 None (导出层转 null).
+fn c_strrchr(s: &[u8], c: c_int) -> Option<usize> {
+    let target = c as u8;
+    if target == 0 {
+        return Some(s.len());
+    }
+    s.iter().rposition(|&b| b == target)
+}
+
+/// C `strstr`: 最左匹配偏移; 空针 = 0; 未找到返回 None.
+fn c_strstr(hay: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
+    if needle.len() > hay.len() {
+        return None;
+    }
+    hay.windows(needle.len()).position(|w| w == needle)
+}
+
+/// C `atof` (strtod-lite): 前导 C 空白 + 可选符号 + 整数/小数数字,
+/// 取最长合法前缀, 无数字 → 0.0. 审计结论 (fix round 1): 引擎唯一调用点
+/// m_config.rs:688 解析 .cfg 值, 引擎侧写入恒为普通十进制 (Rust 格式化
+/// 从不产出指数), 故不实现指数形式.
+fn c_atof(s: &[u8]) -> f64 {
+    let mut i = 0usize;
+    while i < s.len() && is_c_space(s[i]) {
+        i += 1;
+    }
+    let neg = match s.get(i) {
+        Some(b'-') => {
+            i += 1;
+            true
+        }
+        Some(b'+') => {
+            i += 1;
+            false
+        }
+        _ => false,
+    };
+    let num_start = i;
+    let mut int_digits = 0usize;
+    while i < s.len() && s[i].is_ascii_digit() {
+        i += 1;
+        int_digits += 1;
+    }
+    let mut frac_digits = 0usize;
+    if i < s.len() && s[i] == b'.' {
+        let mut j = i + 1;
+        while j < s.len() && s[j].is_ascii_digit() {
+            j += 1;
+        }
+        frac_digits = j - i - 1;
+        if int_digits + frac_digits > 0 {
+            i = j;
+        }
+    }
+    if int_digits + frac_digits == 0 {
+        return 0.0;
+    }
+    let text = std::str::from_utf8(&s[num_start..i]).unwrap_or("");
+    let v = text.parse::<f64>().unwrap_or(0.0);
+    if neg { -v } else { v }
+}
+
+/// C `calloc`: 布局跟踪分配器 + 清零; 乘法溢出或 size=0 返回 null.
+/// 清零必须走 volatile 路径 (shm_memset 的注释: 普通 fill 会被 LLVM
+/// 降为 `call memset`, 与本 crate 同名导出构成自递归).
+fn shm_calloc(nmemb: usize, size: usize) -> *mut c_void {
+    let Some(total) = nmemb.checked_mul(size) else {
+        return std::ptr::null_mut();
+    };
+    let p = shm_malloc(total);
+    if !p.is_null() && total > 0 {
+        // SAFETY: p 指向 shm_malloc 的 total 字节可写内存.
+        unsafe { shm_memset(p, 0, total) };
+    }
+    p
+}
+
+// ---------------------------------------------------------------------------
 // 导出符号面: 与附录 A 一一对应 (权威清单 = cargo check 捕获)
 // ---------------------------------------------------------------------------
 
@@ -722,6 +855,154 @@ pub unsafe extern "C" fn rename(_old: *const c_char, _new: *const c_char) -> c_i
     0
 }
 
+// ---------------------------------------------------------------------------
+// 第二批 CRT 导出 (fix round 1): 声明见 woom24-libc
+// ---------------------------------------------------------------------------
+
+/// C `toupper`: ASCII 语义 (引擎输入恒为 ASCII).
+#[no_mangle]
+pub extern "C" fn toupper(c: c_int) -> c_int {
+    c_toupper(c)
+}
+
+/// C `tolower`: ASCII 语义.
+#[no_mangle]
+pub extern "C" fn tolower(c: c_int) -> c_int {
+    c_tolower(c)
+}
+
+/// C `isspace` ("C" locale 空白集合).
+#[no_mangle]
+pub extern "C" fn isspace(c: c_int) -> c_int {
+    c_isspace(c)
+}
+
+/// C `strcmp`.
+///
+/// # Safety
+/// 两个参数都必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
+    if s1.is_null() || s2.is_null() {
+        return 0;
+    }
+    // SAFETY: 调用方保证 NUL 结尾.
+    let (a, b) = unsafe { (copy_cstr(s1 as u32), copy_cstr(s2 as u32)) };
+    c_strcmp(&a, &b)
+}
+
+/// C `strncmp`.
+///
+/// # Safety
+/// 两个参数都必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
+    if s1.is_null() || s2.is_null() {
+        return 0;
+    }
+    // SAFETY: 调用方保证 NUL 结尾.
+    let (a, b) = unsafe { (copy_cstr(s1 as u32), copy_cstr(s2 as u32)) };
+    c_strncmp(&a, &b, n)
+}
+
+/// C `strncpy`: 返回 `dst`; src 不短于 n 时恰复制 n 字节、不写终止符.
+///
+/// # Safety
+/// `dst` 必须可写 `n` 字节; `src` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char {
+    if dst.is_null() || n == 0 {
+        return dst;
+    }
+    let bytes = if src.is_null() {
+        Vec::new()
+    } else {
+        // SAFETY: 调用方保证 NUL 结尾.
+        unsafe { copy_cstr(src as u32) }
+    };
+    // SAFETY: 调用方保证 dst 至少可写 n 字节.
+    unsafe {
+        c_strncpy_into(std::slice::from_raw_parts_mut(dst as *mut u8, n), &bytes);
+    }
+    dst
+}
+
+/// C `strrchr`: 未找到返回 null; c=0 返回指向结束 NUL 的指针.
+///
+/// # Safety
+/// `s` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn strrchr(s: *const c_char, c: c_int) -> *mut c_char {
+    if s.is_null() {
+        return std::ptr::null_mut();
+    }
+    // SAFETY: 调用方保证 NUL 结尾.
+    let bytes = unsafe { copy_cstr(s as u32) };
+    match c_strrchr(&bytes, c) {
+        // SAFETY: off <= strlen, add 后仍在对象存储内 (含结束 NUL 槽);
+        // C 约定 strrchr 返回可写字符指针, 故 const→mut 转换.
+        Some(off) => unsafe { s.add(off) as *mut c_char },
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// C `strstr`: 未找到返回 null.
+///
+/// # Safety
+/// 两个参数都必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char {
+    if haystack.is_null() || needle.is_null() {
+        return std::ptr::null_mut();
+    }
+    // SAFETY: 调用方保证 NUL 结尾.
+    let (hay, nee) = unsafe { (copy_cstr(haystack as u32), copy_cstr(needle as u32)) };
+    match c_strstr(&hay, &nee) {
+        // SAFETY: off <= strlen; C 约定 strstr 返回可写指针 (const→mut).
+        Some(off) => unsafe { haystack.add(off) as *mut c_char },
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// C `getenv`: wasm 无进程环境, 恒返回 NULL. 审计: 引擎仅查
+/// HOME / XDG_CONFIG_HOME (m_misc.rs), 调用方均有未设回退路径.
+/// 仅 wasm32 导出: 宿主测试二进制的 CRT 正常终止路径会调到本符号,
+/// 交给宿主 CRT 才能保持 `cargo test` 全绿.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn getenv(_name: *const c_char) -> *mut c_char {
+    std::ptr::null_mut()
+}
+
+/// C `atof` (strtod-lite, 无指数 -- 见 [`c_atof`] 审计注释).
+///
+/// # Safety
+/// `s` 必须是 NUL 结尾 C 字符串.
+#[no_mangle]
+pub unsafe extern "C" fn atof(s: *const c_char) -> f64 {
+    if s.is_null() {
+        return 0.0;
+    }
+    // SAFETY: 调用方保证 NUL 结尾.
+    unsafe { c_atof(&copy_cstr(s as u32)) }
+}
+
+/// C `calloc`: 布局跟踪分配器 + 清零 (清零走 volatile, 防自递归).
+#[no_mangle]
+pub extern "C" fn calloc(nmemb: usize, size: usize) -> *mut c_void {
+    shm_calloc(nmemb, size)
+}
+
+/// C `exit`: wasm 上页面生命周期即进程生命周期, 引擎无正常退出路径
+/// (d_main.rs:1504 在 I_Endoom 后调用) -- 到此即显式 trap (D1 降级点).
+/// 仅 wasm32 导出: 宿主二进制的 CRT 在 main 返回后的正常终止也会调
+/// `exit(0)`, 若被本符号截获会把宿主 `cargo test` 变成 trap.
+#[cfg(target_arch = "wasm32")]
+#[no_mangle]
+pub extern "C" fn exit(status: c_int) -> ! {
+    unreachable!("wasm shell: engine called exit({status})")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -863,5 +1144,108 @@ mod tests {
         assert_eq!(scan1(" %d", "   "), None);
         // 前缀后没有合法八进制数字.
         assert_eq!(scan1(" 0%o", "0Z"), None);
+    }
+
+    // ---- 第二批 CRT 符号 (fix round 1): 字符/字符串/atof/calloc 纯逻辑 ----
+
+    #[test]
+    fn toupper_tolower_ascii_only() {
+        assert_eq!(c_toupper(b'a' as c_int), b'A' as c_int);
+        assert_eq!(c_toupper(b'z' as c_int), b'Z' as c_int);
+        // 已大写/非字母原样返回.
+        assert_eq!(c_toupper(b'A' as c_int), b'A' as c_int);
+        assert_eq!(c_toupper(b'1' as c_int), b'1' as c_int);
+        assert_eq!(c_tolower(b'Q' as c_int), b'q' as c_int);
+        assert_eq!(c_tolower(b'q' as c_int), b'q' as c_int);
+        assert_eq!(c_tolower(b'!' as c_int), b'!' as c_int);
+    }
+
+    #[test]
+    fn isspace_matches_c_space_set() {
+        for c in [b' ', b'\t', b'\n', 0x0b, 0x0c, b'\r'] {
+            assert_ne!(c_isspace(c as c_int), 0, "byte {c:#x} 应判为空白");
+        }
+        for c in [b'a', b'0', 0x00] {
+            assert_eq!(c_isspace(c as c_int), 0);
+        }
+    }
+
+    #[test]
+    fn strcmp_orders_by_unsigned_bytes() {
+        assert_eq!(c_strcmp(b"abc", b"abc"), 0);
+        assert!(c_strcmp(b"abc", b"abd") < 0);
+        assert!(c_strcmp(b"abd", b"abc") > 0);
+        // 前缀短者小 (结束 NUL = 0 < 任意非零字节).
+        assert!(c_strcmp(b"ab", b"abc") < 0);
+        assert_eq!(c_strcmp(b"", b""), 0);
+        // C strcmp 按无符号字节比较: 0x80 > 'a' (0x61).
+        assert!(c_strcmp(b"\x80", b"a") > 0);
+    }
+
+    #[test]
+    fn strncmp_compares_at_most_n_bytes() {
+        assert_eq!(c_strncmp(b"abcdef", b"abcxyz", 3), 0);
+        assert!(c_strncmp(b"abcdef", b"abcxyz", 4) < 0);
+        assert_eq!(c_strncmp(b"abc", b"abc", 10), 0);
+        assert!(c_strncmp(b"", b"a", 1) < 0);
+        assert_eq!(c_strncmp(b"x", b"y", 0), 0, "n=0 恒相等");
+    }
+
+    #[test]
+    fn strncpy_fills_and_pads_like_c() {
+        // src 短于 n: 复制全部 + NUL 填充到 n.
+        let mut d = [b'#'; 6];
+        c_strncpy_into(&mut d, b"ab");
+        assert_eq!(&d, b"ab\0\0\0\0");
+        // src 不短于 n: 恰好复制 n 字节, 不写终止符 (C 语义).
+        let mut d2 = [b'#'; 3];
+        c_strncpy_into(&mut d2, b"abcdef");
+        assert_eq!(&d2, b"abc");
+    }
+
+    #[test]
+    fn strrchr_finds_last_and_nul_slot() {
+        assert_eq!(c_strrchr(b"a/b/c", b'/' as c_int), Some(3));
+        assert_eq!(c_strrchr(b"abc", b'x' as c_int), None);
+        assert_eq!(c_strrchr(b"abc", 0), Some(3), "c=0 命中结束 NUL 槽");
+        assert_eq!(c_strrchr(b"", b'a' as c_int), None);
+    }
+
+    #[test]
+    fn strstr_finds_first_occurrence() {
+        assert_eq!(c_strstr(b"hello world", b"world"), Some(6));
+        assert_eq!(c_strstr(b"aaa", b"aa"), Some(0), "取最左匹配");
+        assert_eq!(c_strstr(b"abc", b"xyz"), None);
+        assert_eq!(c_strstr(b"abc", b""), Some(0), "空针 = 位置 0");
+        assert_eq!(c_strstr(b"", b""), Some(0));
+    }
+
+    #[test]
+    fn atof_parses_engine_config_shapes() {
+        // m_config.rs:688 的全部输入形态: 空白/符号/整数/小数/最长合法前缀.
+        assert_eq!(c_atof(b"0"), 0.0);
+        assert_eq!(c_atof(b"1"), 1.0);
+        assert_eq!(c_atof(b"0.5"), 0.5);
+        assert_eq!(c_atof(b"  -2.75"), -2.75);
+        assert_eq!(c_atof(b"+3"), 3.0);
+        assert_eq!(c_atof(b"42abc"), 42.0, "C atof 取最长合法前缀");
+        assert_eq!(c_atof(b".5"), 0.5);
+        assert_eq!(c_atof(b"5."), 5.0);
+        assert_eq!(c_atof(b""), 0.0);
+        assert_eq!(c_atof(b"  abc"), 0.0, "无数字 → 0.0");
+        assert_eq!(c_atof(b"  \t-0.25 junk"), -0.25);
+    }
+
+    #[test]
+    fn calloc_zeroes_and_overflows_to_null() {
+        let p = shm_calloc(4, 8);
+        assert!(!p.is_null());
+        let b = unsafe { std::slice::from_raw_parts(p as *const u8, 32) };
+        assert!(b.iter().all(|&x| x == 0), "calloc 必须清零");
+        shm_free(p);
+        // 乘法溢出 → NULL (C 语义).
+        assert!(shm_calloc(usize::MAX, 2).is_null());
+        // nmemb = 0 → 与 malloc(0) 一致返回 null.
+        assert!(shm_calloc(0, 8).is_null());
     }
 }

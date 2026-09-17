@@ -172,8 +172,11 @@ impl BackendCore {
             .ctx
             .create_buffer(2, BLOCK_SIZE as u32, 44100.0)
             .ok()?;
-        let mut l = buf.get_channel_data(0).ok()?;
-        let mut r = buf.get_channel_data(1).ok()?;
+        // get_channel_data 返回的是 Vec 拷贝 (写它等于扔掉) --
+        // 先在本地暂存, 再用 copy_to_channel 写入 AudioBuffer
+        // (fix round 1 裁定修正).
+        let mut l = vec![0f32; BLOCK_SIZE];
+        let mut r = vec![0f32; BLOCK_SIZE];
         // 消费序：L0, R0, L1, R1, …, R(BLOCK-1)，恰好 2*BLOCK 个采样。
         l[0] = first;
         for i in 0..BLOCK_SIZE {
@@ -184,6 +187,8 @@ impl BackendCore {
                 l[i + 1] = s2;
             }
         }
+        buf.copy_to_channel(&l, 0).ok()?;
+        buf.copy_to_channel(&r, 1).ok()?;
         Some(buf)
     }
 
@@ -202,10 +207,11 @@ impl BackendCore {
         ) else {
             return false;
         };
-        let Ok(mut ch) = buf.get_channel_data(0) else {
+        // get_channel_data 返回的是 Vec 拷贝, 写它等于扔掉 --
+        // copy_to_channel 才真正写入 AudioBuffer (fix round 1 裁定修正).
+        if buf.copy_to_channel(&samples, 0).is_err() {
             return false;
-        };
-        ch.copy_from_slice(&samples);
+        }
         gain.gain().set_value(vol_gain(vol));
         panner.pan().set_value(sep_to_pan(sep));
         let Ok(src) = self.ctx.create_buffer_source() else {

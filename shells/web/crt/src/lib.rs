@@ -48,4 +48,21 @@ extern "C" {
     pub fn strlen(s: *const c_char) -> usize;
     pub fn remove(path: *const c_char) -> c_int;
     pub fn rename(old: *const c_char, new: *const c_char) -> c_int;
+    // 第二批 CRT 符号 (fix round 1): doom 模块本地 extern 声明的权威汇总,
+    // 实现仍是 wasm_vfs 的同名导出. atof 为 strtod-lite (无指数 -- 引擎
+    // 唯一调用点 m_config.rs:688 的输入恒为普通十进制, 见 wasm_vfs 审计);
+    // getenv 恒返回 NULL (仅 HOME/XDG_CONFIG_HOME, 均有未设回退);
+    // exit 在 wasm 上即 trap (引擎无正常退出路径).
+    pub fn toupper(c: c_int) -> c_int;
+    pub fn tolower(c: c_int) -> c_int;
+    pub fn isspace(c: c_int) -> c_int;
+    pub fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int;
+    pub fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
+    pub fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
+    pub fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
+    pub fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char;
+    pub fn getenv(name: *const c_char) -> *mut c_char;
+    pub fn atof(s: *const c_char) -> f64;
+    pub fn calloc(nmemb: usize, size: usize) -> *mut c_void;
+    pub fn exit(status: c_int) -> !;
 }
