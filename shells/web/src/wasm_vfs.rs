@@ -199,7 +199,11 @@ fn take_digits(mut input: &[u8], base: u32) -> Option<(i64, &[u8])> {
         any = true;
         input = &input[1..];
     }
-    if any { Some((val, input)) } else { None }
+    if any {
+        Some((val, input))
+    } else {
+        None
+    }
 }
 
 /// `sscanf` 单转换最小子集: 只实现引擎审计过的格式语法 --
@@ -226,9 +230,7 @@ pub(crate) fn sscanf_parse1(fmt: &[u8], input: &[u8], out: &mut i64) -> usize {
                     b'x' | b'X' => {
                         let (neg, rest) = take_sign(inp);
                         // C %x 接受输入侧可选 0x/0X 前缀.
-                        let rest = if rest.len() >= 2
-                            && rest[0] == b'0'
-                            && (rest[1] | 0x20) == b'x'
+                        let rest = if rest.len() >= 2 && rest[0] == b'0' && (rest[1] | 0x20) == b'x'
                         {
                             &rest[2..]
                         } else {
@@ -335,6 +337,7 @@ unsafe fn copy_cstr(p: u32) -> Vec<u8> {
         return b"(null)".to_vec();
     }
     let mut out = Vec::new();
+    //* 4096 是垫片自定的扫描上限 (沿用 Task 2 首版 %s 约定, 非 C 语义), 缺 NUL 的输入至多读 4096 字节即止.
     for i in 0..4096 {
         let b = *(p as *const u8).add(i);
         if b == 0 {
@@ -352,13 +355,21 @@ unsafe fn copy_cstr(p: u32) -> Vec<u8> {
 /// C `toupper` ASCII 子集 (引擎输入恒为 ASCII).
 fn c_toupper(c: c_int) -> c_int {
     let b = c as u8;
-    if b.is_ascii_lowercase() { (b - 32) as c_int } else { c }
+    if b.is_ascii_lowercase() {
+        (b - 32) as c_int
+    } else {
+        c
+    }
 }
 
 /// C `tolower` ASCII 子集.
 fn c_tolower(c: c_int) -> c_int {
     let b = c as u8;
-    if b.is_ascii_uppercase() { (b + 32) as c_int } else { c }
+    if b.is_ascii_uppercase() {
+        (b + 32) as c_int
+    } else {
+        c
+    }
 }
 
 /// C `isspace` ("C" locale): 空格/\t/\n/\v/\f/\r, 非 0 表示真.
@@ -460,7 +471,11 @@ fn c_atof(s: &[u8]) -> f64 {
     }
     let text = std::str::from_utf8(&s[num_start..i]).unwrap_or("");
     let v = text.parse::<f64>().unwrap_or(0.0);
-    if neg { -v } else { v }
+    if neg {
+        -v
+    } else {
+        v
+    }
 }
 
 /// C `calloc`: 布局跟踪分配器 + 清零; 乘法溢出或 size=0 返回 null.
@@ -702,12 +717,7 @@ unsafe fn printf_impl(fmt: *const c_char, slots: &[u32]) -> Vec<u8> {
 /// # Safety
 /// `s`/`fmt` 必须有效; `s` 至少可写 `n` 字节.
 #[no_mangle]
-pub unsafe extern "C" fn snprintf1(
-    s: *mut c_char,
-    n: usize,
-    fmt: *const c_char,
-    a0: u32,
-) -> c_int {
+pub unsafe extern "C" fn snprintf1(s: *mut c_char, n: usize, fmt: *const c_char, a0: u32) -> c_int {
     let out = printf_impl(fmt, &[a0]);
     if !s.is_null() && n > 0 {
         let w = (out.len()).min(n - 1);
@@ -914,6 +924,7 @@ pub unsafe extern "C" fn strncpy(dst: *mut c_char, src: *const c_char, n: usize)
     if dst.is_null() || n == 0 {
         return dst;
     }
+    //* 与 C 的偏差: src=NULL 在 C 里是 UB, 本垫片按"空 src"降级为向 dst 补零 n 字节; 引擎调用点不会传 NULL.
     let bytes = if src.is_null() {
         Vec::new()
     } else {
