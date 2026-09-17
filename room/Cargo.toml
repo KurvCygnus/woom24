@@ -23,10 +23,10 @@ bytemuck = { version = "1", features = ["derive"] }
 # Logging facade.
 log = "0.4"
 
-# Pure-Rust SF2 soundfont synthesizer. The music playback data plane (mixer
-# graph + soundfont rendering) moved to the native shell; kept listed here
-# because the engine's `doom::i_sound` docs still reference the
-# rustysynth-backed music path.
+# Pure-Rust SF2 soundfont synthesizer. Backs the shell-independent synthesis
+# core in `src/audio/synth.rs` (`SynthFont`/`SynthEngine`): the single
+# "MIDI bytes -> interleaved stereo f32" implementation shared by the native
+# and web audio output adapters.
 rustysynth = "1"
 
 # Optional heap profiler (use with --features dhat-heap).

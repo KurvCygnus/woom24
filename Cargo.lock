@@ -2008,7 +2008,6 @@ dependencies = [
  "pollster",
  "rodio",
  "room",
- "rustysynth",
  "wgpu",
  "winit",
 ]

@@ -16,9 +16,11 @@
 
 pub(crate) mod music;
 pub mod sfx;
+pub mod synth;
 
 pub use music::{mus2midi, SAMPLE_RATE};
 pub use sfx::{decode_doom_sfx, gains_from, PanState};
+pub use synth::{SynthEngine, SynthFont};
 
 use std::cell::Cell;
 use std::cell::RefCell;

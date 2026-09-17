@@ -1,14 +1,14 @@
 //! Music playback data plane for the native shell: SoundFont synthesis.
 //!
-//! Moved verbatim from the engine library's former `room::audio::music`
-//! module.  Standard MIDI File bytes (produced by `room::audio::mus2midi`
-//! or supplied as raw MIDI) are synthesised with `rustysynth` and streamed
-//! into the rodio mixer owned by the shell's audio backend.
+//! Standard MIDI File bytes (produced by `room::audio::mus2midi` or supplied
+//! as raw MIDI) are synthesised by the shared pull-based core
+//! `room::audio::synth::SynthEngine` (a thin wrapper around `rustysynth`)
+//! and streamed into the rodio mixer owned by the shell's audio backend.
 //!
 //! ## Pipeline
 //!
 //! ```text
-//!   SMF bytes ──rustysynth──▶ stereo f32 PCM
+//!   SMF bytes ──SynthEngine──▶ interleaved stereo f32 PCM
 //!                                    │
 //!                    Arc<AtomicU32> ─┴── volume gain
 //!                                    │
@@ -17,77 +17,46 @@
 //!
 //! ## Components
 //!
-//! - [`MusicSource`] — a `rodio::Source` that renders one block at a time
-//!   from the sequencer and applies a shared volume gain.
-//! - [`MusicState`] — owns the SF2 SoundFont, the active player, and the
-//!   shared volume cell; exposes load/play/stop/pause/resume.
+//! - [`MusicSource`] — a `rodio::Source` adapter that pulls interleaved
+//!   samples from the engine and applies a shared volume gain.
+//! - [`MusicState`] — owns the parsed SF2 SoundFont, the active player, and
+//!   the shared volume cell; exposes load/play/stop/pause/resume.
 
 use rodio::{Player, Source};
-use rustysynth::{MidiFile, MidiFileSequencer, SoundFont, Synthesizer, SynthesizerSettings};
-use std::io::{BufReader, Cursor};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use room::audio::SAMPLE_RATE;
-
-/// Number of stereo frames rendered per sequencer `render` call.  Each call
-/// produces `BLOCK_SIZE` left and `BLOCK_SIZE` right samples, so the
-/// interleaved output stream advances by `2 * BLOCK_SIZE` samples per block.
-const BLOCK_SIZE: usize = 512;
+use room::audio::{SynthEngine, SynthFont, SAMPLE_RATE};
 
 // ---------------------------------------------------------------------------
-// MusicSource — rodio Source that renders MIDI via rustysynth
+// MusicSource — rodio Source adapter over the shared SynthEngine core
 // ---------------------------------------------------------------------------
 
-/// A `rodio::Source` that synthesises MIDI in `BLOCK_SIZE`-frame chunks and
-/// streams interleaved stereo `f32` samples.
-///
-/// Renders one block ahead and walks the interleaved cursor `pos` from `0` to
-/// `BLOCK_SIZE * 2` before triggering the next render.  When the sequencer
-/// reports end-of-sequence the source stops producing samples (after draining
-/// the final block).
+/// rodio adapter: `SynthEngine` output × shared volume.  All rendering logic
+/// lives on the lib side (`room::audio::synth`).
 pub(crate) struct MusicSource {
-    /// The underlying rustysynth sequencer; advanced one block at a time.
-    sequencer: MidiFileSequencer,
-    /// Left-channel scratch buffer filled by `sequencer.render`.
-    buf_l: Vec<f32>,
-    /// Right-channel scratch buffer filled by `sequencer.render`.
-    buf_r: Vec<f32>,
-    /// Interleaved read cursor in `[0, BLOCK_SIZE * 2]`.  Even values index
-    /// `buf_l[pos/2]`, odd values index `buf_r[pos/2]`.
-    pos: usize,
-    /// `true` once the sequencer reports end-of-sequence and the current
-    /// block has been fully drained.
-    finished: bool,
+    /// The shared, shell-independent synthesis engine (pull-based).
+    engine: SynthEngine,
     /// Shared output gain (`f32` bits) updated by [`MusicState::set_volume`].
     volume: Arc<AtomicU32>,
 }
 
 /// Construction helper for [`MusicSource`].
 impl MusicSource {
-    /// Build a new music source from a SoundFont and a SMF byte slice.
+    /// Build a new music source from a parsed SoundFont and a SMF byte slice.
     ///
-    /// Returns `None` if the synthesiser settings are rejected by rustysynth
-    /// or if `midi_bytes` is not a parseable Standard MIDI File.  When
-    /// `looping` is `true` the sequencer will restart the file on completion.
+    /// Returns `None` if the engine cannot be constructed (e.g. `midi_bytes`
+    /// is not a parseable Standard MIDI File).  When `looping` is `true` the
+    /// engine will restart the file on completion.
     pub(crate) fn new(
-        sound_font: &Arc<SoundFont>,
+        sound_font: &SynthFont,
         midi_bytes: &[u8],
         looping: bool,
         volume: Arc<AtomicU32>,
     ) -> Option<Self> {
-        let settings = SynthesizerSettings::new(SAMPLE_RATE);
-        let synthesizer = Synthesizer::new(sound_font, &settings).ok()?;
-        let midi_file = Arc::new(MidiFile::new(&mut Cursor::new(midi_bytes)).ok()?);
-        let mut sequencer = MidiFileSequencer::new(synthesizer);
-        sequencer.play(&midi_file, looping);
         Some(Self {
-            sequencer,
-            buf_l: vec![0.0f32; BLOCK_SIZE],
-            buf_r: vec![0.0f32; BLOCK_SIZE],
-            pos: BLOCK_SIZE * 2, // triggers render on first next()
-            finished: false,
+            engine: SynthEngine::new(sound_font, midi_bytes, looping)?,
             volume,
         })
     }
@@ -97,35 +66,18 @@ impl MusicSource {
 impl Iterator for MusicSource {
     type Item = f32;
 
-    /// Emit the next sample.  When the interleaved cursor reaches the end of
-    /// the current block, render another block (or stop if the sequence is
-    /// finished).  Returns `None` only after the last block is drained.
+    /// Bit-identical to the pre-refactor output: `SynthEngine::next_interleaved`
+    /// scaled by the shared volume (transported as `f32` bits).
     fn next(&mut self) -> Option<f32> {
-        if self.pos >= BLOCK_SIZE * 2 {
-            if self.finished {
-                return None;
-            }
-            self.sequencer.render(&mut self.buf_l, &mut self.buf_r);
-            self.pos = 0;
-            if self.sequencer.end_of_sequence() {
-                self.finished = true;
-            }
-        }
         let vol = f32::from_bits(self.volume.load(Ordering::Relaxed));
-        let sample = if self.pos.is_multiple_of(2) {
-            self.buf_l[self.pos / 2] * vol
-        } else {
-            self.buf_r[self.pos / 2] * vol
-        };
-        self.pos += 1;
-        Some(sample)
+        self.engine.next_interleaved().map(|s| s * vol)
     }
 }
 
-/// `rodio::Source` impl describing the synthesised stream as 2-channel
-/// `f32` PCM at [`SAMPLE_RATE`] Hz with no fixed length.
+/// `rodio::Source` impl describing the stream as 2-channel `f32` PCM at
+/// [`SAMPLE_RATE`] Hz with no fixed length (as before the refactor).
 impl Source for MusicSource {
-    /// No fixed-length span: the sequencer can emit indefinitely (looping
+    /// No fixed-length span: the engine can emit indefinitely (looping
     /// playback) or end at any block boundary.
     fn current_span_len(&self) -> Option<usize> {
         None
@@ -134,7 +86,7 @@ impl Source for MusicSource {
     fn channels(&self) -> rodio::ChannelCount {
         std::num::NonZero::new(2u16).unwrap()
     }
-    /// Output sample rate, matching the synthesiser settings.
+    /// Output sample rate, matching the engine's synthesiser settings.
     fn sample_rate(&self) -> rodio::SampleRate {
         std::num::NonZero::new(SAMPLE_RATE as u32).unwrap()
     }
@@ -151,9 +103,10 @@ impl Source for MusicSource {
 /// Owns the SoundFont, the optional active player, and the shared volume
 /// cell.  Held inside the shell's [`crate::rodio_backend::RodioBackend`].
 pub(crate) struct MusicState {
-    /// Loaded SF2 SoundFont, shared with every [`MusicSource`] this state
-    /// spawns.  `None` until [`MusicState::load_sound_font`] succeeds.
-    pub(crate) sound_font: Option<Arc<SoundFont>>,
+    /// Loaded font, reused for every subsequent play (no rustysynth types
+    /// held directly any more).  `None` until [`MusicState::load_sound_font`]
+    /// succeeds.
+    pub(crate) sound_font: Option<SynthFont>,
     /// Active rodio player playing the current song, or `None` when stopped.
     /// Dropping the player halts playback.
     player: Option<Player>,
@@ -180,17 +133,14 @@ impl MusicState {
     /// failure) are logged but not propagated — playback simply remains a
     /// no-op until a valid font is loaded.
     pub(crate) fn load_sound_font(&mut self, path: &std::path::Path) {
-        match std::fs::File::open(path) {
-            Ok(f) => {
-                let mut reader = BufReader::new(f);
-                match SoundFont::new(&mut reader) {
-                    Ok(sf) => {
-                        log::info!("Soundfont loaded: {}", path.display());
-                        self.sound_font = Some(Arc::new(sf));
-                    }
-                    Err(e) => log::warn!("Soundfont parse error ({}): {e}", path.display()),
+        match std::fs::read(path) {
+            Ok(bytes) => match SynthFont::parse(&bytes) {
+                Some(f) => {
+                    log::info!("Soundfont loaded: {}", path.display());
+                    self.sound_font = Some(f);
                 }
-            }
+                None => log::warn!("Soundfont parse error ({})", path.display()),
+            },
             Err(e) => log::warn!("Soundfont not found ({}): {e}", path.display()),
         }
     }
