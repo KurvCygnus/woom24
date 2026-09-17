@@ -7,4 +7,6 @@ repository = "https://github.com/KurvCygnus/woom24"
 license = "GPL-2.0"
 
 [lib]
-name = "woom24_libc"
+# Lib 名即 wasm 上的 extern crate 名: room 的 `libc::` 路径经它解析
+# (Cargo 限制: 同名依赖键不能跨 target 指向不同 source, 故键用包名).
+name = "libc"

@@ -29,11 +29,17 @@ log = "0.4"
 # rustysynth-backed music path.
 rustysynth = "1"
 
-# libc bindings for C FFI (FILE, fopen, fclose, fseek, fread, printf, etc.)
-libc = "0.2"
-
 # Optional heap profiler (use with --features dhat-heap).
 dhat = { version = "0.3", optional = true }
+
+# libc bindings for C FFI (FILE, fopen, fclose, fseek, fread, printf, etc.)
+# 宿主目标仍用真实 libc; wasm32 换成本仓库的声明垫片,
+# 实现在 shells/web/src/wasm_vfs.rs (spec ② D1).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+woom24-libc = { path = "../shells/web/crt" }
 
 [dev-dependencies]
 # Simple logger backed by stderr (used by the demo_playthrough integration test).

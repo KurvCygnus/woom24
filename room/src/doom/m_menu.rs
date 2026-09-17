@@ -172,10 +172,13 @@ pub struct menu_t {
     pub lastOn: i16,
 }
 
+//? ILP32 (wasm32) 上菜单结构布局与 C 原型不同, 期望值需按位宽细化 = spec ③.
+#[cfg(target_pointer_width = "64")]
 const _: () = assert!(
     std::mem::size_of::<menuitem_t>() == 32,
     "menuitem_t size mismatch"
 );
+#[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::size_of::<menu_t>() == 40, "menu_t size mismatch");
 
 /// Minimal prefix of `patch_t` needed to read width/height without pulling in the full type.

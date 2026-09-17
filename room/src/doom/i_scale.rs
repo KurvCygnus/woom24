@@ -72,7 +72,9 @@ unsafe fn stdout_placeholder() -> *mut libc::FILE {
         }
         std::ptr::addr_of_mut!(stdout)
     }
-    #[cfg(windows)]
+    //* wasm32 既非 unix 也非 windows: 不补这个分支, 函数体在 ILP32 上
+    //* 是空的, E0308. wasm 的 fflush 垫片忽略流参数, null 语义与 windows 一致.
+    #[cfg(not(unix))]
     {
         std::ptr::null_mut()
     }
