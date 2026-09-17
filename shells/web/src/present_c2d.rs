@@ -2,6 +2,9 @@
 
 /// 引擎帧缓冲是 BGRA 字节序 (native gpu.rs 同源);
 /// Canvas ImageData 是 RGBA 字节序, 逐像素换位.
+//* 引擎从不写 alpha 字节 (DG_ScreenBuffer 零初始化, cmap_to_fb 只写 r/g/b),
+//* 而 putImageData 会把 alpha 合成到页面上 -- 透传 0 等于每帧全透明.
+//* 故恒置 0xFF; 保持纯函数, 不借 {alpha:false} 上下文选项.
 pub fn bgra_to_rgba(src: &[u8], dst: &mut [u8]) {
     assert_eq!(src.len(), dst.len(), "缓冲区必须等长");
     //? 计划印的是 chunks_exact(4).zip(chunks_exact_mut(4)); clippy
@@ -15,7 +18,7 @@ pub fn bgra_to_rgba(src: &[u8], dst: &mut [u8]) {
         d[0] = s[2]; // R
         d[1] = s[1]; // G
         d[2] = s[0]; // B
-        d[3] = s[3]; // A
+        d[3] = 0xFF; // A: 引擎侧恒 0 (见函数头), 透传会被 Canvas 合成成透明帧
     }
 }
 
@@ -76,16 +79,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn swaps_blue_and_red_keeps_green_alpha() {
+    fn swaps_blue_and_red_keeps_green_forces_opaque_alpha() {
         let src = [1u8, 2, 3, 4];
         let mut dst = [0u8; 4];
         bgra_to_rgba(&src, &mut dst);
-        assert_eq!(dst, [3, 2, 1, 4]);
+        assert_eq!(dst, [3, 2, 1, 255]);
     }
 
     #[test]
-    fn full_frame_conversion_is_reversible_in_shape() {
-        let src = vec![10u8, 20, 30, 255, 40, 50, 60, 255];
+    fn full_frame_conversion_swaps_rgb_alpha_forced_opaque() {
+        // 源 alpha 取 0 = 引擎真值 (DG_ScreenBuffer 零初始化后无人写 byte 3).
+        let src = vec![10u8, 20, 30, 0, 40, 50, 60, 0];
         let mut dst = vec![0u8; 8];
         bgra_to_rgba(&src, &mut dst);
         assert_eq!(dst, [30, 20, 10, 255, 60, 50, 40, 255]);

@@ -8,6 +8,13 @@
 //! | DG_GetTicksMs | clock::now_ms() |
 //! | DG_GetKey | 弹出 JS 经 woom24_push_key 压入的队列 |
 //! | DG_SetWindowTitle | 写 document.title |
+//!
+//! ## 全局状态 (与 shells/native/src/platform.rs 同一契约)
+//!
+//! 共享可变状态放在 [`thread_local!`] + [`RefCell`] 里: 这些函数经 C ABI 被
+//! doomgeneric 调用, 调用方没有 Rust 所有权概念. 这样做是安全的, 因为**所有**
+//! 调用都源自主线程 (JS 事件循环驱动的 DG_*/woom24_* 导出); wasm32 上主线程
+//! 事实上单线程, 不存在并发进入, 故无需锁.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
