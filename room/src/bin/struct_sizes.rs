@@ -19,9 +19,9 @@
 /// No-op stand-ins for the six doomgeneric platform callbacks.
 ///
 /// This diagnostic binary links the engine library without the winit/wgpu
-/// platform layer (`src/platform`, included only by the player binary)
-/// that provides the `DG_*` callbacks; the stubs satisfy those link-time
-/// references. The engine is never run here.
+/// platform layer (`shells/native`, the shell crate) that provides the
+/// `DG_*` callbacks; the stubs satisfy those link-time references. The
+/// engine is never run here.
 #[no_mangle]
 extern "C" fn DG_Init() {}
 #[no_mangle]

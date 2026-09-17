@@ -126,9 +126,10 @@ pub trait AudioBackend {
   shape, dereferencing through the trait object. MUS→MIDI conversion stays at the engine call site,
   exactly as today.
 - **Backend installation:** the `AUDIO` cell stays crate-private; the lib exposes one public
-  installer, `room::audio::set_backend(Option<Box<dyn AudioBackend>>)`. `shells/native` calls it
-  during startup with `RodioBackend` (or `NoopBackend` on device failure); tests may install
-  `NoopBackend` explicitly.
+  installer, `room::audio::set_backend_factory(fn() -> Result<Box<dyn AudioBackend>, String>)`.
+  `shells/native` calls it during startup with a factory constructing `RodioBackend`; when
+  construction fails, `AUDIO` stays empty and the engine runs silent (the failure is logged
+  inside `create_backend`). `NoopBackend` formalises the silent contract (used by tests).
 - **`NoopBackend`:** every control op is a no-op; `is_playing`/`is_music_playing` return `false`.
   It formalises today's silent path (no audio device / no soundfont) so the engine always has a
   backend and "audio degrades, never fails".
@@ -136,9 +137,8 @@ pub trait AudioBackend {
 ## Error handling (parity with current behavior)
 
 - GPU adapter/surface creation failure → fatal (`I_Error`-style exit), as today.
-- Audio device open failure → WARN log, fall back to `NoopBackend` (today: `AUDIO` stays `None`
-  and the engine runs silent — equivalent semantics, one code path instead of scattered `None`
-  checks).
+- Audio device open failure → the factory returns `Err` with the cause; `create_backend` logs
+  the cause ("running silent", WARN) and `AUDIO` stays empty (engine runs silent, as before).
 - Runtime surface loss (minimize/resize) → unchanged reconfigure logic from `gpu.rs`.
 
 ## Testing & acceptance
@@ -147,6 +147,10 @@ pub trait AudioBackend {
    `DG_*` stubs in `tests/demo_playthrough.rs`; lib unit tests keep `dg_test_stubs`; both were
    introduced in commit `ed64934` and are untouched by this spec).
 2. **New hard acceptance:** `cargo check -p room --target wasm32-unknown-unknown` passes.
+   *Amended during execution:* the blanket wasm check surfaces the CRT/LP64 gap documented in
+   Goals §1 and is deferred to specs ②/③. Spec ①'s checkable acceptance is the dependency
+   shrink — no winit/wgpu/rodio/env_logger/pollster left in `room/Cargo.toml` — plus the full
+   host suite staying green.
 3. Manual smoke (native): `room` with the shareware `doom1.wad` — window renders, menu navigable,
    `DEMO1` plays, audio audible.
 4. Byte-parity claim is by construction for audio: the mixer graph is moved, not rewritten;
@@ -167,3 +171,6 @@ pub trait AudioBackend {
   presenter backends (WebGL2 default, Canvas2D baseline, WebGPU experimental), Web Audio
   `AudioBackend` implementation.
 - Spec ③ (c_tests): decide the LP64/LLP64 strategy for the C-vs-Rust differential suite.
+- `rustysynth` is currently kept as a `room` dependency only because of four doc-comment
+  mentions (the rustysynth-backed music data plane itself moved to `shells/native`) — spec ②
+  planning must decide keep-and-reword vs drop, with the rationale recorded.

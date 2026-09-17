@@ -33,7 +33,7 @@
 //!                                └─ I_FinishUpdate() → DG_DrawFrame()
 //! ```
 //!
-//! The six `DG_*` functions (defined in `platform/mod.rs`) access window and
+//! The six `DG_*` functions (defined in `platform.rs`) access window and
 //! GPU resources through [`thread_local!`] statics, which is safe because
 //! everything runs on the main thread.
 

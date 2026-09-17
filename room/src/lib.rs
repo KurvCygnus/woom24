@@ -3,7 +3,7 @@
 //! `room` is a Rust port of `chocolate-doom`/`doomgeneric`.  This file is the
 //! library crate root that re-exports the major subsystems:
 //!
-//! - [`audio`] - audio backend control plane ([`AudioBackend`] trait,
+//! - [`audio`] - audio backend control plane ([`audio::AudioBackend`] trait,
 //!   shell-installed factory) plus the pure SFX/music decoding helpers that
 //!   replace the SDL2 audio plumbing in `i_sound.c` / `i_oplmusic.c`.
 //! - [`doom`] - per-`.c`-file Rust ports living under `vendor/doomgeneric/`.
@@ -12,9 +12,10 @@
 //! - [`types`] - cross-cutting FFI-safe type aliases (currently just the
 //!   tri-state [`types::Boolean`] mirroring Doom's `unsigned int boolean`).
 //!
-//! The binary front-ends (the GPU/winit player in `src/main.rs`, the
-//! struct-size dumper in `src/bin/struct_sizes.rs`) and the test harness in
-//! `doom::c_tests` all consume this crate.
+//! The GPU/winit player lives in the `room-shell-native` shell crate
+//! (`shells/native`); the struct-size dumper remains in
+//! `src/bin/struct_sizes.rs`. Both, together with the test harness in
+//! `doom::c_tests`, consume this crate.
 //!
 //! # Crate-wide lints
 //!
@@ -59,9 +60,9 @@ pub mod types;
 /// No-op doomgeneric platform callbacks for the unit-test binary.
 ///
 /// The unit tests link the engine library without the real platform layer
-/// (`src/platform`, included only by the player binary in `main.rs`) that
-/// defines the `DG_*` callbacks, so the test binary cannot resolve them on
-/// its own. Integration tests (`tests/demo_playthrough.rs`) carry their own
+/// (`shells/native` — the platform layer crate, which defines the real
+/// `DG_*` callbacks), so the test binary cannot resolve them on its own.
+/// Integration tests (`tests/demo_playthrough.rs`) carry their own
 /// copies of these stubs; this module only exists under `cfg(test)` and is
 /// never part of the shipped library.
 #[cfg(test)]

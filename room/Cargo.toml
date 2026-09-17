@@ -2,7 +2,7 @@
 name = "room"
 version = "0.1.0"
 edition = "2021"
-description = "A Rust implementation of the doomgeneric platform layer using winit and wgpu"
+description = "Rust port of the doomgeneric Doom engine (library crate; the native platform shell lives in shells/native)"
 repository = "https://github.com/sunsided/room"
 license = "GPL-2.0"
 authors = ["Markus Mayer <widemeadows@gmail.com>"]

@@ -4,9 +4,9 @@
   <img src=".readme/room.png" alt="room screenshot" />
 </div>
 
-A complete Rust port of [doomgeneric](https://github.com/ozkl/doomgeneric) using
-[winit](https://github.com/rust-windowing/winit) and [wgpu](https://github.com/gfx-rs/wgpu)
-for the platform layer.
+A complete Rust port of [doomgeneric](https://github.com/ozkl/doomgeneric). The engine ships as
+the `room` library crate; the platform layer is provided by the `shells/native` crate, built on
+[winit](https://github.com/rust-windowing/winit) and [wgpu](https://github.com/gfx-rs/wgpu).
 
 ## What is this?
 
@@ -39,29 +39,33 @@ Sound effects and music are implemented via [rodio](https://github.com/RustAudio
 ## Project layout
 
 ```
-room/
-├── Cargo.toml               Workspace manifest
+woom24/                     Workspace manifest (Cargo.toml)
 ├── vendor/
 │   └── doomgeneric/         Vendored C source from ozkl/doomgeneric
 ├── doomgeneric-sys/         FFI + C compilation crate
 │   ├── build.rs             Compiles remaining C modules via the `cc` crate
 │   └── src/lib.rs           Declarations for C entry points (doomgeneric_Create, etc.)
-└── room/                    Rust binary crate
-    └── src/
-        ├── main.rs          winit ApplicationHandler and entry point
-        ├── gpu.rs           wgpu renderer (texture upload + fullscreen blit)
-        ├── platform/
-        │   ├── mod.rs       DG_* C-callable platform callbacks
-        │   └── keys.rs      winit KeyCode → Doom key byte mapping
-        └── doom/
-            ├── mod.rs       Rust reimplementations of ported engine modules
-            ├── c_ffi.rs     FFI declarations for still-C modules (used by tests)
-            ├── c_tests/     Regression tests comparing C vs Rust behaviour
-            ├── d_main.rs    Ported main entry point and game init
-            ├── r_draw.rs    Ported renderer core
-            ├── p_setup.rs   Ported map loader
-            ├── z_zone.rs    Ported zone memory allocator
-            └── …            One `.rs` module per original `.c` file
+├── c2rust-intermediate/     Nightly-only c2rust reference translation (excluded from default builds)
+├── room/                    Engine library crate (no windowing/GPU/audio dependencies)
+│   └── src/
+│       ├── audio/           Audio backend control plane + pure SFX/music decoding
+│       ├── doom/            Rust reimplementations of ported engine modules
+│       │   ├── c_ffi.rs     FFI declarations for still-C modules (used by tests)
+│       │   ├── c_tests/     Regression tests comparing C vs Rust behaviour
+│       │   └── …            One `.rs` module per original `.c` file
+│       ├── headless.rs      Thread-local frame/tick counters for windowless test harnesses
+│       ├── types/           Cross-cutting FFI-safe type aliases
+│       └── bin/
+│           └── struct_sizes.rs  Diagnostic: struct sizes and field offsets
+└── shells/
+    └── native/              Native platform shell (package `room-shell-native`, bin `room`)
+        └── src/
+            ├── main.rs      winit ApplicationHandler and entry point
+            ├── gpu.rs       wgpu presenter (texture upload + fullscreen blit)
+            ├── platform.rs  DG_* C-callable platform callbacks
+            ├── platform/
+            │   └── keys.rs  winit KeyCode → Doom key byte mapping
+            └── rodio_backend.rs  rodio mixer-graph audio backend
 ```
 
 ## Prerequisites
