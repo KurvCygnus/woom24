@@ -74,7 +74,7 @@ woom24/ (workspace)
 | `main.rs` | `room/src/main.rs` | startup: inject `myargc`/`myargv` → winit window → wgpu surface → pick audio backend → `doomgeneric_Create` → event loop drives redraw |
 | `dg.rs` | `room/src/platform/mod.rs` | the six `DG_*` `#[no_mangle] extern "C"` impls, reading shell state |
 | `state.rs` | statics in `main.rs` / `platform/mod.rs` | `WINDOW`, `GPU`, `KEY_QUEUE`, `QUIT_REQUESTED`, start clock — consolidated as shell-crate-private state (they already existed only on the bin side) |
-| `present.rs` | `room/src/gpu.rs` | wgpu presentation: 320×200 paletted frame → scaled surface (resize/reconfigure logic unchanged) |
+| `present.rs` | `room/src/gpu.rs` | wgpu presentation: the engine's 640×400 BGRA8 `DG_ScreenBuffer` → scaled surface (resize/reconfigure logic unchanged) |
 | `keys.rs` | `room/src/platform/keys.rs` | winit key → Doom key mapping |
 | `rodio_backend.rs` | rodio parts of `room/src/audio/` | `RodioBackend`: today's mixer graph (Mixer/Player/PannedSource + music rodio Source) relocated verbatim |
 
