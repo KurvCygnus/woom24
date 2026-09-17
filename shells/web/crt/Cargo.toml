@@ -1,0 +1,10 @@
+[package]
+name = "woom24-libc"
+version = "0.1.0"
+edition = "2021"
+description = "Declaration-only libc-shaped seam so room's libc:: paths type-check on wasm32; real bodies live in shells/web/src/wasm_vfs.rs"
+repository = "https://github.com/KurvCygnus/woom24"
+license = "GPL-2.0"
+
+[lib]
+name = "woom24_libc"
