@@ -14,6 +14,7 @@
 pub(crate) mod music;
 pub(crate) mod sfx;
 
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -22,6 +23,78 @@ use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
 
 pub(crate) use sfx::{decode_doom_sfx, PannedSource};
 
+/// Control-plane seam between the engine (`doom::i_sound`) and a platform
+/// audio backend. The data plane (mixing graph) belongs to the backend.
+pub trait AudioBackend {
+    // SFX — mirrors the existing AudioState methods verbatim.
+    fn start_sound(&mut self, data: &[u8], vol: i32, sep: i32, channel: usize) -> bool;
+    fn stop_sound(&mut self, channel: usize);
+    fn update_sound_params(&self, channel: usize, vol: i32, sep: i32);
+    fn is_playing(&self, channel: usize) -> bool;
+    // Music — mirrors MusicState; the backend owns its own mixer, so the
+    // `&Mixer` parameter of MusicState::play disappears.
+    fn load_sound_font(&mut self, path: &std::path::Path);
+    fn play_music(&mut self, midi_bytes: &[u8], looping: bool);
+    fn stop_music(&mut self);
+    fn set_music_volume(&self, vol: i32);
+    fn pause_music(&self);
+    fn resume_music(&self);
+    fn is_music_playing(&self) -> bool;
+}
+
+thread_local! {
+    /// Factory installed by the platform shell before the engine initialises
+    /// audio. `None` in contexts without a shell (tests): audio stays silent.
+    static BACKEND_FACTORY: Cell<Option<BackendFactory>> = const { Cell::new(None) };
+}
+
+/// Signature of a backend constructor installed by a platform shell.
+pub type BackendFactory = fn() -> Result<Box<dyn AudioBackend>, String>;
+
+/// Install the platform's backend constructor. Called once from the shell
+/// (native: rodio; wasm: Web Audio) before `doomgeneric_Create`.
+pub fn set_backend_factory(factory: BackendFactory) {
+    BACKEND_FACTORY.with(|f| f.set(Some(factory)));
+}
+
+/// Invoke the installed factory. Returns `None` when no shell installed a
+/// factory (headless/test contexts) or when the factory itself reports
+/// failure (no audio device) — both mean "run silent", matching today's
+/// `AUDIO == None` behavior.
+pub(crate) fn create_backend() -> Option<Box<dyn AudioBackend>> {
+    BACKEND_FACTORY.with(|f| f.get()).and_then(|factory| {
+        let built = factory();
+        if let Err(e) = &built {
+            log::warn!("audio backend construction failed (running silent): {e}");
+        }
+        built.ok()
+    })
+}
+
+/// The silent backend. Every control operation is a no-op and nothing ever
+/// reports as playing. Formalises the engine's "no audio device" path.
+pub struct NoopBackend;
+
+impl AudioBackend for NoopBackend {
+    fn start_sound(&mut self, _data: &[u8], _vol: i32, _sep: i32, _channel: usize) -> bool {
+        true
+    }
+    fn stop_sound(&mut self, _channel: usize) {}
+    fn update_sound_params(&self, _channel: usize, _vol: i32, _sep: i32) {}
+    fn is_playing(&self, _channel: usize) -> bool {
+        false
+    }
+    fn load_sound_font(&mut self, _path: &std::path::Path) {}
+    fn play_music(&mut self, _midi_bytes: &[u8], _looping: bool) {}
+    fn stop_music(&mut self) {}
+    fn set_music_volume(&self, _vol: i32) {}
+    fn pause_music(&self) {}
+    fn resume_music(&self) {}
+    fn is_music_playing(&self) -> bool {
+        false
+    }
+}
+
 thread_local! {
     /// Thread-local home for the singleton [`AudioState`].
     ///
@@ -29,7 +102,8 @@ thread_local! {
     /// `doom::i_sound` and `doom::s_sound` borrow it mutably to start/stop
     /// sounds.  Keeping it thread-local avoids needing a `Mutex` because Doom
     /// only ever drives audio from the main loop thread.
-    pub(crate) static AUDIO: RefCell<Option<AudioState>> = const { RefCell::new(None) };
+    pub(crate) static AUDIO: RefCell<Option<Box<dyn AudioBackend>>> =
+        const { RefCell::new(None) };
 }
 
 /// Singleton audio backend state held in the [`AUDIO`] thread-local.
@@ -139,5 +213,70 @@ impl AudioState {
             .player
             .as_ref()
             .is_some_and(|p| !p.empty())
+    }
+}
+
+impl AudioBackend for AudioState {
+    fn start_sound(&mut self, data: &[u8], vol: i32, sep: i32, channel: usize) -> bool {
+        AudioState::start_sound(self, data, vol, sep, channel)
+    }
+    fn stop_sound(&mut self, channel: usize) {
+        AudioState::stop_sound(self, channel)
+    }
+    fn update_sound_params(&self, channel: usize, vol: i32, sep: i32) {
+        AudioState::update_sound_params(self, channel, vol, sep)
+    }
+    fn is_playing(&self, channel: usize) -> bool {
+        AudioState::is_playing(self, channel)
+    }
+    fn load_sound_font(&mut self, path: &std::path::Path) {
+        self.music.load_sound_font(path)
+    }
+    fn play_music(&mut self, midi_bytes: &[u8], looping: bool) {
+        let mixer = self.mixer.clone();
+        self.music.play(midi_bytes, looping, &mixer);
+    }
+    fn stop_music(&mut self) {
+        self.music.stop()
+    }
+    fn set_music_volume(&self, vol: i32) {
+        self.music.set_volume(vol)
+    }
+    fn pause_music(&self) {
+        self.music.pause()
+    }
+    fn resume_music(&self) {
+        self.music.resume()
+    }
+    fn is_music_playing(&self) -> bool {
+        self.music.is_playing()
+    }
+}
+
+#[cfg(test)]
+mod noop_tests {
+    use super::*;
+
+    #[test]
+    fn noop_backend_reports_silence() {
+        let mut b = NoopBackend;
+        assert!(b.start_sound(&[], 100, 128, 0), "Noop accepts sounds (silent success)");
+        assert!(!b.is_playing(0), "Noop never reports playback");
+        assert!(!b.is_music_playing(), "Noop never reports music");
+        b.stop_sound(0);
+        b.update_sound_params(0, 50, 128);
+        b.load_sound_font(std::path::Path::new("none.sf2"));
+        b.play_music(&[], false);
+        b.stop_music();
+        b.set_music_volume(50);
+        b.pause_music();
+        b.resume_music();
+    }
+
+    #[test]
+    fn no_factory_means_silent() {
+        // Backends are created only via a shell-installed factory; in tests
+        // none is installed, mirroring headless runs.
+        assert!(create_backend().is_none());
     }
 }

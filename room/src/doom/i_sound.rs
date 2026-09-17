@@ -107,12 +107,12 @@ const fn c_bytes(s: &[u8]) -> &'static [c_char] {
 pub extern "C" fn I_InitSound(_use_sfx_prefix: Boolean) {
     crate::audio::AUDIO.with_borrow_mut(|audio| {
         if audio.is_none() {
-            match crate::audio::AudioState::new() {
-                Ok(state) => {
+            match crate::audio::create_backend() {
+                Some(backend) => {
                     log::info!("Audio initialised");
-                    *audio = Some(state);
+                    *audio = Some(backend);
                 }
-                Err(e) => log::warn!("Audio init failed (running silent): {e}"),
+                None => log::warn!("No audio backend installed (running silent)"),
             }
         }
     });
@@ -319,7 +319,7 @@ pub extern "C" fn I_InitMusic() {
     if let Some(path) = find_soundfont_path() {
         crate::audio::AUDIO.with_borrow_mut(|audio| {
             if let Some(a) = audio.as_mut() {
-                a.music.load_sound_font(&path);
+                a.load_sound_font(&path);
             }
         });
     }
@@ -331,7 +331,7 @@ pub extern "C" fn I_InitMusic() {
 pub extern "C" fn I_ShutdownMusic() {
     crate::audio::AUDIO.with_borrow_mut(|audio| {
         if let Some(a) = audio.as_mut() {
-            a.music.stop();
+            a.stop_music();
         }
     });
 }
@@ -342,7 +342,7 @@ pub extern "C" fn I_ShutdownMusic() {
 pub extern "C" fn I_SetMusicVolume(volume: c_int) {
     crate::audio::AUDIO.with_borrow(|audio| {
         if let Some(a) = audio.as_ref() {
-            a.music.set_volume(volume);
+            a.set_music_volume(volume);
         }
     });
 }
@@ -352,7 +352,7 @@ pub extern "C" fn I_SetMusicVolume(volume: c_int) {
 pub extern "C" fn I_PauseSong() {
     crate::audio::AUDIO.with_borrow(|audio| {
         if let Some(a) = audio.as_ref() {
-            a.music.pause();
+            a.pause_music();
         }
     });
 }
@@ -362,7 +362,7 @@ pub extern "C" fn I_PauseSong() {
 pub extern "C" fn I_ResumeSong() {
     crate::audio::AUDIO.with_borrow(|audio| {
         if let Some(a) = audio.as_ref() {
-            a.music.resume();
+            a.resume_music();
         }
     });
 }
@@ -418,8 +418,7 @@ pub extern "C" fn I_PlaySong(handle: *mut c_void, looping: c_int) {
     let music_handle = unsafe { &*(handle as *const MusicHandle) };
     crate::audio::AUDIO.with_borrow_mut(|audio| {
         if let Some(a) = audio.as_mut() {
-            let mixer = a.mixer.clone();
-            a.music.play(&music_handle.midi_bytes, looping != 0, &mixer);
+            a.play_music(&music_handle.midi_bytes, looping != 0);
         }
     });
 }
@@ -430,7 +429,7 @@ pub extern "C" fn I_PlaySong(handle: *mut c_void, looping: c_int) {
 pub extern "C" fn I_StopSong() {
     crate::audio::AUDIO.with_borrow_mut(|audio| {
         if let Some(a) = audio.as_mut() {
-            a.music.stop();
+            a.stop_music();
         }
     });
 }
@@ -442,7 +441,7 @@ pub extern "C" fn I_MusicIsPlaying() -> c_int {
     let mut playing = 0;
     crate::audio::AUDIO.with_borrow(|audio| {
         if let Some(a) = audio.as_ref() {
-            playing = a.music.is_playing() as c_int;
+            playing = a.is_music_playing() as c_int;
         }
     });
     playing
