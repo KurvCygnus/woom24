@@ -1,0 +1,24 @@
+[package]
+name = "room-shell-native"
+version = "0.1.0"
+edition = "2021"
+description = "Native winit/wgpu/rodio platform shell for the room engine"
+repository = "https://github.com/KurvCygnus/woom24"
+license = "GPL-2.0"
+
+[[bin]]
+name = "room"
+path = "src/main.rs"
+
+[features]
+dhat-heap = ["dep:dhat"]
+
+[dependencies]
+room = { path = "../../room" }
+winit = "0.30"
+wgpu = { version = "29", features = ["wgsl"] }
+pollster = "0.4"
+rodio = "0.22"
+env_logger = "0.11"
+log = "0.4"
+dhat = { version = "0.3", optional = true }

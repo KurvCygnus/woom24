@@ -1994,9 +1994,20 @@ dependencies = [
  "env_logger",
  "libc",
  "log",
- "pollster",
  "rodio",
  "rustysynth",
+]
+
+[[package]]
+name = "room-shell-native"
+version = "0.1.0"
+dependencies = [
+ "dhat",
+ "env_logger",
+ "log",
+ "pollster",
+ "rodio",
+ "room",
  "wgpu",
  "winit",
 ]
