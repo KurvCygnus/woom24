@@ -20,6 +20,8 @@ web-sys = { version = "0.3", features = [
     "EventTarget", "Performance", "FileReader", "File", "Blob", "ProgressEvent",
     "WebGl2RenderingContext", "WebGlShader", "WebGlProgram", "WebGlTexture",
     "WebGlBuffer", "WebGlUniformLocation",
+    "AudioContext", "AudioBuffer", "AudioBufferSourceNode", "GainNode",
+    "StereoPannerNode", "AudioParam", "AudioNode", "AudioDestinationNode",
 ] }
 js-sys = "0.3"
 log = "0.4"
