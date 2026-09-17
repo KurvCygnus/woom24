@@ -23,8 +23,16 @@ resolved at final link).
 
 ## Goals
 
-1. `cargo check -p room --target wasm32-unknown-unknown` passes (lib is wasm-clean at the type
-   level; producing a wasm artifact is spec ②).
+1. The `room` lib carries **no windowing/GPU/audio dependencies** (winit/wgpu/rodio/env_logger/
+   pollster are gone from its dep tree — achieved).
+   *Amended during execution:* a blanket `cargo check -p room --target wasm32-unknown-unknown`
+   turned out to be beyond this spec's scope — the engine's CRT extern layer (`fopen`/`printf`/
+   `malloc`/`FILE`/… across 13 `doom/` files) and three LP64 struct-size guards
+   (`info.rs` `State`, `m_menu.rs` `menuitem_t`/`menu_t`) surface 76 type errors on wasm because
+   the `libc` crate is empty on that target and wasm32 is ILP32. That residual is **enumerated and
+   handed off**: the CRT layer's wasm replacement (in-memory VFS / libc shim behind the shell) is
+   designed in spec ②, the LP64/ILP32 layout-guard strategy in spec ③. Executed fix committed for
+   this spec: `crt.rs` now compiles for CRT-less targets (`4b872d8`).
 2. Native behavior is **byte-identical**: render/audio/input paths are *moved* code, not rewrites.
 3. Engine modules under `room/src/doom/` stay untouched except one mechanical change: the audio
    call sites go through a backend trait instead of a concrete rodio-backed struct.
