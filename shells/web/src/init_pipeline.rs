@@ -68,3 +68,62 @@ pub fn run(profile: &BootProfile) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn argv_names(args: &[CString]) -> Vec<String> {
+        args.iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn build_argv_orders_iwad_pwads_engine_args() {
+        let p = BootProfile {
+            iwad: "doom.wad".to_string(),
+            pwads: vec!["a.wad".to_string(), "b.wad".to_string()],
+            // SF2 只进 set_pending_sf2, 绝不进 argv.
+            sf2: Some("sc55.sf2".to_string()),
+            max_render_res: Some(1080),
+            engine_args: vec!["-nomusic".to_string(), "-turbo 2".to_string()],
+        };
+        assert_eq!(
+            argv_names(&build_argv(&p)),
+            vec![
+                "woom24", "-iwad", "doom.wad", "-file", "a.wad", "-file", "b.wad", "-nomusic",
+                "-turbo 2",
+            ]
+        );
+    }
+
+    #[test]
+    fn build_argv_keeps_engine_args_unsplit() {
+        // 带空格的参数按宿主原样透传 (不在此层做 M_ 解析).
+        let p = BootProfile {
+            iwad: "d.wad".to_string(),
+            pwads: Vec::new(),
+            sf2: None,
+            max_render_res: None,
+            engine_args: vec!["-warp 1 3".to_string()],
+        };
+        let v = argv_names(&build_argv(&p));
+        assert_eq!(*v.last().unwrap(), "-warp 1 3");
+        assert_eq!(v[0], "woom24");
+    }
+
+    #[test]
+    fn run_rejects_unregistered_iwad_before_engine_contact() {
+        // 测试线程的 VFS 为空: 管线必须在触到音频工厂 / 引擎之前就报错.
+        let p = BootProfile {
+            iwad: "missing.wad".to_string(),
+            pwads: Vec::new(),
+            sf2: None,
+            max_render_res: None,
+            engine_args: Vec::new(),
+        };
+        let err = run(&p).unwrap_err();
+        assert!(err.contains("missing.wad"), "错误信息应带上 IWAD 名: {err}");
+    }
+}
