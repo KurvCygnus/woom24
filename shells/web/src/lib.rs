@@ -11,8 +11,11 @@ use wasm_bindgen::prelude::*;
 
 mod clock;
 mod dg;
+mod init_pipeline;
+mod launcher_ui;
 pub mod present_c2d;
 pub mod present_gl2;
+pub mod profile;
 pub mod wasm_vfs;
 mod web_audio;
 
@@ -34,8 +37,34 @@ pub fn woom24_push_key(pressed: bool, doom_key: u8) {
     dg::push_key(pressed, doom_key);
 }
 
-/// rAF 每帧调用一次: 推进引擎一 tic 并呈现 (D2 数据流).
+/// 最小入口 (AGENTS.md): 设备元数据 + IWAD → launcher 模式.
+#[wasm_bindgen]
+pub fn woom24_minimal_start(
+    max_render_res: u32,
+    iwad_name: &str,
+    iwad: &[u8],
+) -> Result<(), JsValue> {
+    wasm_vfs::vfs_register(iwad_name, iwad.to_vec());
+    //? JsValue::from_str 收 &str, String 得先取引用 -- 不能直接把方法路径喂给 map_err.
+    launcher_ui::show(max_render_res, iwad_name).map_err(|e| JsValue::from_str(&e))
+}
+
+/// 宿主侧注册文件 (standard 入口的 PWAD/SF2 全部走这里).
+#[wasm_bindgen]
+pub fn woom24_register_file(name: &str, bytes: &[u8]) {
+    wasm_vfs::vfs_register(name, bytes.to_vec());
+}
+
+/// 标准入口 (AGENTS.md): 完整启动档案 → 直接开局, 无配置 UI.
+#[wasm_bindgen]
+pub fn woom24_standard_start(profile_json: &str) -> Result<(), JsValue> {
+    let p = profile::parse_profile(profile_json).map_err(|e| JsValue::from_str(&e))?;
+    init_pipeline::run(&p).map_err(|e| JsValue::from_str(&e))
+}
+
+/// rAF 每帧调用一次: 推进引擎一 tic, 呈现, 并按需补调音乐块 (D2/D4).
 #[wasm_bindgen]
 pub fn woom24_tick() {
     room::doom::d_main::doomgeneric_Tick();
+    web_audio::pump_current_backend();
 }

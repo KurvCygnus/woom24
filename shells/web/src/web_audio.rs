@@ -14,7 +14,6 @@ use crate::wasm_vfs;
 
 /// Doom 音量(0..=127) → 线性增益.
 // 供 trait 方法与测试使用; Task 7 工厂接线前宿主 cdylib 报 dead_code.
-#[allow(dead_code)]
 fn vol_gain(vol: i32) -> f32 {
     vol.clamp(0, 127) as f32 / 127.0
 }
@@ -24,7 +23,6 @@ fn vol_gain(vol: i32) -> f32 {
 /// 注意: 引擎 NORM_SEP = 128 居中 (0..=255, 见 s_sound.rs),
 /// 而 gains_from 以 127 居中 (0..=254, lib 自身约定)——
 /// 曲线同为线性, 中心平移 1 后两者逐点重合, 故 (sep - 1) 喂入.
-#[allow(dead_code)]
 fn sep_to_pan(sep: i32) -> f32 {
     let (l, r) = room::audio::gains_from(127, (sep - 1).clamp(0, 254));
     let sum = l + r;
@@ -46,16 +44,12 @@ thread_local! {
 }
 
 /// init_pipeline 在 doomgeneric_Create 之前调用: 记住 SF2 名.
-// Task 7 init_pipeline 接线后移除此 allow.
-#[allow(dead_code)]
 pub fn set_pending_sf2(name: Option<String>) {
     PENDING_SF2.with_borrow_mut(|s| *s = name);
 }
 
 /// 供 woom24_tick 每帧调用的音乐泵 (engine 的 AUDIO 单元 shell 摸不到,
 /// 所以泵走这里保留的句柄; 两个持有者各司其职, 互不共享可变状态).
-// Task 7 woom24_tick 接线后移除此 allow.
-#[allow(dead_code)]
 pub fn pump_current_backend() {
     LAST_BUILT.with_borrow(|slot| {
         if let Some(b) = slot.as_ref() {
@@ -83,7 +77,6 @@ struct SfxChannel {
 //? 句柄共享同一 core —— 签名与 LAST_BUILT 类型保持计划原样.
 /// 后端本体: 真正持有 AudioContext 与全部节点/引擎状态.
 // 状态仅经 WebAudioBackend 句柄触达; Task 7 接线前 dead_code 允许.
-#[allow(dead_code)]
 struct BackendCore {
     ctx: web_sys::AudioContext,
     /// 8 个逻辑声道 (与引擎 I_UpdateSoundParams 的 0..8 对应).
@@ -103,7 +96,6 @@ struct BackendCore {
 }
 
 /// 引擎 AudioBackend 的 wasm 实现: 共享 core 的 Rc 句柄 (Clone = 计数 +1).
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct WebAudioBackend {
     core: std::rc::Rc<RefCell<BackendCore>>,
@@ -309,7 +301,6 @@ impl BackendCore {
 }
 
 // new/pump_music 在 Task 7 (工厂安装 / woom24_tick 接线) 前无调用方.
-#[allow(dead_code)]
 impl WebAudioBackend {
     /// 工厂入口: Web Audio 不可用时返回 Err (room 记日志并走 NoopBackend,
     /// 即 spec 的"降级静音"契约). 构造成功即在 LAST_BUILT 留泵句柄:

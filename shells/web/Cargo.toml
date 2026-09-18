@@ -18,6 +18,7 @@ web-sys = { version = "0.3", features = [
     "HtmlInputElement", "HtmlButtonElement", "HtmlDivElement",
     "CanvasRenderingContext2d", "ImageData", "KeyboardEvent", "Event",
     "EventTarget", "Performance", "FileReader", "File", "Blob", "ProgressEvent",
+    "FileList", "Node", "console",
     "WebGl2RenderingContext", "WebGlShader", "WebGlProgram", "WebGlTexture",
     "WebGlBuffer", "WebGlUniformLocation",
     "AudioContext", "AudioBuffer", "AudioBufferSourceNode", "GainNode",
