@@ -1,17 +1,21 @@
-//! CRT 垫片 + 内存 VFS (spec ② D1).
+//! CRT shim + in-memory VFS (spec 2 D1).
 //!
-//! 设计要点:
-//! - `libc::` 路径的类型解析由 `shells/web/crt` (woom24-libc) 承担;
-//!   本模块通过 `#[no_mangle]` / `#[export_name]` 提供同名符号的实现,
-//!   在最终 cdylib 链接时闭合引擎的全部未解析引用.
-//! - printf 家族: wasm rust-lld 严格检查符号签名, 变参声明的调用点会
-//!   按实参数量生成不同签名, 与固定槽位实现链接时会被 lld 换成
-//!   `signature_mismatch` 陷阱桩 (已探针实证: 链接有 warning, 运行即 trap).
-//!   因此声明与实现都按引擎审计过的固定参数形状逐一定义
-//!   (printf0..4 / snprintf1..2, 见 woom24-libc 与计划附录 A);
-//!   未用的槽是垃圾值, 但格式串里没有的说明符永远不去读它.
-//! - 超出已审计说明符集合 (`%s %d %i %u %x %c %p %%` + 宽度) 时:
-//!   记录日志并降级输出, 绝不 trap (D1).
+//! Design notes:
+//! - Type resolution for `libc::` paths is handled by `shells/web/crt`
+//!   (woom24-libc); this module provides the implementations under the same
+//!   names via `#[no_mangle]` / `#[export_name]`, closing every unresolved
+//!   engine reference at final cdylib link time.
+//! - printf family: wasm rust-lld strictly checks symbol signatures, and call
+//!   sites of variadic declarations generate a different signature per
+//!   argument count, so linking such a call to a fixed-slot implementation
+//!   makes lld swap it for a `signature_mismatch` trap stub (probe-verified:
+//!   the link warns, running traps). Declarations and implementations are
+//!   therefore defined one by one in the engine-audited fixed parameter
+//!   shapes (printf0..4 / snprintf1..2, see woom24-libc and plan appendix A);
+//!   unused slots hold garbage, but a specifier absent from the format string
+//!   is never read.
+//! - Beyond the audited specifier set (`%s %d %i %u %x %c %p %%` + width):
+//!   log and degrade the output, never trap (D1).
 
 use std::alloc::{alloc, dealloc, Layout};
 use std::cell::RefCell;
@@ -20,11 +24,12 @@ use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_long, c_void};
 
 thread_local! {
-    /// 进程级 VFS 表. JS 经 `woom24_register_file` 注册, 引擎经 fopen 消费.
+    /// Process-wide VFS table. JS registers via `woom24_register_file`; the
+    /// engine consumes via fopen.
     static VFS: RefCell<VfsTable> = RefCell::new(VfsTable::new());
 }
 
-/// 名字 → 字节 的内存文件表 (D1).
+/// In-memory name → bytes file table (D1).
 pub(crate) struct VfsTable {
     files: HashMap<String, Vec<u8>>,
 }
@@ -45,24 +50,26 @@ impl VfsTable {
     }
 }
 
-/// 供 shell 其它模块 (init_pipeline / launcher_ui) 注册文件.
+/// Registration hook for the shell's other modules (init_pipeline / launcher_ui).
 pub fn vfs_register(name: &str, bytes: Vec<u8>) {
     VFS.with_borrow_mut(|t| t.register(name, bytes));
 }
 
-/// 供 shell 其它模块读取已注册文件 (SF2 预载等).
+/// Read hook for the shell's other modules (SF2 preload etc.).
 pub fn vfs_get(name: &str) -> Option<Vec<u8>> {
     VFS.with_borrow(|t| t.get(name).cloned())
 }
 
 // ---------------------------------------------------------------------------
-// 格式化子集: 纯逻辑, 宿主机可测
+// Formatting subset: pure logic, testable on the host
 // ---------------------------------------------------------------------------
 
-/// 一个已解析的格式参数. 指针在 wasm 侧已被复制成字节串,
-/// 所以 `format` 本身是纯函数 (宿主机测试不需要 wasm 内存).
-// I/P 变体只在纯逻辑调用方 (单测/golden cases) 构造; printf 槽解析
-// 只产 U/S (原始槽是 u32, 数值语义交给 format 按说明符解释).
+/// One parsed format argument. Pointers have already been copied into byte
+/// strings on the wasm side, so `format` itself is a pure function (host
+/// tests need no wasm memory).
+// The I/P variants are only built by pure-logic callers (unit tests / golden
+// cases); printf slot parsing produces only U/S (raw slots are u32; the
+// numeric meaning is left to `format` to interpret per specifier).
 #[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 pub(crate) enum FmtArg {
@@ -72,15 +79,17 @@ pub(crate) enum FmtArg {
     S(Vec<u8>),
 }
 
-/// 把 `fmt` 按 `args` 格式化进 `out`, 返回 C 语义的"本应写入"长度.
-/// 超长截断 (`out` 里保留 min(len, out.len()-1) 字节 + 不写 NUL --
-/// NUL 由 snprintf 外层负责); 未知/缺失参数降级为 `<na>`, 绝不 panic.
+/// Formats `fmt` with `args` into `out`, returning the C-semantic "would-be"
+/// written length. Overlong output is truncated (`out` keeps
+/// min(len, out.len()-1) bytes + no NUL -- the snprintf wrapper owns the NUL);
+/// unknown/missing args degrade to `<na>`, never panic.
 pub(crate) fn format(fmt: &[u8], args: &[FmtArg], out: &mut [u8]) -> usize {
     fn degrade() -> Vec<u8> {
         b"<na>".to_vec()
     }
     fn push_byte(would: &mut usize, written: &mut usize, out: &mut [u8], b: u8) {
-        // 截断规则: 最多写 out.len()-1 字节 (留一位给调用方的 NUL 语义).
+        // Truncation rule: write at most out.len()-1 bytes (one byte reserved
+        // for the caller's NUL semantics).
         if *would + 1 < out.len() {
             out[*written] = b;
             *written += 1;
@@ -102,7 +111,7 @@ pub(crate) fn format(fmt: &[u8], args: &[FmtArg], out: &mut [u8]) -> usize {
         if i >= fmt.len() {
             break;
         }
-        // 宽度 (仅十进制右对齐, 如 %7i).
+        // Width (decimal right-align only, e.g. %7i).
         let mut width = 0usize;
         while i < fmt.len() && fmt[i].is_ascii_digit() {
             width = width * 10 + (fmt[i] - b'0') as usize;
@@ -113,7 +122,8 @@ pub(crate) fn format(fmt: &[u8], args: &[FmtArg], out: &mut [u8]) -> usize {
         }
         let spec = fmt[i];
         i += 1;
-        // 先完整渲染本说明符, 再做宽度填充与截断写入.
+        // Render this specifier fully first, then apply width padding and
+        // truncated writes.
         let rendered: Vec<u8> = match spec {
             b'%' => vec![b'%'],
             b's' => match it.next() {
@@ -145,13 +155,13 @@ pub(crate) fn format(fmt: &[u8], args: &[FmtArg], out: &mut [u8]) -> usize {
                 Some(FmtArg::U(v)) => format!("0x{v:x}").into_bytes(),
                 _ => degrade(),
             },
-            // 未审计说明符: 降级占位 (D1: log + degrade, never trap).
+            // Unaudited specifier: degrade to a placeholder (D1: log + degrade, never trap).
             other => {
                 log::warn!("wasm_vfs: unsupported format specifier %{other} degraded");
                 degrade()
             }
         };
-        // 右对齐宽度填充.
+        // Right-align width padding.
         let mut buf = rendered;
         while buf.len() < width {
             buf.insert(0, b' ');
@@ -164,15 +174,16 @@ pub(crate) fn format(fmt: &[u8], args: &[FmtArg], out: &mut [u8]) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// sscanf 子集: M_StrToInt 的四个格式串所需的最小解析器 (纯逻辑, 宿主机可测)
+// sscanf subset: minimal parser for M_StrToInt's four format strings
+// (pure logic, testable on the host)
 // ---------------------------------------------------------------------------
 
-/// C `isspace` 子集 (空格/制表/换行等).
+/// C `isspace` subset (space/tab/newline etc.).
 fn is_c_space(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\x0b' | b'\x0c' | b'\r')
 }
 
-/// 吃掉一个可选符号, 返回 (是否负号, 剩余输入).
+/// Consumes an optional sign, returning (is_negative, remaining input).
 fn take_sign(input: &[u8]) -> (bool, &[u8]) {
     match input.first() {
         Some(b'-') => (true, &input[1..]),
@@ -181,7 +192,8 @@ fn take_sign(input: &[u8]) -> (bool, &[u8]) {
     }
 }
 
-/// 按给定进制吃数字, 返回 (值, 剩余输入); 一个数字都没有则返回 None.
+/// Consumes digits in the given base, returning (value, remaining input);
+/// None if not a single digit was consumed.
 fn take_digits(mut input: &[u8], base: u32) -> Option<(i64, &[u8])> {
     let mut val: i64 = 0;
     let mut any = false;
@@ -206,10 +218,12 @@ fn take_digits(mut input: &[u8], base: u32) -> Option<(i64, &[u8])> {
     }
 }
 
-/// `sscanf` 单转换最小子集: 只实现引擎审计过的格式语法 --
-/// 空格 = 跳过输入空白, 其余字面量逐字节匹配, `%x`/`%o`/`%d` 整数转换
-/// (M_StrToInt 的 ` 0x%x` / ` 0X%x` / ` 0%o` / ` %d` 全部覆盖).
-/// 返回成功赋值的转换数 (0 或 1); 失败时不动 `out`, 绝不 panic.
+/// Minimal single-conversion `sscanf` subset: implements only the
+/// engine-audited format syntax -- a space skips input whitespace, other
+/// literals match byte for byte, plus the `%x`/`%o`/`%d` integer conversions
+/// (covers all of M_StrToInt's ` 0x%x` / ` 0X%x` / ` 0%o` / ` %d`).
+/// Returns the number of successful assignments (0 or 1); on failure `out`
+/// is untouched, never panics.
 pub(crate) fn sscanf_parse1(fmt: &[u8], input: &[u8], out: &mut i64) -> usize {
     let mut inp = input;
     let mut i = 0usize;
@@ -229,7 +243,7 @@ pub(crate) fn sscanf_parse1(fmt: &[u8], input: &[u8], out: &mut i64) -> usize {
                 let parsed = match spec {
                     b'x' | b'X' => {
                         let (neg, rest) = take_sign(inp);
-                        // C %x 接受输入侧可选 0x/0X 前缀.
+                        // C %x accepts an optional 0x/0X prefix on the input side.
                         let rest = if rest.len() >= 2 && rest[0] == b'0' && (rest[1] | 0x20) == b'x'
                         {
                             &rest[2..]
@@ -246,7 +260,7 @@ pub(crate) fn sscanf_parse1(fmt: &[u8], input: &[u8], out: &mut i64) -> usize {
                         let (neg, rest) = take_sign(inp);
                         take_digits(rest, 10).map(|(v, r)| (if neg { -v } else { v }, r))
                     }
-                    // 未审计转换: 降级为匹配失败 (D1: log + degrade, never trap).
+                    // Unaudited conversion: degrade to a match failure (D1: log + degrade, never trap).
                     _ => None,
                 };
                 match parsed {
@@ -271,20 +285,22 @@ pub(crate) fn sscanf_parse1(fmt: &[u8], input: &[u8], out: &mut i64) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// malloc / memset / free: 转发到 Rust 全局分配器 + 布局跟踪表 (D1)
+// malloc / memset / free: forwarded to the Rust global allocator + a layout
+// tracking table (D1)
 // ---------------------------------------------------------------------------
 
 thread_local! {
-    /// 指针 → Layout, free 时需要.
+    /// Pointer → Layout, needed by free.
     static LAYOUTS: RefCell<HashMap<usize, Layout>> = RefCell::new(HashMap::new());
 }
 
-/// C `malloc` 语义: 失败返回 null (这里几乎不会失败).
+/// C `malloc` semantics: returns null on failure (which practically never
+/// happens here).
 fn shm_malloc(size: usize) -> *mut c_void {
     if size == 0 {
         return std::ptr::null_mut();
     }
-    // SAFETY: size > 0 且 align=8 满足 Layout::from_size_align 的约束.
+    // SAFETY: size > 0 and align=8 satisfy Layout::from_size_align's constraints.
     let layout = match Layout::from_size_align(size, 8) {
         Ok(l) => l,
         Err(_) => return std::ptr::null_mut(),
@@ -298,28 +314,32 @@ fn shm_malloc(size: usize) -> *mut c_void {
     p as *mut c_void
 }
 
-/// C `free` 语义. 注意: 权威清单里引擎当前并未引用 free
-/// (见计划附录 A), 这里随 malloc 成对提供, 防未来泄漏.
+/// C `free` semantics. The engine does call `free` (d_iwad frees
+/// FFI-allocated strings), so this is real deallocation, paired with `malloc`
+/// via the layout table.
 fn shm_free(p: *mut c_void) {
     if p.is_null() {
         return;
     }
     let layout = LAYOUTS.with_borrow_mut(|m| m.remove(&(p as usize)));
     if let Some(layout) = layout {
-        // SAFETY: 指针来自 shm_malloc 且布局从表中取回, 未被重复释放.
+        // SAFETY: the pointer came from shm_malloc with its layout fetched
+        // back from the table; not a double free.
         unsafe { dealloc(p as *mut u8, layout) };
     }
 }
 
-/// C `memset` 语义: 返回 `s`.
+/// C `memset` semantics: returns `s`.
 ///
 /// # Safety
-/// `s` 必须指向至少 `n` 字节可写内存.
+/// `s` must point to at least `n` bytes of writable memory.
 unsafe fn shm_memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void {
     if !s.is_null() && n > 0 {
-        // volatile 写循环: 普通 write_bytes 会被 LLVM 降为 `call memset`,
-        // 而本 crate 导出同名强符号, 宿主测试二进制与 wasm cdylib 链接时
-        // 都会绑回自身 → 无限递归爆栈; volatile 存储永不合并成 libcall.
+        // volatile write loop: a plain write_bytes gets lowered by LLVM to
+        // `call memset`, and this crate exports a strong symbol of that very
+        // name -- both the host test binary and the wasm cdylib would bind the
+        // call back to itself → infinite recursion, stack overflow. Volatile
+        // stores are never folded into a libcall.
         let p = s as *mut u8;
         for i in 0..n {
             p.add(i).write_volatile(c as u8);
@@ -328,16 +348,19 @@ unsafe fn shm_memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void {
     s
 }
 
-/// 从 wasm 线性内存复制 NUL 结尾字符串 (printf %s 用).
+/// Copies a NUL-terminated string out of wasm linear memory (used by printf %s).
 ///
 /// # Safety
-/// `p` 必须指向可读内存且在 4096 字节内有 NUL (引擎内格式参数均满足).
+/// `p` must point to readable memory with a NUL within 4096 bytes (true for
+/// every engine format argument).
 unsafe fn copy_cstr(p: u32) -> Vec<u8> {
     if p == 0 {
         return b"(null)".to_vec();
     }
     let mut out = Vec::new();
-    //* 4096 是垫片自定的扫描上限 (沿用 Task 2 首版 %s 约定, 非 C 语义), 缺 NUL 的输入至多读 4096 字节即止.
+    //* 4096 is the shim's own scan cap (carried over from the Task 2 first-pass
+    //* %s convention, not C semantics): an input missing its NUL is read for at
+    //* most 4096 bytes, then stops.
     for i in 0..4096 {
         let b = *(p as *const u8).add(i);
         if b == 0 {
@@ -349,10 +372,11 @@ unsafe fn copy_cstr(p: u32) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
-// 第二批 CRT 符号: 字符/字符串/atof/calloc (fix round 1; 纯逻辑宿主机可测)
+// Second batch of CRT symbols: ctype/string/atof/calloc (fix round 1; pure
+// logic, host-testable)
 // ---------------------------------------------------------------------------
 
-/// C `toupper` ASCII 子集 (引擎输入恒为 ASCII).
+/// C `toupper` ASCII subset (engine input is always ASCII).
 fn c_toupper(c: c_int) -> c_int {
     let b = c as u8;
     if b.is_ascii_lowercase() {
@@ -362,7 +386,7 @@ fn c_toupper(c: c_int) -> c_int {
     }
 }
 
-/// C `tolower` ASCII 子集.
+/// C `tolower` ASCII subset.
 fn c_tolower(c: c_int) -> c_int {
     let b = c as u8;
     if b.is_ascii_uppercase() {
@@ -372,12 +396,12 @@ fn c_tolower(c: c_int) -> c_int {
     }
 }
 
-/// C `isspace` ("C" locale): 空格/\t/\n/\v/\f/\r, 非 0 表示真.
+/// C `isspace` ("C" locale): space/\t/\n/\v/\f/\r, non-zero means true.
 fn c_isspace(c: c_int) -> c_int {
     c_int::from(is_c_space(c as u8))
 }
 
-/// Ordering → C 比较约定的 <0/0/>0.
+/// Ordering → the C comparison convention <0/0/>0.
 fn order_to_c_int(o: std::cmp::Ordering) -> c_int {
     match o {
         std::cmp::Ordering::Less => -1,
@@ -386,7 +410,8 @@ fn order_to_c_int(o: std::cmp::Ordering) -> c_int {
     }
 }
 
-/// C `strcmp`: 按无符号字节逐位比较; 一方先到 NUL 则短者小.
+/// C `strcmp`: compares as unsigned bytes; the shorter string is lesser when
+/// one hits NUL first.
 fn c_strcmp(a: &[u8], b: &[u8]) -> c_int {
     let n = a.len().min(b.len());
     match a[..n].iter().zip(b).position(|(x, y)| x != y) {
@@ -395,21 +420,23 @@ fn c_strcmp(a: &[u8], b: &[u8]) -> c_int {
     }
 }
 
-/// C `strncmp`: 最多比较 n 字节; 截断后即 strcmp 语义 (NUL 终止保证等价).
+/// C `strncmp`: compares at most n bytes; once truncated this is plain
+/// strcmp semantics (NUL termination guarantees equivalence).
 fn c_strncmp(a: &[u8], b: &[u8], n: usize) -> c_int {
     c_strcmp(&a[..n.min(a.len())], &b[..n.min(b.len())])
 }
 
-/// C `strncpy` 核心: 复制 min(src.len, n) 字节, 不足补 NUL 到 n;
-/// src 不短于 n 时恰复制 n 字节、不写终止符. `dst.len()` 即 n.
+/// C `strncpy` core: copies min(src.len, n) bytes, NUL-padding to n when
+/// short; when src is at least n bytes, exactly n bytes are copied and no
+/// terminator is written. `dst.len()` is n.
 fn c_strncpy_into(dst: &mut [u8], src: &[u8]) {
     let copy = src.len().min(dst.len());
     dst[..copy].copy_from_slice(&src[..copy]);
     dst[copy..].fill(0);
 }
 
-/// C `strrchr`: 最后一次出现 `(c as u8)` 的偏移; c=0 命中结束 NUL 槽;
-/// 未找到返回 None (导出层转 null).
+/// C `strrchr`: offset of the last occurrence of `(c as u8)`; c=0 hits the
+/// terminating NUL slot; None when absent (the export layer maps it to null).
 fn c_strrchr(s: &[u8], c: c_int) -> Option<usize> {
     let target = c as u8;
     if target == 0 {
@@ -418,7 +445,7 @@ fn c_strrchr(s: &[u8], c: c_int) -> Option<usize> {
     s.iter().rposition(|&b| b == target)
 }
 
-/// C `strstr`: 最左匹配偏移; 空针 = 0; 未找到返回 None.
+/// C `strstr`: leftmost match offset; empty needle = 0; None when absent.
 fn c_strstr(hay: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() {
         return Some(0);
@@ -429,10 +456,12 @@ fn c_strstr(hay: &[u8], needle: &[u8]) -> Option<usize> {
     hay.windows(needle.len()).position(|w| w == needle)
 }
 
-/// C `atof` (strtod-lite): 前导 C 空白 + 可选符号 + 整数/小数数字,
-/// 取最长合法前缀, 无数字 → 0.0. 审计结论 (fix round 1): 引擎唯一调用点
-/// m_config.rs:688 解析 .cfg 值, 引擎侧写入恒为普通十进制 (Rust 格式化
-/// 从不产出指数), 故不实现指数形式.
+/// C `atof` (strtod-lite): leading C whitespace + optional sign +
+/// integer/fraction digits, taking the longest valid prefix; no digits → 0.0.
+/// Audit conclusion (fix round 1): the engine's only call site, m_config.rs:688,
+/// parses .cfg values, and the engine only ever writes plain decimals there
+/// (Rust formatting never emits exponents), so exponent forms are not
+/// implemented.
 fn c_atof(s: &[u8]) -> f64 {
     let mut i = 0usize;
     while i < s.len() && is_c_space(s[i]) {
@@ -478,45 +507,49 @@ fn c_atof(s: &[u8]) -> f64 {
     }
 }
 
-/// C `calloc`: 布局跟踪分配器 + 清零; 乘法溢出或 size=0 返回 null.
-/// 清零必须走 volatile 路径 (shm_memset 的注释: 普通 fill 会被 LLVM
-/// 降为 `call memset`, 与本 crate 同名导出构成自递归).
+/// C `calloc`: layout-tracking allocator + zeroing; multiplication overflow
+/// or size=0 returns null. Zeroing must take the volatile path (see
+/// shm_memset's comment: a plain fill is lowered by LLVM to `call memset`,
+/// which self-recurses against this crate's same-name export).
 fn shm_calloc(nmemb: usize, size: usize) -> *mut c_void {
     let Some(total) = nmemb.checked_mul(size) else {
         return std::ptr::null_mut();
     };
     let p = shm_malloc(total);
     if !p.is_null() && total > 0 {
-        // SAFETY: p 指向 shm_malloc 的 total 字节可写内存.
+        // SAFETY: p points at total bytes of writable memory from shm_malloc.
         unsafe { shm_memset(p, 0, total) };
     }
     p
 }
 
 // ---------------------------------------------------------------------------
-// 导出符号面: 与附录 A 一一对应 (权威清单 = cargo check 捕获)
+// Export surface: one-to-one with appendix A (authoritative list = captured
+// by cargo check)
 // ---------------------------------------------------------------------------
 
-/// 打开的文件描述: fopen 时一次性拷贝文件字节 (几 MB 级 WAD 一次克隆,
-/// 之后 fread 全部本地切片 -- 避免逐读克隆大文件) + 读游标.
-/// fopen 返回它的裸指针作句柄, fclose 是唯一释放点 (CRT 语义).
+/// An open file: fopen clones the file bytes once up front (a multi-MB WAD is
+/// cloned a single time; fread afterwards slices locally -- avoiding per-read
+/// clones of large files) plus a read cursor. fopen returns its raw pointer as
+/// the handle; fclose is the sole release point (CRT semantics).
 struct OpenDesc {
     data: Vec<u8>,
     pos: usize,
 }
 
 /// # Safety
-/// `path` 必须是 NUL 结尾 C 字符串.
+/// `path` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn fopen(path: *const c_char, _mode: *const c_char) -> *mut c_void {
     if path.is_null() {
         return std::ptr::null_mut();
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let name = unsafe { copy_cstr(path as u32) };
     let name = String::from_utf8_lossy(&name).into_owned();
     let Some(bytes) = wasm_vfs_lookup(&name) else {
-        // 与 CRT 一致: 打开失败返回 NULL, 由引擎既有错误路径处理.
+        // Matches CRT: a failed open returns NULL; the engine's existing error
+        // path handles it.
         return std::ptr::null_mut();
     };
     Box::into_raw(Box::new(OpenDesc {
@@ -525,13 +558,13 @@ pub unsafe extern "C" fn fopen(path: *const c_char, _mode: *const c_char) -> *mu
     })) as *mut c_void
 }
 
-/// 查 VFS 表 (thread_local 的薄封装, 供 fopen 用).
+/// VFS table lookup (thin thread_local wrapper, used by fopen).
 fn wasm_vfs_lookup(name: &str) -> Option<Vec<u8>> {
     VFS.with_borrow(|t| t.get(name).cloned())
 }
 
 /// # Safety
-/// `stream` 必须是 fopen 返回的句柄.
+/// `stream` must be a handle returned by fopen.
 #[no_mangle]
 pub unsafe extern "C" fn fread(
     ptr: *mut c_void,
@@ -550,12 +583,12 @@ pub unsafe extern "C" fn fread(
         std::ptr::copy_nonoverlapping(d.data[d.pos..d.pos + n].as_ptr(), ptr as *mut u8, n);
         d.pos += n;
     }
-    // C 语义: 返回完整读到的"项数" (= 字节数 / size, 向下取整).
+    // C semantics: returns the number of whole items read (= bytes / size, floor).
     n / size
 }
 
 /// # Safety
-/// `stream` 必须是 fopen 返回的句柄.
+/// `stream` must be a handle returned by fopen.
 #[no_mangle]
 pub unsafe extern "C" fn fwrite(
     _ptr: *const c_void,
@@ -563,14 +596,15 @@ pub unsafe extern "C" fn fwrite(
     nmemb: usize,
     _stream: *mut c_void,
 ) -> usize {
-    // VFS 只读 (IWAD/PWAD/SF2 由宿主注册); 存档/演示写路径在 wasm 上
-    // 本 spec 不持久化 -- 返回"已写满"以保持引擎状态机前进, 数据丢弃.
+    // The VFS is read-only (IWAD/PWAD/SF2 are host-registered); save/demo
+    // write paths are not persisted on wasm in this spec -- return "fully
+    // written" to keep the engine's state machine moving, and drop the data.
     let _ = size;
     nmemb
 }
 
 /// # Safety
-/// `stream` 必须是 fopen 返回的句柄.
+/// `stream` must be a handle returned by fopen.
 #[no_mangle]
 pub unsafe extern "C" fn fseek(stream: *mut c_void, offset: c_long, whence: c_int) -> c_int {
     if stream.is_null() {
@@ -592,7 +626,7 @@ pub unsafe extern "C" fn fseek(stream: *mut c_void, offset: c_long, whence: c_in
 }
 
 /// # Safety
-/// `stream` 必须是 fopen 返回的句柄.
+/// `stream` must be a handle returned by fopen.
 #[no_mangle]
 pub unsafe extern "C" fn ftell(stream: *mut c_void) -> c_long {
     if stream.is_null() {
@@ -603,39 +637,41 @@ pub unsafe extern "C" fn ftell(stream: *mut c_void) -> c_long {
 }
 
 /// # Safety
-/// `stream` 必须是 fopen 返回的句柄.
+/// `stream` must be a handle returned by fopen.
 #[no_mangle]
 pub unsafe extern "C" fn fclose(stream: *mut c_void) -> c_int {
     if stream.is_null() {
         return -1;
     }
-    // SAFETY: 句柄由 fopen 分配, fclose 即唯一释放点 (CRT 语义).
+    // SAFETY: the handle was allocated by fopen; fclose is the sole release
+    // point (CRT semantics).
     drop(unsafe { Box::from_raw(stream as *mut OpenDesc) });
     0
 }
 
 /// # Safety
-/// `stream` 必须是 fopen 返回的句柄或 null.
+/// `stream` must be a handle returned by fopen, or null.
 #[no_mangle]
 pub unsafe extern "C" fn fflush(_stream: *mut c_void) -> c_int {
     0
 }
 
-/// printf 家族导出: 每个审计过的调用形状一个符号, 与 woom24-libc 的
-/// 固定参数声明一一对应 (见模块头注释); 未传的槽不读.
+/// printf family exports: one symbol per audited call shape, one-to-one with
+/// woom24-libc's fixed-arity declarations (see the module header comment);
+/// unfilled slots are never read.
 ///
 /// # Safety
-/// `fmt` 必须是 NUL 结尾 C 字符串.
+/// `fmt` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn printf0(fmt: *const c_char) -> c_int {
     let out = printf_impl(fmt, &[]);
-    // stdout 在浏览器里落到 console (经 web 控制台可见).
+    // stdout lands in the browser console (visible via the web console).
     log::info!("{}", String::from_utf8_lossy(&out));
     out.len() as c_int
 }
 
 /// # Safety
-/// `fmt` 必须是 NUL 结尾 C 字符串.
+/// `fmt` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn printf1(fmt: *const c_char, a0: u32) -> c_int {
     let out = printf_impl(fmt, &[a0]);
@@ -644,7 +680,7 @@ pub unsafe extern "C" fn printf1(fmt: *const c_char, a0: u32) -> c_int {
 }
 
 /// # Safety
-/// `fmt` 必须是 NUL 结尾 C 字符串.
+/// `fmt` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn printf2(fmt: *const c_char, a0: u32, a1: u32) -> c_int {
     let out = printf_impl(fmt, &[a0, a1]);
@@ -653,7 +689,7 @@ pub unsafe extern "C" fn printf2(fmt: *const c_char, a0: u32, a1: u32) -> c_int 
 }
 
 /// # Safety
-/// `fmt` 必须是 NUL 结尾 C 字符串.
+/// `fmt` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn printf3(fmt: *const c_char, a0: u32, a1: u32, a2: u32) -> c_int {
     let out = printf_impl(fmt, &[a0, a1, a2]);
@@ -662,7 +698,7 @@ pub unsafe extern "C" fn printf3(fmt: *const c_char, a0: u32, a1: u32, a2: u32) 
 }
 
 /// # Safety
-/// `fmt` 必须是 NUL 结尾 C 字符串.
+/// `fmt` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn printf4(fmt: *const c_char, a0: u32, a1: u32, a2: u32, a3: u32) -> c_int {
     let out = printf_impl(fmt, &[a0, a1, a2, a3]);
@@ -672,7 +708,8 @@ pub unsafe extern "C" fn printf4(fmt: *const c_char, a0: u32, a1: u32, a2: u32, 
 
 unsafe fn printf_impl(fmt: *const c_char, slots: &[u32]) -> Vec<u8> {
     let f = copy_cstr(fmt as u32);
-    // 逐说明符解析原始槽: %s 取指针解引用, 数值类直取槽值.
+    // Parse raw slots per specifier: %s dereferences the pointer, numeric
+    // classes take the slot value directly.
     let mut args: Vec<FmtArg> = Vec::new();
     let mut slot_i = 0usize;
     let mut i = 0usize;
@@ -693,7 +730,7 @@ unsafe fn printf_impl(fmt: *const c_char, slots: &[u32]) -> Vec<u8> {
             b's' => {
                 let p = slots.get(slot_i).copied().unwrap_or(0);
                 slot_i += 1;
-                // SAFETY: 引擎传入的 %s 实参都是有效 C 字符串.
+                // SAFETY: the engine's %s arguments are all valid C strings.
                 args.push(FmtArg::S(copy_cstr(p)));
             }
             b'c' | b'd' | b'i' | b'u' | b'x' | b'p' => {
@@ -711,11 +748,11 @@ unsafe fn printf_impl(fmt: *const c_char, slots: &[u32]) -> Vec<u8> {
     out
 }
 
-/// snprintf 导出: 同 printf 家族, 写目标缓冲区并返回本应长度
-/// (d_main.rs 依赖此值).
+/// snprintf export: like the printf family, writes the target buffer and
+/// returns the would-be length (d_main.rs depends on this value).
 ///
 /// # Safety
-/// `s`/`fmt` 必须有效; `s` 至少可写 `n` 字节.
+/// `s`/`fmt` must be valid; `s` must be writable for at least `n` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn snprintf1(s: *mut c_char, n: usize, fmt: *const c_char, a0: u32) -> c_int {
     let out = printf_impl(fmt, &[a0]);
@@ -728,7 +765,7 @@ pub unsafe extern "C" fn snprintf1(s: *mut c_char, n: usize, fmt: *const c_char,
 }
 
 /// # Safety
-/// `s`/`fmt` 必须有效; `s` 至少可写 `n` 字节.
+/// `s`/`fmt` must be valid; `s` must be writable for at least `n` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn snprintf2(
     s: *mut c_char,
@@ -746,23 +783,25 @@ pub unsafe extern "C" fn snprintf2(
     out.len() as c_int
 }
 
-/// sscanf 单转换导出: 对应 M_StrToInt 的调用形状 (1 个输出指针槽,
-/// 见 [`sscanf_parse1`]). C 语义: 返回成功赋值的转换数, 不匹配为 0.
+/// Single-conversion sscanf export: matches M_StrToInt's call shape (one
+/// output pointer slot, see [`sscanf_parse1`]). C semantics: returns the
+/// number of successful assignments, 0 on no match.
 ///
 /// # Safety
-/// `s`/`fmt` 必须是 NUL 结尾 C 字符串; `a0` 必须指向可写的 `c_int`.
+/// `s`/`fmt` must be NUL-terminated C strings; `a0` must point to a writable
+/// `c_int`.
 #[no_mangle]
 pub unsafe extern "C" fn sscanf1(s: *const c_char, fmt: *const c_char, a0: usize) -> c_int {
     if s.is_null() || fmt.is_null() || a0 == 0 {
         return 0;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let input = unsafe { copy_cstr(s as u32) };
     let f = unsafe { copy_cstr(fmt as u32) };
     let mut v: i64 = 0;
     let n = sscanf_parse1(&f, &input, &mut v);
     if n == 1 {
-        // SAFETY: a0 是调用方提供的可写 c_int 槽.
+        // SAFETY: a0 is a caller-provided writable c_int slot.
         unsafe {
             *(a0 as *mut c_int) = v as c_int;
         }
@@ -771,59 +810,59 @@ pub unsafe extern "C" fn sscanf1(s: *const c_char, fmt: *const c_char, a0: usize
 }
 
 /// # Safety
-/// `s` 必须是 NUL 结尾 C 字符串.
+/// `s` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn puts(s: *const c_char) -> c_int {
     if s.is_null() {
         return -1;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let b = unsafe { copy_cstr(s as u32) };
     log::info!("{}", String::from_utf8_lossy(&b));
     b.len() as c_int + 1
 }
 
 /// # Safety
-/// c 必须是合法字节值.
+/// c must be a valid byte value.
 #[no_mangle]
 pub unsafe extern "C" fn putchar(c: c_int) -> c_int {
     log::info!("{}", (c as u8) as char);
     c
 }
 
-/// C `malloc`: 失败返回 null.
+/// C `malloc`: null on failure.
 ///
 /// # Safety
-/// 返回指针须配对传给 `free`; `size` 为 0 时返回 null.
+/// The returned pointer must be paired with `free`; `size` of 0 returns null.
 #[no_mangle]
 pub unsafe extern "C" fn malloc(size: usize) -> *mut c_void {
     shm_malloc(size)
 }
 
-/// C `free`: 释放 `malloc` 返回的指针, null 是无害的 no-op.
+/// C `free`: releases a `malloc`-returned pointer; null is a harmless no-op.
 ///
 /// # Safety
-/// `p` 必须是尚未释放的 `malloc` 返回值.
+/// `p` must be an as-yet-unfreed `malloc` return value.
 #[no_mangle]
 pub unsafe extern "C" fn free(p: *mut c_void) {
     shm_free(p)
 }
 
 /// # Safety
-/// `s` 必须指向至少 `n` 字节可写内存.
+/// `s` must point to at least `n` bytes of writable memory.
 #[no_mangle]
 pub unsafe extern "C" fn memset(s: *mut c_void, c: c_int, n: usize) -> *mut c_void {
     shm_memset(s, c, n)
 }
 
 /// # Safety
-/// `s` 必须是 NUL 结尾 C 字符串.
+/// `s` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn atoi(s: *const c_char) -> c_int {
     if s.is_null() {
         return 0;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let b = unsafe { copy_cstr(s as u32) };
     let t = String::from_utf8_lossy(&b);
     let t = t.trim_start();
@@ -840,48 +879,49 @@ pub unsafe extern "C" fn atoi(s: *const c_char) -> c_int {
 }
 
 /// # Safety
-/// `s` 必须是 NUL 结尾 C 字符串.
+/// `s` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn strlen(s: *const c_char) -> usize {
     if s.is_null() {
         return 0;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     unsafe { copy_cstr(s as u32) }.len()
 }
 
 /// # Safety
-/// `path` 必须是 NUL 结尾 C 字符串.
+/// `path` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn remove(_path: *const c_char) -> c_int {
-    // VFS 不可变 (文件由宿主注册); 存档删除降级为成功 (与 fwrite 策略一致).
+    // The VFS is immutable (files are host-registered); save deletion degrades
+    // to success (same policy as fwrite).
     0
 }
 
 /// # Safety
-/// 两个参数都必须是 NUL 结尾 C 字符串.
+/// Both arguments must be NUL-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn rename(_old: *const c_char, _new: *const c_char) -> c_int {
     0
 }
 
 // ---------------------------------------------------------------------------
-// 第二批 CRT 导出 (fix round 1): 声明见 woom24-libc
+// Second batch of CRT exports (fix round 1): declarations live in woom24-libc
 // ---------------------------------------------------------------------------
 
-/// C `toupper`: ASCII 语义 (引擎输入恒为 ASCII).
+/// C `toupper`: ASCII semantics (engine input is always ASCII).
 #[no_mangle]
 pub extern "C" fn toupper(c: c_int) -> c_int {
     c_toupper(c)
 }
 
-/// C `tolower`: ASCII 语义.
+/// C `tolower`: ASCII semantics.
 #[no_mangle]
 pub extern "C" fn tolower(c: c_int) -> c_int {
     c_tolower(c)
 }
 
-/// C `isspace` ("C" locale 空白集合).
+/// C `isspace` ("C" locale whitespace set).
 #[no_mangle]
 pub extern "C" fn isspace(c: c_int) -> c_int {
     c_isspace(c)
@@ -890,13 +930,13 @@ pub extern "C" fn isspace(c: c_int) -> c_int {
 /// C `strcmp`.
 ///
 /// # Safety
-/// 两个参数都必须是 NUL 结尾 C 字符串.
+/// Both arguments must be NUL-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
     if s1.is_null() || s2.is_null() {
         return 0;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let (a, b) = unsafe { (copy_cstr(s1 as u32), copy_cstr(s2 as u32)) };
     c_strcmp(&a, &b)
 }
@@ -904,110 +944,118 @@ pub unsafe extern "C" fn strcmp(s1: *const c_char, s2: *const c_char) -> c_int {
 /// C `strncmp`.
 ///
 /// # Safety
-/// 两个参数都必须是 NUL 结尾 C 字符串.
+/// Both arguments must be NUL-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     if s1.is_null() || s2.is_null() {
         return 0;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let (a, b) = unsafe { (copy_cstr(s1 as u32), copy_cstr(s2 as u32)) };
     c_strncmp(&a, &b, n)
 }
 
-/// C `strncpy`: 返回 `dst`; src 不短于 n 时恰复制 n 字节、不写终止符.
+/// C `strncpy`: returns `dst`; when src is at least n bytes, exactly n bytes
+/// are copied and no terminator is written.
 ///
 /// # Safety
-/// `dst` 必须可写 `n` 字节; `src` 必须是 NUL 结尾 C 字符串.
+/// `dst` must be writable for `n` bytes; `src` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char {
     if dst.is_null() || n == 0 {
         return dst;
     }
-    //* 与 C 的偏差: src=NULL 在 C 里是 UB, 本垫片按"空 src"降级为向 dst 补零 n 字节; 引擎调用点不会传 NULL.
+    //* Deviation from C: src=NULL is UB in C; this shim degrades it to "empty
+    //* src", zero-filling dst for n bytes. Engine call sites never pass NULL.
     let bytes = if src.is_null() {
         Vec::new()
     } else {
-        // SAFETY: 调用方保证 NUL 结尾.
+        // SAFETY: the caller guarantees NUL termination.
         unsafe { copy_cstr(src as u32) }
     };
-    // SAFETY: 调用方保证 dst 至少可写 n 字节.
+    // SAFETY: the caller guarantees dst is writable for at least n bytes.
     unsafe {
         c_strncpy_into(std::slice::from_raw_parts_mut(dst as *mut u8, n), &bytes);
     }
     dst
 }
 
-/// C `strrchr`: 未找到返回 null; c=0 返回指向结束 NUL 的指针.
+/// C `strrchr`: null when absent; c=0 returns a pointer to the terminating NUL.
 ///
 /// # Safety
-/// `s` 必须是 NUL 结尾 C 字符串.
+/// `s` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn strrchr(s: *const c_char, c: c_int) -> *mut c_char {
     if s.is_null() {
         return std::ptr::null_mut();
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let bytes = unsafe { copy_cstr(s as u32) };
     match c_strrchr(&bytes, c) {
-        // SAFETY: off <= strlen, add 后仍在对象存储内 (含结束 NUL 槽);
-        // C 约定 strrchr 返回可写字符指针, 故 const→mut 转换.
+        // SAFETY: off <= strlen, so after add the pointer is still inside the
+        // object (terminating NUL slot included); C has strrchr return a writable
+        // char pointer, hence the const→mut cast.
         Some(off) => unsafe { s.add(off) as *mut c_char },
         None => std::ptr::null_mut(),
     }
 }
 
-/// C `strstr`: 未找到返回 null.
+/// C `strstr`: null when absent.
 ///
 /// # Safety
-/// 两个参数都必须是 NUL 结尾 C 字符串.
+/// Both arguments must be NUL-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn strstr(haystack: *const c_char, needle: *const c_char) -> *mut c_char {
     if haystack.is_null() || needle.is_null() {
         return std::ptr::null_mut();
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let (hay, nee) = unsafe { (copy_cstr(haystack as u32), copy_cstr(needle as u32)) };
     match c_strstr(&hay, &nee) {
-        // SAFETY: off <= strlen; C 约定 strstr 返回可写指针 (const→mut).
+        // SAFETY: off <= strlen; C has strstr return a writable pointer (const→mut).
         Some(off) => unsafe { haystack.add(off) as *mut c_char },
         None => std::ptr::null_mut(),
     }
 }
 
-/// C `getenv`: wasm 无进程环境, 恒返回 NULL. 审计: 引擎仅查
-/// HOME / XDG_CONFIG_HOME (m_misc.rs), 调用方均有未设回退路径.
-/// 仅 wasm32 导出: 宿主测试二进制的 CRT 正常终止路径会调到本符号,
-/// 交给宿主 CRT 才能保持 `cargo test` 全绿.
+/// C `getenv`: no process environment on wasm, always returns NULL. Audit:
+/// the engine only queries HOME / XDG_CONFIG_HOME (m_misc.rs), and every
+/// caller has an unset fallback path.
+/// Exported on wasm32 only: the host test binary's normal CRT termination
+/// path calls this symbol, and leaving it to the host CRT keeps `cargo test`
+/// green.
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn getenv(_name: *const c_char) -> *mut c_char {
     std::ptr::null_mut()
 }
 
-/// C `atof` (strtod-lite, 无指数 -- 见 [`c_atof`] 审计注释).
+/// C `atof` (strtod-lite, no exponents -- see [`c_atof`]'s audit comment).
 ///
 /// # Safety
-/// `s` 必须是 NUL 结尾 C 字符串.
+/// `s` must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn atof(s: *const c_char) -> f64 {
     if s.is_null() {
         return 0.0;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     unsafe { c_atof(&copy_cstr(s as u32)) }
 }
 
-/// C `calloc`: 布局跟踪分配器 + 清零 (清零走 volatile, 防自递归).
+/// C `calloc`: layout-tracking allocator + zeroing (zeroing goes through
+/// volatile to prevent self-recursion).
 #[no_mangle]
 pub extern "C" fn calloc(nmemb: usize, size: usize) -> *mut c_void {
     shm_calloc(nmemb, size)
 }
 
-/// C `exit`: wasm 上页面生命周期即进程生命周期, 引擎无正常退出路径
-/// (d_main.rs:1504 在 I_Endoom 后调用) -- 到此即显式 trap (D1 降级点).
-/// 仅 wasm32 导出: 宿主二进制的 CRT 在 main 返回后的正常终止也会调
-/// `exit(0)`, 若被本符号截获会把宿主 `cargo test` 变成 trap.
+/// C `exit`: on wasm the page lifecycle is the process lifecycle, and the
+/// engine has no normal exit path (d_main.rs calls this after I_Endoom) --
+/// reaching it is an explicit trap (D1 degrade point).
+/// Exported on wasm32 only: the host binary's CRT also calls `exit(0)` when
+/// terminating normally after main returns; intercepting that would turn host
+/// `cargo test` into a trap.
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn exit(status: c_int) -> ! {
@@ -1018,7 +1066,7 @@ pub extern "C" fn exit(status: c_int) -> ! {
 mod tests {
     use super::*;
 
-    // ---- VFS 表 ----
+    // ---- VFS table ----
 
     #[test]
     fn vfs_register_then_get_roundtrips_bytes() {
@@ -1036,7 +1084,7 @@ mod tests {
         assert_eq!(t.get("a.wad"), Some(&vec![9, 9]));
     }
 
-    // ---- printf 子集 (golden cases) ----
+    // ---- printf subset (golden cases) ----
 
     fn fmt_str(fmt: &str, args: &[FmtArg]) -> String {
         let mut out = vec![0u8; 256];
@@ -1052,7 +1100,7 @@ mod tests {
 
     #[test]
     fn format_zone_line_i_and_p() {
-        // z_zone.rs:349 的真实格式串.
+        // Real format string from z_zone.rs:349.
         let s = fmt_str(
             "zone size: %i  location: %p\n",
             &[FmtArg::I(65536), FmtArg::P(0x12340)],
@@ -1074,21 +1122,23 @@ mod tests {
 
     #[test]
     fn format_extra_args_are_ignored_and_missing_args_degrade() {
-        // 变参槽多于说明符: 多余的被忽略.
+        // More variadic slots than specifiers: extras are ignored.
         assert_eq!(fmt_str("%i", &[FmtArg::I(1), FmtArg::I(2)]), "1");
-        // 说明符多于变参: 降级 (不 trap), 用 `<na>` 占位并记日志.
+        // More specifiers than variadic slots: degrade (no trap) with an
+        // `<na>` placeholder and a log line.
         assert_eq!(fmt_str("%i %i", &[FmtArg::I(1)]), "1 <na>");
     }
 
     #[test]
     fn format_unknown_specifier_degrades_not_traps() {
-        // 未审计的 %f 不在支持集合内: 原样降级输出.
+        // The unaudited %f is outside the supported set: degraded as-is.
         assert_eq!(fmt_str("v=%f", &[FmtArg::I(1)]), "v=<na>");
     }
 
     #[test]
     fn snprintf_returns_would_be_length_and_truncates() {
-        // C 语义: 返回值是"本应写入"的长度; 缓冲区只收 min(len, n-1) + NUL.
+        // C semantics: the return value is the "would-be written" length; the
+        // buffer only takes min(len, n-1) + NUL.
         let mut out = [0u8; 8];
         let n = format(b"say %s", &[FmtArg::S(b"hello world".to_vec())], &mut out);
         assert_eq!(n, 15); // would-be
@@ -1096,13 +1146,13 @@ mod tests {
         assert_eq!(out[7], 0);
     }
 
-    // ---- malloc / memset (纯逻辑部分: 句柄表) ----
+    // ---- malloc / memset (pure-logic part: handle table) ----
 
     #[test]
     fn allocator_roundtrip_via_heap() {
         let p = shm_malloc(64);
         assert!(!p.is_null());
-        // 写入再读回, 确认可用.
+        // Write then read back to confirm usability.
         unsafe { std::ptr::write_bytes(p as *mut u8, 0xAB, 64) };
         let b = unsafe { std::slice::from_raw_parts(p as *const u8, 64) };
         assert!(b.iter().all(|&x| x == 0xAB));
@@ -1120,7 +1170,7 @@ mod tests {
         shm_free(p);
     }
 
-    // ---- sscanf 子集 (M_StrToInt 的四个 golden 格式串) ----
+    // ---- sscanf subset (M_StrToInt's four golden format strings) ----
 
     fn scan1(fmt: &str, input: &str) -> Option<i64> {
         let mut v: i64 = 0;
@@ -1130,7 +1180,7 @@ mod tests {
 
     #[test]
     fn sscanf_hex_lower_and_upper_prefix() {
-        // m_misc.rs M_StrToInt 的两条十六进制路径.
+        // The two hex paths of m_misc.rs's M_StrToInt.
         assert_eq!(scan1(" 0x%x", "0x1f"), Some(0x1f));
         assert_eq!(scan1(" 0X%x", "0X10"), Some(0x10));
     }
@@ -1149,21 +1199,21 @@ mod tests {
 
     #[test]
     fn sscanf_no_match_returns_zero_conversions() {
-        // 字面量不匹配: 输入没有 0x 前缀.
+        // Literal mismatch: input has no 0x prefix.
         assert_eq!(scan1(" 0x%x", "12"), None);
-        // 转换前输入耗尽.
+        // Input exhausted before the conversion.
         assert_eq!(scan1(" %d", "   "), None);
-        // 前缀后没有合法八进制数字.
+        // No valid octal digit after the prefix.
         assert_eq!(scan1(" 0%o", "0Z"), None);
     }
 
-    // ---- 第二批 CRT 符号 (fix round 1): 字符/字符串/atof/calloc 纯逻辑 ----
+    // ---- Second batch of CRT symbols (fix round 1): ctype/string/atof/calloc pure logic ----
 
     #[test]
     fn toupper_tolower_ascii_only() {
         assert_eq!(c_toupper(b'a' as c_int), b'A' as c_int);
         assert_eq!(c_toupper(b'z' as c_int), b'Z' as c_int);
-        // 已大写/非字母原样返回.
+        // Already uppercase / non-letters return unchanged.
         assert_eq!(c_toupper(b'A' as c_int), b'A' as c_int);
         assert_eq!(c_toupper(b'1' as c_int), b'1' as c_int);
         assert_eq!(c_tolower(b'Q' as c_int), b'q' as c_int);
@@ -1186,10 +1236,10 @@ mod tests {
         assert_eq!(c_strcmp(b"abc", b"abc"), 0);
         assert!(c_strcmp(b"abc", b"abd") < 0);
         assert!(c_strcmp(b"abd", b"abc") > 0);
-        // 前缀短者小 (结束 NUL = 0 < 任意非零字节).
+        // The shorter prefix is lesser (terminating NUL = 0 < any non-zero byte).
         assert!(c_strcmp(b"ab", b"abc") < 0);
         assert_eq!(c_strcmp(b"", b""), 0);
-        // C strcmp 按无符号字节比较: 0x80 > 'a' (0x61).
+        // C strcmp compares as unsigned bytes: 0x80 > 'a' (0x61).
         assert!(c_strcmp(b"\x80", b"a") > 0);
     }
 
@@ -1204,11 +1254,11 @@ mod tests {
 
     #[test]
     fn strncpy_fills_and_pads_like_c() {
-        // src 短于 n: 复制全部 + NUL 填充到 n.
+        // src shorter than n: copy everything + NUL-fill to n.
         let mut d = [b'#'; 6];
         c_strncpy_into(&mut d, b"ab");
         assert_eq!(&d, b"ab\0\0\0\0");
-        // src 不短于 n: 恰好复制 n 字节, 不写终止符 (C 语义).
+        // src at least n: exactly n bytes copied, no terminator written (C semantics).
         let mut d2 = [b'#'; 3];
         c_strncpy_into(&mut d2, b"abcdef");
         assert_eq!(&d2, b"abc");
@@ -1233,7 +1283,8 @@ mod tests {
 
     #[test]
     fn atof_parses_engine_config_shapes() {
-        // m_config.rs:688 的全部输入形态: 空白/符号/整数/小数/最长合法前缀.
+        // Every input shape of m_config.rs:688: whitespace/sign/integer/
+        // fraction/longest valid prefix.
         assert_eq!(c_atof(b"0"), 0.0);
         assert_eq!(c_atof(b"1"), 1.0);
         assert_eq!(c_atof(b"0.5"), 0.5);
@@ -1254,9 +1305,9 @@ mod tests {
         let b = unsafe { std::slice::from_raw_parts(p as *const u8, 32) };
         assert!(b.iter().all(|&x| x == 0), "calloc 必须清零");
         shm_free(p);
-        // 乘法溢出 → NULL (C 语义).
+        // Multiplication overflow → NULL (C semantics).
         assert!(shm_calloc(usize::MAX, 2).is_null());
-        // nmemb = 0 → 与 malloc(0) 一致返回 null.
+        // nmemb = 0 → null, consistent with malloc(0).
         assert!(shm_calloc(0, 8).is_null());
     }
 }

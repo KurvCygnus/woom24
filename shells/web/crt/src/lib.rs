@@ -1,18 +1,21 @@
-//! 声明层垫片: 仅在 wasm32 上替代 crates.io `libc`, 让 `room` 里的
-//! `libc::fopen` / `libc::printf` 等路径通过类型检查 (spec ② D1).
-//! 真正的实现 (内存 VFS / malloc / printf 子集) 在 `shells/web/src/wasm_vfs.rs`,
-//! 由 `#[no_mangle]` 导出同名符号, 在最终 cdylib 链接时闭合引用.
+//! Declaration-layer shim: stands in for the crates.io `libc` on wasm32 only,
+//! so that paths like `libc::fopen` / `libc::printf` in `room` type-check
+//! (spec 2 D1). The real implementations (in-memory VFS / malloc / printf
+//! subset) live in `shells/web/src/wasm_vfs.rs`, exported under the same names
+//! via `#[no_mangle]`, closing the references at final cdylib link time.
 //!
-//! 规则: 本 crate 只声明, 不实现; 除 printf 家族按 wasm 链接器要求
-//! 拆成固定参数形状外, 签名与 libc 0.2 逐字一致;
-//! 权威符号清单见 docs/plans/2026-09-17-wasm-shell-implementation.md 附录 A.
+//! Rule: this crate only declares, never implements; apart from the printf
+//! family -- split into fixed-arity shapes at the wasm linker's demand --
+//! signatures match libc 0.2 verbatim. The authoritative symbol list is
+//! appendix A of docs/plans/2026-09-17-wasm-shell-implementation.md.
 
 pub use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
 
-/// 不透明 FILE 句柄 (同 m_misc.rs 的占位 enum 手法; 零变体 enum 不允许 repr(C)).
+/// Opaque FILE handle (the same placeholder-enum trick as m_misc.rs; a
+/// zero-variant enum cannot be repr(C)).
 pub enum FILE {}
 
-/// stdio seek 常量 (wasm_vfs::fseek 只支持这三种).
+/// stdio seek constants (wasm_vfs::fseek supports only these three).
 pub const SEEK_SET: c_int = 0;
 pub const SEEK_CUR: c_int = 1;
 pub const SEEK_END: c_int = 2;
@@ -25,11 +28,14 @@ extern "C" {
     pub fn ftell(stream: *mut FILE) -> c_long;
     pub fn fclose(stream: *mut FILE) -> c_int;
     pub fn fflush(stream: *mut FILE) -> c_int;
-    // printf 家族不用 `...`: wasm rust-lld 严格检查符号签名, 变参声明的
-    // 每个调用点按实参数量生成不同的 wasm 签名, 与任何单个实现都对不上,
-    // lld 会把对不上的调用换成 `signature_mismatch` 陷阱桩 (运行时 trap).
-    // 故按引擎审计过的固定参数形状声明 (printf 0..4 个变参, snprintf 1..2 个,
-    // 见计划附录 A); usize 槽 = 指针/整数统一宽度, wasm_vfs 提供同名导出.
+    // The printf family avoids `...`: wasm rust-lld strictly checks symbol
+    // signatures, and each call site of a variadic declaration generates a
+    // different wasm signature per argument count, matching no single
+    // implementation -- lld swaps the mismatching call for a
+    // `signature_mismatch` trap stub (runtime trap). So they are declared in
+    // the engine-audited fixed-arity shapes (printf 0..4 variadics,
+    // snprintf 1..2, see plan appendix A); usize slots = the common
+    // pointer/integer width, with same-name exports provided by wasm_vfs.
     pub fn printf0(fmt: *const c_char) -> c_int;
     pub fn printf1(fmt: *const c_char, a0: usize) -> c_int;
     pub fn printf2(fmt: *const c_char, a0: usize, a1: usize) -> c_int;
@@ -37,7 +43,8 @@ extern "C" {
     pub fn printf4(fmt: *const c_char, a0: usize, a1: usize, a2: usize, a3: usize) -> c_int;
     pub fn snprintf1(s: *mut c_char, n: usize, fmt: *const c_char, a0: usize) -> c_int;
     pub fn snprintf2(s: *mut c_char, n: usize, fmt: *const c_char, a0: usize, a1: usize) -> c_int;
-    // sscanf 同理: 引擎唯一调用形状是单转换 (M_StrToInt), a0 = 输出指针槽.
+    // sscanf likewise: the engine's only call shape is the single conversion
+    // (M_StrToInt); a0 = the output pointer slot.
     pub fn sscanf1(s: *const c_char, fmt: *const c_char, a0: usize) -> c_int;
     pub fn puts(s: *const c_char) -> c_int;
     pub fn putchar(c: c_int) -> c_int;
@@ -48,11 +55,13 @@ extern "C" {
     pub fn strlen(s: *const c_char) -> usize;
     pub fn remove(path: *const c_char) -> c_int;
     pub fn rename(old: *const c_char, new: *const c_char) -> c_int;
-    // 第二批 CRT 符号 (fix round 1): doom 模块本地 extern 声明的权威汇总,
-    // 实现仍是 wasm_vfs 的同名导出. atof 为 strtod-lite (无指数 -- 引擎
-    // 唯一调用点 m_config.rs:688 的输入恒为普通十进制, 见 wasm_vfs 审计);
-    // getenv 恒返回 NULL (仅 HOME/XDG_CONFIG_HOME, 均有未设回退);
-    // exit 在 wasm 上即 trap (引擎无正常退出路径).
+    // Second batch of CRT symbols (fix round 1): the authoritative roll-up of
+    // the doom modules' local extern declarations; the implementations remain
+    // wasm_vfs's same-name exports. atof is strtod-lite (no exponents -- the
+    // engine's only call site, m_config.rs:688, always feeds plain decimals,
+    // see the wasm_vfs audit); getenv always returns NULL (only
+    // HOME/XDG_CONFIG_HOME, both with unset fallbacks); exit traps on wasm
+    // (the engine has no normal exit path).
     pub fn toupper(c: c_int) -> c_int;
     pub fn tolower(c: c_int) -> c_int;
     pub fn isspace(c: c_int) -> c_int;

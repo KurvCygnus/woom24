@@ -1,20 +1,23 @@
-//! 六个 DG_* 回调的 wasm 实现 (D2) -- 与 shells/native/src/platform.rs 同形.
+//! wasm implementations of the six DG_* callbacks (D2) -- same shape as
+//! shells/native/src/platform.rs.
 //!
-//! | 回调 | wasm 行为 |
+//! | Callback | wasm behavior |
 //! |---|---|
-//! | DG_Init | no-op (画布/呈现器由 woom24_attach_canvas 先行装好) |
-//! | DG_DrawFrame | 从 DG_ScreenBuffer 读 BGRA 帧 → Presenter |
-//! | DG_SleepMs | no-op (rAF 节奏主导; 引擎节流走自身 tick 时钟) |
+//! | DG_Init | no-op (canvas/presenter are installed beforehand by woom24_attach_canvas) |
+//! | DG_DrawFrame | reads a BGRA frame from DG_ScreenBuffer → Presenter |
+//! | DG_SleepMs | no-op (rAF drives the cadence; engine throttling uses its own tick clock) |
 //! | DG_GetTicksMs | clock::now_ms() |
-//! | DG_GetKey | 弹出 JS 经 woom24_push_key 压入的队列 |
-//! | DG_SetWindowTitle | 写 document.title |
+//! | DG_GetKey | pops the queue fed by JS via woom24_push_key |
+//! | DG_SetWindowTitle | writes document.title |
 //!
-//! ## 全局状态 (与 shells/native/src/platform.rs 同一契约)
+//! ## Global state (same contract as shells/native/src/platform.rs)
 //!
-//! 共享可变状态放在 [`thread_local!`] + [`RefCell`] 里: 这些函数经 C ABI 被
-//! doomgeneric 调用, 调用方没有 Rust 所有权概念. 这样做是安全的, 因为**所有**
-//! 调用都源自主线程 (JS 事件循环驱动的 DG_*/woom24_* 导出); wasm32 上主线程
-//! 事实上单线程, 不存在并发进入, 故无需锁.
+//! Shared mutable state lives in [`thread_local!`] + [`RefCell`]: these
+//! functions are called through the C ABI by doomgeneric, and the caller has
+//! no notion of Rust ownership. This is safe because **all** calls originate
+//! from the main thread (the JS event loop drives the DG_*/woom24_* exports);
+//! on wasm32 the main thread is de facto single-threaded, so no concurrent
+//! entry exists and no lock is needed.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -25,16 +28,17 @@ use crate::present_c2d::{choose_presenter, Canvas2dPresenter, Presenter, Present
 use crate::present_gl2::WebGl2Presenter;
 
 thread_local! {
-    /// 装好的呈现器 (Task 5 用 Canvas2D; Task 6 升级为运行时选择,
-    /// 静态类型不变, 始终是 trait 对象).
+    /// Installed presenter. The static type never changes: it is always a
+    /// trait object; the backend (WebGL2 preferred, Canvas2D fallback) is
+    /// picked at runtime in `attach_canvas`.
     static PRESENTER: RefCell<Option<Box<dyn Presenter>>> = const { RefCell::new(None) };
-    /// JS 压入的按键队列, 条目 = (pressed, doom_key).
+    /// Key queue pushed from JS; entries are (pressed, doom_key).
     static KEY_QUEUE: RefCell<VecDeque<(bool, u8)>> = const { RefCell::new(VecDeque::new()) };
 }
 
-/// woom24_attach_canvas 的落点.
+/// Landing point of woom24_attach_canvas.
 pub fn attach_canvas(canvas: &web_sys::HtmlCanvasElement) -> Result<(), String> {
-    // D3: WebGL2 默认, 失败落回 Canvas2D (两者恒编译在内).
+    // D3: WebGL2 default, falling back to Canvas2D on failure (both always compiled in).
     let kind = choose_presenter(
         canvas
             .get_context("webgl2")
@@ -55,7 +59,7 @@ pub fn attach_canvas(canvas: &web_sys::HtmlCanvasElement) -> Result<(), String> 
     Ok(())
 }
 
-/// woom24_push_key 的落点.
+/// Landing point of woom24_push_key.
 pub fn push_key(pressed: bool, doom_key: u8) {
     KEY_QUEUE.with_borrow_mut(|q| q.push_back((pressed, doom_key)));
 }
@@ -66,7 +70,8 @@ pub extern "C" fn DG_Init() {
 }
 
 /// # Safety
-/// DG_ScreenBuffer 由 doomgeneric_Create 分配, 容量 = DOOMGENERIC_PIXELS * 4.
+/// DG_ScreenBuffer is allocated by doomgeneric_Create with capacity =
+/// DOOMGENERIC_PIXELS * 4.
 #[no_mangle]
 pub unsafe extern "C" fn DG_DrawFrame() {
     let pixel_bytes = {
@@ -89,7 +94,7 @@ pub unsafe extern "C" fn DG_DrawFrame() {
 
 #[no_mangle]
 pub extern "C" fn DG_SleepMs(_ms: u32) {
-    // no-op: rAF 驱动节奏 (D2).
+    // no-op: rAF drives the cadence (D2).
 }
 
 #[no_mangle]
@@ -98,12 +103,13 @@ pub extern "C" fn DG_GetTicksMs() -> u32 {
 }
 
 /// # Safety
-/// pressed/doom_key 必须是有效可写指针 (doomgeneric 的调用约定保证).
+/// pressed/doom_key must be valid writable pointers (guaranteed by
+/// doomgeneric's calling convention).
 #[no_mangle]
 pub unsafe extern "C" fn DG_GetKey(pressed: *mut i32, doom_key: *mut u8) -> i32 {
     KEY_QUEUE.with_borrow_mut(|q| {
         if let Some((is_pressed, key)) = q.pop_front() {
-            // SAFETY: 调用方保证指针有效.
+            // SAFETY: the caller guarantees valid pointers.
             unsafe {
                 *pressed = i32::from(is_pressed);
                 *doom_key = key;
@@ -116,13 +122,13 @@ pub unsafe extern "C" fn DG_GetKey(pressed: *mut i32, doom_key: *mut u8) -> i32 
 }
 
 /// # Safety
-/// title 必须是 NUL 结尾 C 字符串.
+/// title must be a NUL-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn DG_SetWindowTitle(title: *const std::ffi::c_char) {
     if title.is_null() {
         return;
     }
-    // SAFETY: 调用方保证 NUL 结尾.
+    // SAFETY: the caller guarantees NUL termination.
     let s = unsafe { CStr::from_ptr(title) }
         .to_string_lossy()
         .into_owned();

@@ -1,8 +1,10 @@
-//! 两入口共享的初始化管线 (D5 / AGENTS.md 入口契约).
+//! Initialization pipeline shared by both entries (D5 / AGENTS.md entry
+//! contract).
 //!
-//! //! 档案 → argv (Rust 侧构造, 无 JS argv) → 工厂安装 → doomgeneric_Create.
-//! //! 引擎会永久保存 myargv, CString 与指针数组必须活满整个进程:
-//! //! 存进 thread_local, 与 native main.rs 的 App.args 同一手法.
+//! Profile → argv (built on the Rust side, no JS argv) → factory install →
+//! doomgeneric_Create. The engine keeps `myargv` for the whole process, so the
+//! `CString`s and the pointer array must live just as long: they are anchored
+//! in a `thread_local`, the same technique as native main.rs's `App.args`.
 
 use std::cell::RefCell;
 use std::ffi::{c_char, c_int, CString};
@@ -14,7 +16,8 @@ use crate::wasm_vfs;
 use crate::web_audio;
 
 thread_local! {
-    /// argv 的所有权锚点 (引擎保存 myargv 指针, 绝不可释放).
+    /// Ownership anchor for argv (the engine keeps myargv pointers; they must
+    /// never be freed).
     static ARG_STORAGE: RefCell<Vec<CString>> = const { RefCell::new(Vec::new()) };
 }
 

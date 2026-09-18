@@ -1,9 +1,10 @@
-//! 最小入口的 DOM 配置 UI (D5 / AGENTS.md launcher mode).
+//! DOM config UI for the minimal entry (D5 / AGENTS.md launcher mode).
 //!
-//! //! 全部用 web-sys 裸 DOM API, 无框架无 CDN.
-//! //! 文件读取用 FileReader 回调 (闭包持有 reader 所有权),
-//! //! 避开 wasm-bindgen-futures 新依赖; 读到的字节直接注册进 VFS.
-//! //! 用户点"开始"才构造档案并进入 init_pipeline -- 游戏绝不自启.
+//! Built entirely from raw web-sys DOM APIs -- no framework, no CDN. File
+//! reads go through FileReader callbacks (the closures own the reader),
+//! avoiding a new wasm-bindgen-futures dependency; the bytes read are
+//! registered straight into the VFS. The profile is only assembled and handed
+//! to init_pipeline when the user clicks Start -- the game never self-starts.
 
 use std::cell::{Cell, RefCell};
 
@@ -15,7 +16,8 @@ use crate::profile::BootProfile;
 use crate::wasm_vfs;
 
 thread_local! {
-    /// change 事件里已读入并注册的 PWAD 名 (顺序 = FileList 顺序).
+    /// PWAD names read in and registered during change events (order =
+    /// FileList order).
     static PWAD_NAMES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static SF2_NAME: RefCell<Option<String>> = const { RefCell::new(None) };
     /// File reads started but not yet finished (fix round 1). Start refuses to
@@ -24,7 +26,8 @@ thread_local! {
     static PENDING_READS: Cell<u32> = const { Cell::new(0) };
 }
 
-/// 在 body 上挂出配置面板: PWAD 多选 + SF2 单选 + 开始按钮 + 错误横幅.
+/// Mounts the config panel on the body: PWAD multi-select + SF2 picker +
+/// Start button + error banner.
 pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
     let doc = web_sys::window()
         .ok_or("no window")?
@@ -36,7 +39,8 @@ pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
         .create_element("div")
         .map_err(js_err)?
         .dyn_into::<web_sys::HtmlDivElement>()
-        //? dyn_into 的错误侧是原类型 (Element), 不是 JsValue -- 转 JsValue 后复用 js_err.
+        //? dyn_into's error side is the original type (Element), not a
+        //? JsValue -- convert to JsValue to reuse js_err.
         .map_err(|e| js_err(e.into()))?;
     panel.set_id("woom24-launcher");
 
@@ -44,21 +48,22 @@ pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
     title.set_text_content(Some(&format!("woom24 — IWAD: {iwad_name}")));
     let _ = panel.append_child(&title);
 
-    // PWAD 多选 (顺序即 -file 加载顺序).
+    // PWAD multi-select (the order is the -file load order).
     let pwad_label = doc.create_element("label").map_err(js_err)?;
     pwad_label.set_text_content(Some("PWADs（可多选，按选择顺序加载）"));
     let pwads = file_input(&doc, true, ".wad").map_err(js_err)?;
     let _ = panel.append_child(&pwad_label);
     let _ = panel.append_child(&pwads);
 
-    // SF2 单选 (可选; 不选则音乐静音).
+    // SF2 picker (optional; without one, music stays silent).
     let sf2_label = doc.create_element("label").map_err(js_err)?;
     sf2_label.set_text_content(Some("SoundFont（可选；不选则音乐静音）"));
     let sf2 = file_input(&doc, false, ".sf2").map_err(js_err)?;
     let _ = panel.append_child(&sf2_label);
     let _ = panel.append_child(&sf2);
 
-    // 错误横幅: 缺 IWAD / 引擎初始化失败显示于此, 绝不裸 panic 进控制台.
+    // Error banner: a missing IWAD / failed engine init shows up here, never
+    // a raw panic into the console.
     let banner = doc.create_element("p").map_err(js_err)?;
     banner.set_id("woom24-banner");
 
@@ -66,7 +71,7 @@ pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
         .create_element("button")
         .map_err(js_err)?
         .dyn_into::<web_sys::HtmlButtonElement>()
-        //? 同上: dyn_into 的错误侧是 Element.
+        //? Same as above: dyn_into's error side is Element.
         .map_err(|e| js_err(e.into()))?;
     start.set_text_content(Some("Start"));
 
@@ -99,7 +104,8 @@ pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
         if let Err(e) = init_pipeline::run(&profile) {
             banner_for_cb.set_text_content(Some(&format!("启动失败：{e}")));
         } else {
-            // 启动成功: 拆掉配置面板 (呈现画布由 loader 提供).
+            // Boot succeeded: tear down the config panel (the presentation
+            // canvas is provided by the loader).
             let _ = doc_for_cb
                 .get_element_by_id("woom24-launcher")
                 .map(|n| n.remove());
@@ -113,7 +119,8 @@ pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 构造文件选择框; change 事件里逐文件读字节并注册 VFS.
+/// Builds a file picker; the change event reads each file's bytes and
+/// registers them into the VFS.
 fn file_input(
     doc: &web_sys::Document,
     multiple: bool,
@@ -123,7 +130,7 @@ fn file_input(
         .create_element("input")
         .map_err(js_err)?
         .dyn_into::<web_sys::HtmlInputElement>()
-        //? 同上: dyn_into 的错误侧是 Element.
+        //? Same as above: dyn_into's error side is Element.
         .map_err(|e| js_err(e.into()))?;
     input.set_type("file");
     input.set_accept(accept);
@@ -141,7 +148,8 @@ fn file_input(
     Ok(input)
 }
 
-/// change 事件: 逐文件建 FileReader, onload 里取字节并注册 VFS + 记名.
+/// change event: builds a FileReader per file; onload grabs the bytes,
+/// registers them into the VFS and records the name.
 fn on_files_picked(ev: &web_sys::Event, is_sf2: bool) -> Result<(), String> {
     let input = ev
         .target()

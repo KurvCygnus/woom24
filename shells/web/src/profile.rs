@@ -1,8 +1,8 @@
-//! 启动档案: 标准入口的 JSON 契约 (D5).
+//! Boot profile: the standard entry's JSON contract (D5).
 //!
-//! //! 严格解析: 固定 schema, 未知键报错, 类型不匹配报错.
-//! //! 不用 serde_json (依赖冻结 + AGENTS 反对弱类型 DTO) --
-//! //! 这个手写解析器只服务本 schema, golden 全覆盖.
+//! Strict parsing: fixed schema, unknown keys error, type mismatches error.
+//! No serde_json (dependency freeze + AGENTS' rejection of weakly-typed DTOs)
+//! -- this hand-written parser serves only this schema, with golden coverage.
 
 /// Complete boot profile. `pwads` order is the load order (part of the contract).
 ///
@@ -28,13 +28,14 @@ pub fn parse_profile(json: &str) -> Result<BootProfile, String> {
         engine_args: Vec::new(),
     };
     r.eat(b'{')?;
-    //? 计划原稿在这里先吃掉 '}'; 空对象恒报错, 消费与否不可观察, 故省去死赋值.
+    //? The plan draft consumed '}' here first; an empty object always errors
+    //? and consuming it is unobservable, so the dead assignment is dropped.
     if r.peek()? == b'}' {
         return Err("iwad is required".to_string());
     }
     loop {
         let key = r.string()?;
-        // 重复键按契约拒绝.
+        // Duplicate keys are rejected by contract.
         let dup = match key.as_str() {
             "iwad" => !p.iwad.is_empty(),
             "pwads" => !p.pwads.is_empty(),
@@ -74,7 +75,7 @@ pub fn parse_profile(json: &str) -> Result<BootProfile, String> {
     Ok(p)
 }
 
-/// 严格 JSON 读取器 (只支持本 schema 用到的字面量形态).
+/// Strict JSON reader (supports only the literal forms this schema uses).
 struct Reader<'a> {
     b: &'a [u8],
     i: usize,

@@ -1,6 +1,7 @@
-//! performance.now 时钟 (D2): shell 起点之后的毫秒数.
+//! performance.now clock (D2): milliseconds since the shell's start point.
 //!
-//! 只进 DG_GetTicksMs (引擎节拍), 绝不进模拟状态 (D6 确定性护栏).
+//! Feeds only DG_GetTicksMs (the engine heartbeat), never simulation state
+//! (D6 determinism guard).
 
 use std::cell::Cell;
 
@@ -8,12 +9,13 @@ thread_local! {
     static START_MS: Cell<f64> = const { Cell::new(0.0) };
 }
 
-/// 在 doomgeneric_Create 之前调用一次.
+/// Call once, before doomgeneric_Create.
 pub fn init_start_time() {
     START_MS.with(|t| t.set(performance_now()));
 }
 
-/// 引擎节拍时钟: 起点后毫秒数 (u32 截断 = 原生 Instant 行为一致).
+/// Engine heartbeat clock: milliseconds since start (u32 truncation = same
+/// behavior as the native Instant).
 pub fn now_ms() -> u32 {
     START_MS.with(|t| (performance_now() - t.get()) as u32)
 }

@@ -1,7 +1,8 @@
-//! WebGL2 呈现器 (D3 默认路径): 整帧一张纹理 + 全屏三角 blit.
+//! WebGL2 presenter (D3 default path): the whole frame as one texture +
+//! fullscreen-triangle blit.
 //!
-//! 引擎帧是 BGRA 字节序, WebGL2 核心不吃 BGRA --
-//! 复用 present_c2d::bgra_to_rgba, 单一换序代码路径.
+//! The engine frame is BGRA byte order, which WebGL2 core does not take --
+//! reuse present_c2d::bgra_to_rgba; one single byte-swap code path.
 
 use wasm_bindgen::JsCast;
 
@@ -35,7 +36,8 @@ pub struct WebGl2Presenter {
 }
 
 impl WebGl2Presenter {
-    /// 画布被设为引擎分辨率 (640×400); 失败返回 Err 由上层降级.
+    /// The canvas is set to engine resolution (640×400); failure returns Err
+    /// for the caller to degrade.
     pub fn new(canvas: &web_sys::HtmlCanvasElement) -> Result<Self, String> {
         canvas.set_width(room::doom::doomgeneric::DOOMGENERIC_RESX as u32);
         canvas.set_height(room::doom::doomgeneric::DOOMGENERIC_RESY as u32);
@@ -47,12 +49,12 @@ impl WebGl2Presenter {
             .map_err(|_| "webgl2 cast failed")?;
         let program = compile_program(&gl)?;
         gl.use_program(Some(&program));
-        // 全屏三角: 一条大三角形覆盖 clip 空间.
+        // Fullscreen triangle: one big triangle covering clip space.
         let verts: [f32; 6] = [-1.0, -1.0, 3.0, -1.0, -1.0, 3.0];
         let vbo = gl.create_buffer().ok_or("create_buffer failed")?;
         gl.bind_buffer(web_sys::WebGl2RenderingContext::ARRAY_BUFFER, Some(&vbo));
         unsafe {
-            // SAFETY: 静态数组, 长度精确.
+            // SAFETY: static array, exact length.
             let slice = js_sys::Float32Array::view(&verts);
             gl.buffer_data_with_array_buffer_view(
                 web_sys::WebGl2RenderingContext::ARRAY_BUFFER,
@@ -60,8 +62,9 @@ impl WebGl2Presenter {
                 web_sys::WebGl2RenderingContext::STATIC_DRAW,
             );
         }
-        //? 计划印的是 get_attrib_location(...).ok_or(...)? as u32; 0.3.98 的同义形状
-        //? 直接返回 i32 (失败为 -1, gen_WebGl2RenderingContext.rs:8553), 语义不变.
+        //? The plan printed get_attrib_location(...).ok_or(...)? as u32; the
+        //? 0.3.98 shape returns i32 directly (-1 on failure,
+        //? gen_WebGl2RenderingContext.rs:8553), semantics unchanged.
         let loc = gl.get_attrib_location(&program, "a_pos");
         if loc < 0 {
             return Err("a_pos location".into());
@@ -78,7 +81,8 @@ impl WebGl2Presenter {
         );
         let texture = gl.create_texture().ok_or("create_texture failed")?;
         gl.bind_texture(web_sys::WebGl2RenderingContext::TEXTURE_2D, Some(&texture));
-        // 像素对齐 + 最近邻 (整数放大交给 CSS, 保持像素风).
+        // Pixel alignment + nearest filtering (integer scaling is left to CSS,
+        // keeping the pixel look).
         gl.tex_parameteri(
             web_sys::WebGl2RenderingContext::TEXTURE_2D,
             web_sys::WebGl2RenderingContext::TEXTURE_MIN_FILTER,
@@ -117,8 +121,9 @@ fn compile_shader(
     if ok {
         Ok(sh)
     } else {
-        //? 计划印的是 get_shader_info_log(&sh) 直接内插; 0.3.98 返回 Option<String>
-        //? (gen_WebGl2RenderingContext.rs:8696), unwrap_or_default 同义.
+        //? The plan interpolated get_shader_info_log(&sh) directly; 0.3.98
+        //? returns Option<String> (gen_WebGl2RenderingContext.rs:8696),
+        //? unwrap_or_default is equivalent.
         Err(format!(
             "shader compile: {}",
             gl.get_shader_info_log(&sh).unwrap_or_default()
@@ -140,7 +145,7 @@ fn compile_program(gl: &web_sys::WebGl2RenderingContext) -> Result<web_sys::WebG
     if ok {
         Ok(p)
     } else {
-        //? 同 get_shader_info_log: 0.3.98 的 get_program_info_log 返回
+        //? Same as get_shader_info_log: 0.3.98's get_program_info_log returns
         //? Option<String> (gen_WebGl2RenderingContext.rs:8650).
         Err(format!(
             "program link: {}",
@@ -157,11 +162,14 @@ impl Presenter for WebGl2Presenter {
             web_sys::WebGl2RenderingContext::TEXTURE_2D,
             Some(&self.texture),
         );
-        //? 计划印的 tex_image_2d_with_u32_and_u32_and_html_image_element_or_canvas_or_video
-        //? 与其指名的备选 ..._u8_array_and_opt_u32 在 0.3.98 均不存在 (E0599); 同义形状是
+        //? The plan's tex_image_2d_with_u32_and_u32_and_html_image_element_or_canvas_or_video
+        //? and its named alternative ..._u8_array_and_opt_u32 both do not exist
+        //? in 0.3.98 (E0599); the equivalent shape is
         //? tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array
-        //? (gen_WebGl2RenderingContext.rs:3196) -- 实参 = 原列表去掉元素槽, 字节缓冲由
-        //? wasm-bindgen 内部包成 Uint8Array 视图, 语义不变, 也不再需要 unsafe 视图.
+        //? (gen_WebGl2RenderingContext.rs:3196) -- arguments = the original list
+        //? minus the element slot; wasm-bindgen wraps the byte buffer internally
+        //? as a Uint8Array view, semantics unchanged, and the unsafe view is no
+        //? longer needed.
         gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
             web_sys::WebGl2RenderingContext::TEXTURE_2D,
             0,
