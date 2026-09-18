@@ -25,4 +25,5 @@ web-sys = { version = "0.3", features = [
     "StereoPannerNode", "AudioParam", "AudioNode", "AudioDestinationNode",
 ] }
 js-sys = "0.3"
-log = "0.4"
+# log 0.4.30 ships no default features; set_boxed_logger needs "std".
+log = { version = "0.4", features = ["std"] }

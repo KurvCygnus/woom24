@@ -665,7 +665,9 @@ pub unsafe extern "C" fn fflush(_stream: *mut c_void) -> c_int {
 #[no_mangle]
 pub unsafe extern "C" fn printf0(fmt: *const c_char) -> c_int {
     let out = printf_impl(fmt, &[]);
-    // stdout lands in the browser console (visible via the web console).
+    // There is no real stdout on wasm: the output is routed through the `log`
+    // facade, which the console logger (installed by woom24_attach_canvas)
+    // lands in the browser DevTools console.
     log::info!("{}", String::from_utf8_lossy(&out));
     out.len() as c_int
 }

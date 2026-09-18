@@ -6,10 +6,12 @@
 //! - `clock` / `dg` / `present_c2d`: platform callbacks and Canvas2D presentation
 //! - `present_gl2`: WebGL2 presenter
 //! - `profile` / `init_pipeline` / `launcher_ui`: the two-entry contract
+//! - `console_log`: routes the `log` facade to the browser DevTools console
 
 use wasm_bindgen::prelude::*;
 
 mod clock;
+mod console_log;
 mod dg;
 mod init_pipeline;
 mod launcher_ui;
@@ -29,6 +31,9 @@ pub fn woom24_version() -> u32 {
 /// Called by the loader JS: hands in the target canvas (engine resolution 640×400).
 #[wasm_bindgen]
 pub fn woom24_attach_canvas(canvas: web_sys::HtmlCanvasElement) -> Result<(), JsValue> {
+    // Before anything else: without this, all `log::` output (boot diagnostics,
+    // fallback warnings) is dropped silently.
+    console_log::install_once();
     dg::attach_canvas(&canvas).map_err(|e| JsValue::from_str(&e))
 }
 
