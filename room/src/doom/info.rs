@@ -910,8 +910,8 @@ const _: () = assert!(std::mem::offset_of!(MobjInfo, speed) == 60);
 // Layout guards for `state_t`. Field arithmetic, both models:
 // sprite(c_int) 4 + frame(c_int) 4 + tics(c_int) 4 + action(function
 // pointer) + nextstate(c_int) 4 + misc1(c_int) 4 + misc2(c_int) 4.
-// LP64: 4x4 + fn-pointer 8 (4 bytes of padding after `tics` to reach its
-// 8-byte alignment) = 36, rounded up to the 8-byte struct alignment = 40.
+// LP64: 6x4 + pad 4 (fn-pointer needs its 8-byte alignment after `tics`)
+// + fn-pointer 8 = 36, rounded up to the 8-byte struct alignment = 40.
 // ILP32 (wasm32): 6x4 + fn-pointer 4 (no padding) = 28, alignment 4 = 28.
 // Numbers verified against the real structs with a wasm32 const-assert
 // scratch check (c_tests/LP64 task 2).
