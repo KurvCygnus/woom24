@@ -131,7 +131,7 @@ mod tests {
         // Needs a local SF2 (any under soundfonts/, not committed); skip with
         // a note when missing.
         let Some(sf2_bytes) = find_local_sf2() else {
-            eprintln!("skip: no local .sf2 under soundfonts/ — determinism not exercised");
+            eprintln!("skip: no real local .sf2 under soundfonts/ (missing, or only an un-smudged LFS stub); determinism not exercised");
             return;
         };
         let font = SynthFont::parse(&sf2_bytes).expect("local sf2 must parse");
@@ -164,12 +164,26 @@ mod tests {
         candidates.iter().find_map(|root| find_sf2_under(root))
     }
 
+    /// A `.sf2` big enough to be a real font. Un-smudged Git LFS checkouts
+    /// keep a ~133-byte pointer stub under the real filename, so the
+    /// extension alone is not enough -- parsing such a stub panics in
+    /// `SynthFont::parse`'s `expect`. A genuine font is orders of magnitude
+    /// larger than the 1 MiB bar, so undersized files fall through to the
+    /// test's graceful skip.
+    fn plausible_font_path(p: &std::path::Path) -> bool {
+        const MIN_FONT_BYTES: u64 = 1 << 20;
+        p.extension().is_some_and(|e| e == "sf2")
+            && std::fs::metadata(p)
+                .map(|m| m.len() >= MIN_FONT_BYTES)
+                .unwrap_or(false)
+    }
+
     /// Scans a single candidate directory (plus one level of subdirectories)
     /// for any .sf2.
     fn find_sf2_under(root: &std::path::Path) -> Option<Vec<u8>> {
         for entry in std::fs::read_dir(root).ok()?.flatten() {
             let p = entry.path();
-            if p.extension().is_some_and(|e| e == "sf2") {
+            if plausible_font_path(&p) {
                 return std::fs::read(&p).ok();
             }
             // One level of subdirectories is allowed (repo reality:
@@ -177,7 +191,7 @@ mod tests {
             if p.is_dir() {
                 for sub in std::fs::read_dir(&p).ok()?.flatten() {
                     let sp = sub.path();
-                    if sp.extension().is_some_and(|e| e == "sf2") {
+                    if plausible_font_path(&sp) {
                         return std::fs::read(&sp).ok();
                     }
                 }

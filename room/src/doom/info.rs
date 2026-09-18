@@ -907,7 +907,8 @@ pub struct MobjInfo {
 const _: () = assert!(std::mem::size_of::<MobjInfo>() == 92);
 const _: () = assert!(std::mem::offset_of!(MobjInfo, speed) == 60);
 
-//? ILP32 (wasm32) 上 `State` 布局与 C 原型不同, 期望值需按位宽细化 = spec ③.
+//? On ILP32 (wasm32) the `State` layout differs from the C prototype; the
+//? expected values need per-pointer-width refinement = spec 3.
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::size_of::<State>() == 40);
 const _: () = assert!(std::mem::offset_of!(State, tics) == 8);

@@ -73,8 +73,9 @@ unsafe fn stdout_placeholder() -> *mut libc::FILE {
         }
         std::ptr::addr_of_mut!(stdout)
     }
-    //* wasm32 既非 unix 也非 windows: 不补这个分支, 函数体在 ILP32 上
-    //* 是空的, E0308. wasm 的 fflush 垫片忽略流参数, null 语义与 windows 一致.
+    //* wasm32 is neither unix nor windows: without this branch the function
+    //* body would be empty on ILP32 (E0308). The wasm fflush shim ignores the
+    //* stream argument, so the null semantics match the windows branch.
     #[cfg(not(unix))]
     {
         std::ptr::null_mut()

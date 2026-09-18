@@ -33,8 +33,8 @@ rustysynth = "1"
 dhat = { version = "0.3", optional = true }
 
 # libc bindings for C FFI (FILE, fopen, fclose, fseek, fread, printf, etc.)
-# 宿主目标仍用真实 libc; wasm32 换成本仓库的声明垫片,
-# 实现在 shells/web/src/wasm_vfs.rs (spec ② D1).
+# Host targets keep the real libc; wasm32 swaps in this repo's declaration
+# shim, implemented in shells/web/src/wasm_vfs.rs (spec 2 D1).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libc = "0.2"
 

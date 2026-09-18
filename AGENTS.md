@@ -88,6 +88,9 @@ Notes:
   When vanilla relied on accidental behavior, replicate that behavior explicitly and mark it with `//!`.
 - One `Complevel` enum drives every compat switch. Per-tier behavior gets its own table in `core`, reviewed
   against that tier's primary reference.
+- Wasm FFI rule: variadic `extern "C"` calls must never be declared directly in `room/src/doom/` — wasm-lld
+  replaces arity-mismatched calls with trapping `signature_mismatch` stubs; they route through the per-arity
+  `crt.rs` wrappers (decision record: `docs/specs/2026-09-18-wasm-per-arity-crt-decision.md`).
 
 ### Fork Discipline (`sunsided/room`)
 

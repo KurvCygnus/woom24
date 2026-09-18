@@ -172,7 +172,8 @@ pub struct menu_t {
     pub lastOn: i16,
 }
 
-//? ILP32 (wasm32) 上菜单结构布局与 C 原型不同, 期望值需按位宽细化 = spec ③.
+//? On ILP32 (wasm32) the menu struct layouts differ from the C prototype; the
+//? expected values need per-pointer-width refinement = spec 3.
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
     std::mem::size_of::<menuitem_t>() == 32,

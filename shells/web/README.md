@@ -31,7 +31,8 @@ Run in Chromium and Firefox; record pass/fail per line.
 4. SFX audible (pistol/door during demo). Music silent without SF2 (expected degradation), audible with a user-picked `.sf2`.
 5. Keys work: arrows move, Ctrl fires, Esc responds.
 6. Reload, then in DevTools console: `woom24_demo_standard(<File object of doom1.wad>)` → boots directly, no launcher.
-7. Forced fallback: with WebGL2 unavailable (e.g. a Chromium `--disable-webgl2` test profile), re-run items 3–6 → the game still renders, via the Canvas2D fallback (covers the runtime GL2→Canvas2D selection and the ledgered latent canvas-context conflict).
+7. Forced fallback: with WebGL2 unavailable (e.g. a Chromium `--disable-webgl2` test profile), re-run items 3–6 → the game still renders, via the Canvas2D fallback. Scope: this exercises the **probe-time** GL2→Canvas2D selection (the clean Canvas2D path) only — the GL-init-fail fallback is **not** covered here (the ledgered canvas-context conflict: a webgl2-then-fail canvas is poisoned for `2d`).
+   Known gap while playing: in-menu save attempts currently trap (fopen miss → `I_Error` → wasm trap) until the DOM-surfacing `I_Error` hook lands.
 8. Double-start guard: invoke a start entry a second time (e.g. call `woom24_demo_standard(file)` again, or click Start after a standard start) → the second call is refused with a console error (`woom24: engine already started…`) and the running game stays intact (no state corruption, no double tick).
 9. Reload discipline: reloading mid-game re-enters via the launcher (minimal entry); the PWAD/asset set is frozen per boot — there is no mid-game asset swap.
 10. `file://` open of `www/index.html` may fail on module/wasm fetch — record the exact browser error text; single-file embedding is a follow-up, static-host serving is the contract.

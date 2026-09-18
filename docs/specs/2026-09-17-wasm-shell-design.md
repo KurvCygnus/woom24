@@ -28,8 +28,10 @@ run in a browser:
 2. The engine runs to completion in the browser: IWAD supplied from the local file system via the
    config UI or host API, demo playback visible, SFX audible (music audible when a user-supplied
    SF2 is loaded).
-3. The 76-error CRT gap is closed inside the web shell (engine code untouched except the one
-   class of mechanical `cfg` changes called out below — none planned).
+3. The 76-error CRT gap is closed inside the web shell (engine code limited to three sanctioned edit
+   classes, amended 2026-09-18: mechanical `cfg` gates; CRT routing wrappers — variadic `extern "C"`
+   calls re-enter through `room/src/doom/crt.rs`'s per-arity shapes; clippy hygiene — see
+   `docs/specs/2026-09-18-wasm-per-arity-crt-decision.md`; nothing else planned).
 4. The two-entry contract is implemented as two separately exported functions sharing one init
    pipeline (AGENTS.md).
 

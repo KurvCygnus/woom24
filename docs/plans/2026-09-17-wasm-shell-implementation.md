@@ -20,7 +20,7 @@ Copied verbatim from the spec and AGENTS.md. Every task implicitly includes thes
 - **WAD files are copyrighted — never commit, bundle, or upload them.** Same discipline for the local `soundfonts/` SF2 (present in the working tree, not committed).
 - **Pure Rust on `wasm32-unknown-unknown`** via wasm-bindgen. No Emscripten, no C dependencies. (AGENTS constraint 2.)
 - **New crates allowed this spec (spec-approved in D7/architecture):** `wasm-bindgen`, `web-sys`, `js-sys` for `shells/web`; the `wasm-bindgen-cli` tool. Everything else requires explicit user approval (AGENTS tooling protocol 5). `rustysynth` is **not** re-added to the shell — the synth core is consumed through `room::audio::synth`.
-- **`room/src/doom/` gets zero edits except one mechanical class:** the three const-layout asserts in `info.rs` / `m_menu.rs` get `#[cfg(target_pointer_width = "64")]` gates (spec ② Goal 3 closes all 76 errors; the gates are the spec's allowed "mechanical cfg change" class; spec ③ refines per-width expectations). Before touching anything under `room/src/doom/`, read `docs/upstream/room-AGENTS.md` (AGENTS.md requirement).
+- **`room/src/doom/` gets zero edits except three sanctioned classes (amended 2026-09-18):** (1) mechanical cfg gates — the three const-layout asserts in `info.rs` / `m_menu.rs` get `#[cfg(target_pointer_width = "64")]` gates (spec ② Goal 3 closes all 76 errors; spec ③ refines per-width expectations); (2) CRT routing wrappers — variadic `extern "C"` calls re-enter through `room/src/doom/crt.rs`'s per-arity shapes (`docs/specs/2026-09-18-wasm-per-arity-crt-decision.md`); (3) clippy hygiene. Before touching anything under `room/src/doom/`, read `docs/upstream/room-AGENTS.md` (AGENTS.md requirement).
 - **Two-entry contract (AGENTS.md):** `woom24_minimal_start` (device metadata + IWAD → launcher UI) and `woom24_standard_start` (complete boot profile → direct start) are separate exports converging on one `init_pipeline`. One must never degrade into the other.
 - **Determinism guard (D6):** the shell touches the engine only through `DG_*`, argv, and the audio control plane. No wall-clock data reaches the simulation.
 - **Comment language (amended 2026-09-18):** all comments — including in files already written with Chinese comments (`shells/web/**`, `room/src/audio/synth.rs`) — are **English**, ASCII punctuation, using the `//*` / `//!` / `//?` prefix system. A one-time sweep converts the existing Chinese comments.
@@ -3164,7 +3164,7 @@ Run in sequence, each with a 300 s timeout, none in parallel (AGENTS protocol 2/
 
 ```bash
 cargo build
-cargo clippy --workspace --exclude c2rust-intermediate
+cargo clippy -p room-shell-web -p woom24-libc --all-targets -- -D warnings
 cargo test
 cargo check -p room -p woom24-libc -p room-shell-web --target wasm32-unknown-unknown
 cargo build -p room-shell-web --target wasm32-unknown-unknown --release
