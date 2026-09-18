@@ -15,6 +15,12 @@ if [ "$crate_version" != "$REQUIRED_WASM_BINDGEN" ]; then
   exit 1
 fi
 
+if ! command -v wasm-bindgen >/dev/null 2>&1; then
+  echo "error: wasm-bindgen CLI not found (expected $REQUIRED_WASM_BINDGEN)" >&2
+  echo "       install it with: cargo install wasm-bindgen-cli --version $REQUIRED_WASM_BINDGEN" >&2
+  exit 1
+fi
+
 cli_version="$(wasm-bindgen --version | awk '{print $2}')"
 if [ "$cli_version" != "$REQUIRED_WASM_BINDGEN" ]; then
   echo "error: wasm-bindgen CLI is '$cli_version', expected $REQUIRED_WASM_BINDGEN" >&2
