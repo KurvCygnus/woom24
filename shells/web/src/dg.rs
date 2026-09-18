@@ -21,7 +21,8 @@ use std::collections::VecDeque;
 use std::ffi::CStr;
 
 use crate::clock;
-use crate::present_c2d::{Canvas2dPresenter, Presenter};
+use crate::present_c2d::{choose_presenter, Canvas2dPresenter, Presenter, PresenterKind};
+use crate::present_gl2::WebGl2Presenter;
 
 thread_local! {
     /// 装好的呈现器 (Task 5 用 Canvas2D; Task 6 升级为运行时选择,
@@ -33,8 +34,23 @@ thread_local! {
 
 /// woom24_attach_canvas 的落点.
 pub fn attach_canvas(canvas: &web_sys::HtmlCanvasElement) -> Result<(), String> {
-    let p = Canvas2dPresenter::new(canvas)?;
-    PRESENTER.with_borrow_mut(|s| *s = Some(Box::new(p) as Box<dyn Presenter>));
+    // D3: WebGL2 默认, 失败落回 Canvas2D (两者恒编译在内).
+    let kind = choose_presenter(
+        canvas
+            .get_context("webgl2")
+            .map(|c| c.is_some())
+            .unwrap_or(false),
+    );
+    let presenter: Box<dyn Presenter> = match kind {
+        PresenterKind::WebGL2 => WebGl2Presenter::new(canvas)
+            .map(|p| Box::new(p) as Box<dyn Presenter>)
+            .or_else(|e| {
+                log::warn!("WebGL2 初始化失败, 回退 Canvas2D: {e}");
+                Canvas2dPresenter::new(canvas).map(|p| Box::new(p) as Box<dyn Presenter>)
+            })?,
+        PresenterKind::Canvas2D => Box::new(Canvas2dPresenter::new(canvas)?),
+    };
+    PRESENTER.with_borrow_mut(|s| *s = Some(presenter));
     clock::init_start_time();
     Ok(())
 }

@@ -55,6 +55,34 @@ pub trait Presenter {
     fn draw_frame(&mut self, bgra: &[u8]) -> Result<(), String>;
 }
 
+/// 呈现后端种类 (D3: WebGL2 默认, Canvas2D 恒为兜底).
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum PresenterKind {
+    Canvas2D,
+    WebGL2,
+}
+
+/// 运行时选择: 有 WebGL2 用 WebGL2, 否则 Canvas2D.
+/// WebGPU 不在本 spec (非目标).
+pub fn choose_presenter(has_webgl2: bool) -> PresenterKind {
+    if has_webgl2 {
+        PresenterKind::WebGL2
+    } else {
+        PresenterKind::Canvas2D
+    }
+}
+
+#[cfg(test)]
+mod presenter_kind_tests {
+    use super::*;
+
+    #[test]
+    fn webgl2_preferred_when_available() {
+        assert_eq!(choose_presenter(true), PresenterKind::WebGL2);
+        assert_eq!(choose_presenter(false), PresenterKind::Canvas2D);
+    }
+}
+
 impl Presenter for Canvas2dPresenter {
     fn draw_frame(&mut self, bgra: &[u8]) -> Result<(), String> {
         bgra_to_rgba(bgra, &mut self.rgba);

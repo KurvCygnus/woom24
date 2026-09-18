@@ -12,6 +12,7 @@ use wasm_bindgen::prelude::*;
 mod clock;
 mod dg;
 pub mod present_c2d;
+pub mod present_gl2;
 pub mod wasm_vfs;
 mod web_audio;
 
