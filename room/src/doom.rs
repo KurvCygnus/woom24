@@ -100,8 +100,9 @@ pub mod w_wad;
 pub mod wi_stuff;
 pub mod z_zone;
 
-// Differential C-vs-Rust tests assume the LP64 data model
-// (`c_long`/`c_ulong` == 8 bytes, see `c_tests/harness.rs`); Windows is
-// LLP64, so this suite is Unix-only until that is audited.
+// Differential C-vs-Rust tests: LP64-only by policy -- the oracle is the
+// compiled C side (see docs/specs/2026-09-18-c-tests-lp64-audit.md and
+// docs/specs/2026-09-17-c-tests-lp64-design.md). Wasm determinism is
+// anchored by golden demo tests on the host (same simulation code).
 #[cfg(all(test, unix))]
 mod c_tests;

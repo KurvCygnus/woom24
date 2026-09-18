@@ -1,8 +1,7 @@
 # Design: c_tests gating & LP64 strategy
 
 **Date:** 2026-09-17
-**Status:** Approved — autonomously decided under the user's 2026-09-17 sleep mandate ("自主迭代");
-Decisions marked [AUTO] are open to revision on user review.
+**Status:** Implemented (2026-09-18; [AUTO] decisions executed as specified — D3 conclusion: all 28 c_long/c_ulong uses CRT-adjacent, zero simulation-facing; see docs/specs/2026-09-18-c-tests-lp64-audit.md).
 **Series:** follows spec ② (`2026-09-17-wasm-shell-design.md`) — its libc/VFS shim removes the
 CRT-class wasm errors; this spec removes the layout-class ones and fixes the testing policy.
 
@@ -40,7 +39,7 @@ CRT-class wasm errors; this spec removes the layout-class ones and fixes the tes
 |---|---|---|
 | D1 | **c_tests stay `#[cfg(all(test, unix))]` permanently**, with the in-code comment upgraded to point at this spec. The suite's oracle is the C compilation of `vendor/doomgeneric` (LP64 on Linux CI); wasm has no C oracle. Demo-exactness for wasm is anchored instead by golden demo tests on the host (LP64 native), which is the same simulation code. | The alternative — making the C side build for wasm32 to get an ILP32 oracle — is a doomgeneric-sys project with no payoff: demo-exact semantics are defined by the LP64 Linux reference, and the wasm build must reproduce THAT, not a 32-bit C build. |
 | D2 | **The three size guards become model-aware**: expected sizes selected by `cfg(target_pointer_width = "64")` (40/32/40 as today) vs `"32"` (values computed by hand-layout from the `#[repr(C)]` field lists with `c_long = 4`, each cited in a comment showing the arithmetic), so the guards keep pinning layouts on every target instead of being deleted or gated off. | Deleting the guards would lose real layout protection; keeping LP64-only values would break the wasm check forever. |
-| D3 | **`c_long` audit artifact** committed at `docs/specs/2026-09-17-c-tests-lp64-audit.md`: table of every `c_long`/`c_ulong` occurrence in `room/src/doom/` with classification (CRT-adjacent I/O vs simulation state) and a concluding determinism statement. Expected conclusion: all uses are CRT/I/O-adjacent; simulation state is fixed-width (`c_int`/`u32`/fixed-point), so demo determinism is data-model independent. If the audit finds a simulation-facing `c_long`, that is an escalation to the user, not an autonomous fix. | Turns "nobody knows" into a reviewed artifact; cheap (grep + classification). |
+| D3 | **`c_long` audit artifact** committed at `docs/specs/2026-09-18-c-tests-lp64-audit.md`: table of every `c_long`/`c_ulong` occurrence in `room/src/doom/` with classification (CRT-adjacent I/O vs simulation state) and a concluding determinism statement. Expected conclusion: all uses are CRT/I/O-adjacent; simulation state is fixed-width (`c_int`/`u32`/fixed-point), so demo determinism is data-model independent. If the audit finds a simulation-facing `c_long`, that is an escalation to the user, not an autonomous fix. | Turns "nobody knows" into a reviewed artifact; cheap (grep + classification). |
 
 ## Architecture / tasks sketch
 

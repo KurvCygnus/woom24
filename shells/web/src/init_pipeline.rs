@@ -68,11 +68,13 @@ fn anchor_argv(strings: Vec<CString>) -> (c_int, *mut *mut c_char) {
 /// Pipeline body: both entries converge here; no branching outside the export surface.
 pub fn run(profile: &BootProfile) -> Result<(), String> {
     // 0. Double-start guard: a second start call after a boot is a no-op --
-    //    re-running the pipeline would overwrite myargv/ARG_STORAGE and leak
-    //    the engine's screen buffer. The check precedes validation on purpose:
-    //    an already-booted engine must never be re-entered, whatever the
-    //    profile says. The refusal is reported on the console (not as Err), so
-    //    a host that ignores it keeps a running game instead of a dead one.
+    //    re-running the pipeline would overwrite the argv anchor (CStrings +
+    //    argv array leaked to process lifetime via `Vec::leak`/`Box::leak`,
+    //    see `anchor_argv`) and leak the engine's screen buffer. The check
+    //    precedes validation on purpose: an already-booted engine must never
+    //    be re-entered, whatever the profile says. The refusal is reported on
+    //    the console (not as Err), so a host that ignores it keeps a running
+    //    game instead of a dead one.
     if CREATED.with(Cell::get) {
         report_double_start();
         return Ok(());
