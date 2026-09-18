@@ -3,10 +3,11 @@
 //!
 //! Profile → argv (built on the Rust side, no JS argv) → factory install →
 //! doomgeneric_Create. The engine keeps `myargv` for the whole process, so the
-//! `CString`s and the pointer array must live just as long: they are anchored
-//! in a `thread_local`, the same technique as native main.rs's `App.args`.
+//! `CString`s and the pointer array must live just as long: both are leaked
+//! for the process lifetime (never freed), matching native main.rs's
+//! never-freed `App.args` contract.
 
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::ffi::{c_char, c_int, CString};
 
 use room::audio::AudioBackend;
@@ -16,9 +17,6 @@ use crate::wasm_vfs;
 use crate::web_audio;
 
 thread_local! {
-    /// Ownership anchor for argv (the engine keeps myargv pointers; they must
-    /// never be freed).
-    static ARG_STORAGE: RefCell<Vec<CString>> = const { RefCell::new(Vec::new()) };
     /// One-shot boot latch (entry contract: the engine is created at most once
     /// per process). Armed only when a start attempt actually reaches the
     /// engine, so a failed validation (e.g. unregistered IWAD) can be retried.
@@ -50,6 +48,23 @@ fn build_argv(profile: &BootProfile) -> Result<Vec<CString>, String> {
     Ok(v)
 }
 
+/// Builds the `char *argv[]` array over `strings` (C convention:
+/// `argv[argc] = NULL`) and leaks both payloads for the whole process.
+/// Returns `(argc, argv)` for `doomgeneric_Create`.
+// The engine stores the raw pointers (`m_argv.rs` `myargv`) beyond this call,
+// so the strings and the array itself must never be freed (post-boot readers
+// dereference the array, e.g. I_Error's `M_ParmExists("-nogui")` scan) --
+// here the leak IS the ownership contract. `anchor_argv` runs at most once
+// per process (the CREATED latch refuses any later pipeline run).
+fn anchor_argv(strings: Vec<CString>) -> (c_int, *mut *mut c_char) {
+    let strings: &'static [CString] = Vec::leak(strings);
+    let mut array: Vec<*mut c_char> = strings.iter().map(|s| s.as_ptr() as *mut c_char).collect();
+    array.push(std::ptr::null_mut());
+    let argc = (array.len() - 1) as c_int;
+    let argv = Box::leak(array.into_boxed_slice()).as_mut_ptr();
+    (argc, argv)
+}
+
 /// Pipeline body: both entries converge here; no branching outside the export surface.
 pub fn run(profile: &BootProfile) -> Result<(), String> {
     // 0. Double-start guard: a second start call after a boot is a no-op --
@@ -62,13 +77,24 @@ pub fn run(profile: &BootProfile) -> Result<(), String> {
         report_double_start();
         return Ok(());
     }
-    // 1. The IWAD must already sit in the VFS (minimal entry just registered it;
-    //    standard entry relies on the host pre-registering it).
+    // 1. Every WAD name in the profile must already sit in the VFS (minimal
+    //    entry just registered the IWAD; standard entry relies on the host
+    //    pre-registering the full set). Validated before any engine contact:
+    //    an unregistered name would reach D_FindWADByName's fopen miss, whose
+    //    errno check panics on wasm (no CRT errno).
     if wasm_vfs::vfs_get(&profile.iwad).is_none() {
         return Err(format!(
             "IWAD '{}' 未注册：先经 woom24_register_file 注册",
             profile.iwad
         ));
+    }
+    for pwad in &profile.pwads {
+        if wasm_vfs::vfs_get(pwad).is_none() {
+            return Err(format!(
+                "PWAD '{}' 未注册：先经 woom24_register_file 注册",
+                pwad
+            ));
+        }
     }
     // 2. Validate argv before any side effect, so a malformed profile fails
     //    without installing factories or reaching the engine.
@@ -86,18 +112,18 @@ pub fn run(profile: &BootProfile) -> Result<(), String> {
         web_audio::WebAudioBackend::new().map(|b| Box::new(b) as Box<dyn AudioBackend>)
     });
     // 5. argv → doomgeneric_Create (D_DoomMain returns from here; ticking is
-    //    driven by woom24_tick).
-    let mut argv: Vec<*mut c_char> = args.iter().map(|s| s.as_ptr() as *mut c_char).collect();
-    argv.push(std::ptr::null_mut()); // C convention: argv[argc] = NULL
-    let argc = (argv.len() - 1) as c_int;
-    ARG_STORAGE.with_borrow_mut(|s| *s = args);
-    // SAFETY: argv points at NUL-terminated strings owned by ARG_STORAGE and
-    // lives for the whole process; the CREATED latch (armed below, before any
-    // engine contact) guarantees doomgeneric_Create runs at most once per
-    // process (entry contract guarantee).
+    //    driven by woom24_tick). Both the strings and the pointer array are
+    //    leaked for the process lifetime: the engine keeps `myargv` forever
+    //    (post-boot readers include I_Error's `-nogui` scan).
+    let (argc, argv) = anchor_argv(args);
+    // SAFETY: argv[0..argc] point at NUL-terminated C strings that, together
+    // with the array itself, live for the whole process (leaked by
+    // anchor_argv); the CREATED latch (armed below, before any engine contact)
+    // guarantees doomgeneric_Create runs at most once per process (entry
+    // contract guarantee).
     CREATED.with(|c| c.set(true));
     unsafe {
-        room::doom::doomgeneric::doomgeneric_Create(argc, argv.as_mut_ptr());
+        room::doom::doomgeneric::doomgeneric_Create(argc, argv);
     }
     Ok(())
 }
@@ -189,6 +215,45 @@ mod tests {
         assert!(
             err.contains("missing.wad"),
             "error should name the IWAD: {err}"
+        );
+    }
+
+    #[test]
+    fn anchor_argv_keeps_array_null_terminated_and_stored() {
+        let (argc, argv) = anchor_argv(vec![
+            CString::new("woom24").unwrap(),
+            CString::new("-iwad").unwrap(),
+            CString::new("doom.wad").unwrap(),
+        ]);
+        assert_eq!(argc, 3);
+        // SAFETY: the payloads are leaked for the whole process (exactly the
+        // property this test pins down), so the array is valid to read here.
+        let slots = unsafe { std::slice::from_raw_parts(argv, argc as usize + 1) };
+        assert!(slots[..argc as usize].iter().all(|p| !p.is_null()));
+        assert!(
+            slots[argc as usize].is_null(),
+            "argv[argc] must be NULL (C convention)"
+        );
+    }
+
+    #[test]
+    fn run_rejects_unregistered_pwad_before_engine_contact() {
+        // Only the IWAD is registered: an unregistered PWAD name must fail
+        // validation like an unregistered IWAD, before any engine contact.
+        // Left unguarded it reaches D_FindWADByName's fopen miss, whose errno
+        // check panics on wasm (no CRT).
+        wasm_vfs::vfs_register("doom.wad", b"registered iwad bytes".to_vec());
+        let p = BootProfile {
+            iwad: "doom.wad".to_string(),
+            pwads: vec!["missing.wad".to_string()],
+            sf2: None,
+            max_render_res: None,
+            engine_args: Vec::new(),
+        };
+        let err = run(&p).unwrap_err();
+        assert!(
+            err.contains("missing.wad"),
+            "error should name the PWAD: {err}"
         );
     }
 

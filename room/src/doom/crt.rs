@@ -12,12 +12,14 @@
 //!   call site compares ASCII (IWAD names, lump names, argument words),
 //!   so ASCII case folding matches the C originals' behavior in the
 //!   "C" locale.
-//! - `strdup`, `mkdir`, and `errno_location` forward to the POSIX or
-//!   UCRT symbol depending on the target. On targets with no CRT at all
-//!   (notably `wasm32-unknown-unknown`) they are still compiled so the
-//!   crate type-checks, but panic with a clear message if ever called;
-//!   the engine's wasm entry points must use the Rust-side I/O paths
-//!   instead.
+//! - `strdup` and `errno_location` forward to the POSIX or UCRT symbol
+//!   depending on the target. On targets with no CRT at all (notably
+//!   `wasm32-unknown-unknown`) they are still compiled so the crate
+//!   type-checks, but panic with a clear message if ever called; the
+//!   engine's wasm entry points must use the Rust-side I/O paths instead.
+//!   `mkdir` follows the same pattern except on `wasm32`, where it degrades
+//!   to `-1` instead of panicking (the engine's only call is a no-op there;
+//!   see the `mkdir` docs).
 
 use std::ffi::{c_char, c_int};
 
@@ -101,6 +103,13 @@ pub unsafe fn strdup(s: *const c_char) -> *mut c_char {
 /// Creates a directory (POSIX `mkdir` / UCRT `_mkdir`; the mode argument
 /// is ignored on Windows).
 ///
+/// On `wasm32-unknown-unknown` (no CRT) this returns `-1` without touching
+/// the filesystem: the web shell's VFS is immutable after registration, and
+/// the engine's only call (`M_MakeDirectory(".")` during boot) is a no-op on
+/// every host anyway — the previous panic there killed every browser boot.
+/// The `-1` degradation matches `M_MakeDirectory`'s "failure is fine"
+/// contract (the caller ignores the result).
+///
 /// # Safety
 ///
 /// `path` must point to a valid, NUL-terminated C string.
@@ -113,10 +122,15 @@ pub unsafe fn mkdir(path: *const c_char, _mode: u32) -> c_int {
     {
         ucrt_mkdir(path)
     }
-    #[cfg(not(any(unix, windows)))]
+    #[cfg(target_arch = "wasm32")]
     {
         let _ = path;
-        panic!("no CRT on wasm: mkdir() is unavailable on this target")
+        -1
+    }
+    #[cfg(not(any(unix, windows, target_arch = "wasm32")))]
+    {
+        let _ = path;
+        panic!("no CRT on this target: mkdir() is unavailable")
     }
 }
 
