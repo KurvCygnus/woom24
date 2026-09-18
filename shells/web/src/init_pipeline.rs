@@ -6,7 +6,7 @@
 //! `CString`s and the pointer array must live just as long: they are anchored
 //! in a `thread_local`, the same technique as native main.rs's `App.args`.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::ffi::{c_char, c_int, CString};
 
 use room::audio::AudioBackend;
@@ -19,6 +19,10 @@ thread_local! {
     /// Ownership anchor for argv (the engine keeps myargv pointers; they must
     /// never be freed).
     static ARG_STORAGE: RefCell<Vec<CString>> = const { RefCell::new(Vec::new()) };
+    /// One-shot boot latch (entry contract: the engine is created at most once
+    /// per process). Armed only when a start attempt actually reaches the
+    /// engine, so a failed validation (e.g. unregistered IWAD) can be retried.
+    static CREATED: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Build the engine argv from a boot profile.
@@ -48,6 +52,16 @@ fn build_argv(profile: &BootProfile) -> Result<Vec<CString>, String> {
 
 /// Pipeline body: both entries converge here; no branching outside the export surface.
 pub fn run(profile: &BootProfile) -> Result<(), String> {
+    // 0. Double-start guard: a second start call after a boot is a no-op --
+    //    re-running the pipeline would overwrite myargv/ARG_STORAGE and leak
+    //    the engine's screen buffer. The check precedes validation on purpose:
+    //    an already-booted engine must never be re-entered, whatever the
+    //    profile says. The refusal is reported on the console (not as Err), so
+    //    a host that ignores it keeps a running game instead of a dead one.
+    if CREATED.with(Cell::get) {
+        report_double_start();
+        return Ok(());
+    }
     // 1. The IWAD must already sit in the VFS (minimal entry just registered it;
     //    standard entry relies on the host pre-registering it).
     if wasm_vfs::vfs_get(&profile.iwad).is_none() {
@@ -78,12 +92,26 @@ pub fn run(profile: &BootProfile) -> Result<(), String> {
     let argc = (argv.len() - 1) as c_int;
     ARG_STORAGE.with_borrow_mut(|s| *s = args);
     // SAFETY: argv points at NUL-terminated strings owned by ARG_STORAGE and
-    // lives for the whole process; doomgeneric_Create runs at most once per
+    // lives for the whole process; the CREATED latch (armed below, before any
+    // engine contact) guarantees doomgeneric_Create runs at most once per
     // process (entry contract guarantee).
+    CREATED.with(|c| c.set(true));
     unsafe {
         room::doom::doomgeneric::doomgeneric_Create(argc, argv.as_mut_ptr());
     }
     Ok(())
+}
+
+/// Second start call after a boot: report and refuse. wasm-bindgen imported
+/// functions trap on non-wasm targets, so the host path (tests, native shell)
+/// goes through `log` instead.
+fn report_double_start() {
+    #[cfg(target_arch = "wasm32")]
+    web_sys::console::error_1(&wasm_bindgen::JsValue::from_str(
+        "woom24: engine already started; second start call ignored (reload the page to boot again)",
+    ));
+    #[cfg(not(target_arch = "wasm32"))]
+    log::error!("woom24: engine already started; second start call ignored");
 }
 
 #[cfg(test)]
@@ -161,6 +189,51 @@ mod tests {
         assert!(
             err.contains("missing.wad"),
             "error should name the IWAD: {err}"
+        );
+    }
+
+    #[test]
+    fn run_refuses_second_start_after_engine_created() {
+        // Simulate a completed boot by arming the latch directly (the engine
+        // itself cannot boot on host: DG_Init needs a DOM canvas). The guard
+        // must fire BEFORE validation: with the latch armed, even this
+        // unregistered-IWAD profile has to come back Ok(()) -- an Err here
+        // would mean the second call reached the pipeline body again.
+        CREATED.with(|c| c.set(true));
+        let p = BootProfile {
+            iwad: "missing.wad".to_string(),
+            pwads: Vec::new(),
+            sf2: None,
+            max_render_res: None,
+            engine_args: Vec::new(),
+        };
+        assert!(
+            run(&p).is_ok(),
+            "second start after a boot must be a no-op Ok"
+        );
+        assert!(CREATED.with(Cell::get), "the latch must stay armed");
+    }
+
+    #[test]
+    fn failed_start_does_not_arm_the_latch() {
+        // A start that fails validation has not created the engine: retrying
+        // (e.g. the host fixed the profile) must be validated again, never
+        // silently swallowed by the guard.
+        let p = BootProfile {
+            iwad: "missing.wad".to_string(),
+            pwads: Vec::new(),
+            sf2: None,
+            max_render_res: None,
+            engine_args: Vec::new(),
+        };
+        assert!(run(&p).is_err(), "first (failing) attempt must Err");
+        assert!(
+            run(&p).is_err(),
+            "a failed start must not arm the latch; the retry must be validated again"
+        );
+        assert!(
+            !CREATED.with(Cell::get),
+            "no engine was created, latch stays off"
         );
     }
 }
