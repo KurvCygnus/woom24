@@ -172,15 +172,37 @@ pub struct menu_t {
     pub lastOn: i16,
 }
 
-//? On ILP32 (wasm32) the menu struct layouts differ from the C prototype; the
-//? expected values need per-pointer-width refinement = spec 3.
+// Layout guards for `menuitem_t` / `menu_t` (C `m_menu.h` originals).
+// menuitem_t arithmetic, both models:
+//   status(i16) 2 + name([c_char; 10]) 10 + routine(function pointer)
+//   + alphaKey(c_char) 1.
+//   LP64: 2 + 10 + pad 4 (pointer alignment) + fn-pointer 8 + 1 = 25,
+//   rounded up to the 8-byte struct alignment = 32.
+//   ILP32 (wasm32): 2 + 10 + fn-pointer 4 + 1 = 17, rounded up to the
+//   4-byte struct alignment = 20.
+// menu_t arithmetic, both models:
+//   numitems(i16) 2 + prevMenu(pointer) + menuitems(pointer)
+//   + routine(function pointer) + x(i16) 2 + y(i16) 2 + lastOn(i16) 2.
+//   LP64: 2 + pad 6 + 3 pointers x 8 + 3x2 = 38, rounded up to the
+//   8-byte struct alignment = 40.
+//   ILP32 (wasm32): 2 + pad 2 + 3 pointers x 4 + 3x2 = 22, rounded up to
+//   the 4-byte struct alignment = 24.
+// Numbers verified against the real structs with a wasm32 const-assert
+// scratch check (c_tests/LP64 task 2).
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
     std::mem::size_of::<menuitem_t>() == 32,
     "menuitem_t size mismatch"
 );
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(
+    std::mem::size_of::<menuitem_t>() == 20,
+    "menuitem_t size mismatch"
+);
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::size_of::<menu_t>() == 40, "menu_t size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(std::mem::size_of::<menu_t>() == 24, "menu_t size mismatch");
 
 /// Minimal prefix of `patch_t` needed to read width/height without pulling in the full type.
 ///
