@@ -140,8 +140,13 @@ mid-game asset swaps are out of scope until explicitly designed (they are determ
   - `//*` — explains something important.
   - `//!` — explains something edgy, counterintuitive, or footgunny.
   - `//?` — confusion, TODO, FIX.
-- Comments explain **why, not what**; no doc block on the self-evident. Comments default to **Chinese**, always
-  half-width ASCII punctuation; follow file-local convention when a file already uses another language.
+- The `//*` / `//!` / `//?` markers live **only in `//` comments**. Doc comments (`///`, `//!`) are
+  rendered by rustdoc — these markers have no effect there and render literally (decided
+  2026-09-18: never prefix doc comments with them). Doc comments use standard Markdown and
+  Rustdoc conventions instead (headings, backticks, `# Panics` / `# Safety` sections).
+- Comments explain **why, not what**; no doc block on the self-evident. Comments are written in
+  **English** (decided 2026-09-18: the project is global-facing); ASCII punctuation only; follow
+  file-local convention when a file already uses another language.
 - Always use guard clauses; prefer expression bodies for one-liners. Self-descriptive names; readability over
   brevity — long but meaningful names are acceptable.
 - Temporary mess is acceptable inside module boundaries; anything crossing a declared boundary must be clean.

@@ -23,7 +23,8 @@ Copied verbatim from the spec and AGENTS.md. Every task implicitly includes thes
 - **`room/src/doom/` gets zero edits except one mechanical class:** the three const-layout asserts in `info.rs` / `m_menu.rs` get `#[cfg(target_pointer_width = "64")]` gates (spec ② Goal 3 closes all 76 errors; the gates are the spec's allowed "mechanical cfg change" class; spec ③ refines per-width expectations). Before touching anything under `room/src/doom/`, read `docs/upstream/room-AGENTS.md` (AGENTS.md requirement).
 - **Two-entry contract (AGENTS.md):** `woom24_minimal_start` (device metadata + IWAD → launcher UI) and `woom24_standard_start` (complete boot profile → direct start) are separate exports converging on one `init_pipeline`. One must never degrade into the other.
 - **Determinism guard (D6):** the shell touches the engine only through `DG_*`, argv, and the audio control plane. No wall-clock data reaches the simulation.
-- **Comment language:** new files (all of `shells/web/**`, `room/src/audio/synth.rs`) default to **Chinese** comments with half-width ASCII punctuation, using the `//*` / `//!` / `//?` prefix system. Files that already use English (e.g. `shells/native/src/audio_music.rs`, `room/src/doom/info.rs`) keep their file-local convention.
+- **Comment language (amended 2026-09-18):** all comments — including in files already written with Chinese comments (`shells/web/**`, `room/src/audio/synth.rs`) — are **English**, ASCII punctuation, using the `//*` / `//!` / `//?` prefix system. A one-time sweep converts the existing Chinese comments.
+- **Prefix markers are `//`-only (amended 2026-09-18):** the `//*` / `//!` / `//?` markers must never appear inside doc comments (`///`, `//!`) — rustdoc renders them literally. Doc comments use standard Markdown / Rustdoc conventions. The sweep must also strip existing violations (e.g. doubled `//! //!` module-doc prefixes).
 - **`rustfmt` authoritative; zero clippy warnings goal** (`cargo fmt` on touched files; `cargo clippy` before each commit). Clippy `-D warnings` gates are scoped to the **new packages** (`room-shell-web`, `woom24-libc`) — workspace-wide gates are unmeetable due to 12 pre-existing `room/src/doom/` lints (upstream debt; amended after W-T1).
 - **Bounded timeouts on every command; exit 124 = FAILED.** Never retry blindly, never raise the limit; a command needing >300 s is a signal to decompose. The single known exception path (one-shot `cargo install wasm-bindgen-cli`) has a documented fallback (Task 1).
 - **No concurrent heavy commands.** Never run two builds/tests in parallel, not across tool-call batches, not across subagents.
@@ -3098,7 +3099,7 @@ Open `http://localhost:8000/` in Chromium and Firefox. Checklist (record pass/fa
 7. Re-run 3-6 with a WebGL2-less context blocked (e.g. `--disable-webgl2` flag in Chromium) → Canvas2D fallback shows the same demo.
 8. `file://` open of `www/index.html` may fail on module/wasm fetch — record the exact browser error text; single-file embedding is a follow-up, static-host serving is the contract.
 
-Update `shells/web/README.md` with: the build command, the serve command, and this checklist verbatim (Chinese, half-width punctuation).
+Update `shells/web/README.md` with: the build command, the serve command, and this checklist verbatim (English per the 2026-09-18 comment-language policy).
 
 - [ ] **Step 6: Commit**
 
