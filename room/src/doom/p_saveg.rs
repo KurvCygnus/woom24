@@ -441,6 +441,7 @@ unsafe fn saveg_write_thinker_t(th: *const thinker_t) {
 ///   `player->mo` is updated in place.
 /// - `info` is a raw saved pointer (will be overwritten by caller with
 ///   `&mobjinfo[type]`).
+///
 /// C origin: `saveg_read_mobj_t`.
 unsafe fn saveg_read_mobj_t(mobj: *mut c_void) {
     let mo: *mut crate::doom::c_ffi::mobj_t = mobj as *mut crate::doom::c_ffi::mobj_t;
@@ -752,6 +753,7 @@ unsafe fn saveg_write_pspdef_t(psp: *const PspdefT) {
 /// - `message` and `attacker` are raw pointers; callers zero them after read.
 /// - Each of `NUMPSPRITES` player-sprite slots is read via
 ///   `saveg_read_pspdef_t`.
+///
 /// C origin: `saveg_read_player_t`.
 unsafe fn saveg_read_player_t(pl: *mut PlayerT) {
     let s = &mut *pl;

@@ -1169,6 +1169,7 @@ pub static mut TRACEANGLE: c_int = 0xc000000 as c_int;
 ///    exactly when the correction would overshoot.
 /// 3. Recomputes `momx`/`momy` from the new angle and the missile's `info->speed`.
 /// 4. Adjusts `momz` by ±`FRACUNIT/8` to converge on `tracer->z + 40` units.
+///
 /// Returns immediately if `tracer` is null or dead.
 ///
 /// # Safety
@@ -1867,6 +1868,7 @@ unsafe extern "C" fn CheckBossEnd(motype: mobjtype_t) -> Boolean {
 ///   Arachnotron death raises floor tag 667.
 /// - Doom I episodes: calls `CheckBossEnd`; on success triggers `EV_DoFloor`/`EV_DoDoor`
 ///   with a synthetic `line_t` (tag 666) or falls through to `G_ExitLevel`.
+///
 /// Returns early if any player is dead, or if another live boss of the same type exists.
 ///
 /// # Safety
@@ -2220,8 +2222,6 @@ pub unsafe extern "C" fn A_SpawnSound(mo: *mut mobj_t) {
 /// `mobj_t` (the boss target spot). Called from C via state-machine action pointer.
 #[no_mangle]
 pub unsafe extern "C" fn A_SpawnFly(mo: *mut mobj_t) {
-    let type_0: mobjtype_t;
-
     (*mo).reactiontime -= 1;
     if (*mo).reactiontime != 0 {
         return;
@@ -2230,29 +2230,29 @@ pub unsafe extern "C" fn A_SpawnFly(mo: *mut mobj_t) {
     let fog: *mut mobj_t = P_SpawnMobj((*targ).x, (*targ).y, (*targ).z, MT_SPAWNFIRE);
     S_StartSound(fog as *mut c_void, Sfx::Telept as c_int);
     let r: c_int = P_Random();
-    if r < 50 as c_int {
-        type_0 = MT_TROOP;
+    let type_0: mobjtype_t = if r < 50 as c_int {
+        MT_TROOP
     } else if r < 90 as c_int {
-        type_0 = MT_SERGEANT;
+        MT_SERGEANT
     } else if r < 120 as c_int {
-        type_0 = MT_SHADOWS;
+        MT_SHADOWS
     } else if r < 130 as c_int {
-        type_0 = MT_PAIN;
+        MT_PAIN
     } else if r < 160 as c_int {
-        type_0 = MT_HEAD;
+        MT_HEAD
     } else if r < 162 as c_int {
-        type_0 = MT_VILE;
+        MT_VILE
     } else if r < 172 as c_int {
-        type_0 = MT_UNDEAD;
+        MT_UNDEAD
     } else if r < 192 as c_int {
-        type_0 = MT_BABY;
+        MT_BABY
     } else if r < 222 as c_int {
-        type_0 = MT_FATSO;
+        MT_FATSO
     } else if r < 246 as c_int {
-        type_0 = MT_KNIGHT;
+        MT_KNIGHT
     } else {
-        type_0 = MT_BRUISER;
-    }
+        MT_BRUISER
+    };
     let newmobj: *mut mobj_t = P_SpawnMobj((*targ).x, (*targ).y, (*targ).z, type_0);
     if P_LookForPlayers(newmobj, Boolean::TRUE).is_truthy() {
         P_SetMobjState(

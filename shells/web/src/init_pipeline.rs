@@ -165,7 +165,7 @@ mod tests {
         // return Err -- never panic on CString::new.
         let p = BootProfile {
             iwad: "doom.wad".to_string(),
-            pwads: vec![format!("pw\u{0}ad.wad")],
+            pwads: vec!["pw\u{0}ad.wad".to_string()],
             sf2: None,
             max_render_res: None,
             engine_args: Vec::new(),

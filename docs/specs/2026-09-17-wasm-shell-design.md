@@ -1,8 +1,7 @@
 # Design: WASM shell (`shells/web`) — wasm-bindgen, VFS, Web Audio, two-entry contract
 
 **Date:** 2026-09-17
-**Status:** Approved — autonomously decided under the user's 2026-09-17 sleep mandate ("自主迭代");
-every Decision below is marked [AUTO] and is open to revision on user review.
+**Status:** Implemented (2026-09-18; decisions marked [AUTO] executed as specified except where the implementation reports note deviations — see docs/plans/2026-09-17-wasm-shell-implementation.md and shells/web/README.md smoke checklist; browser human-pass pending on the user).
 **Series:** ② this spec → ③ c_tests / LP64 strategy
 **Inherits:** spec ① (`2026-09-17-platform-shell-design.md`), AGENTS.md "Web Entry Contract".
 

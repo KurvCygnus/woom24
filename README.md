@@ -58,14 +58,23 @@ woom24/                     Workspace manifest (Cargo.toml)
 │       └── bin/
 │           └── struct_sizes.rs  Diagnostic: struct sizes and field offsets
 └── shells/
-    └── native/              Native platform shell (package `room-shell-native`, bin `room`)
-        └── src/
-            ├── main.rs      winit ApplicationHandler and entry point
-            ├── gpu.rs       wgpu presenter (texture upload + fullscreen blit)
-            ├── platform.rs  DG_* C-callable platform callbacks
-            ├── platform/
-            │   └── keys.rs  winit KeyCode → Doom key byte mapping
-            └── rodio_backend.rs  rodio mixer-graph audio backend
+    ├── native/              Native platform shell (package `room-shell-native`, bin `room`)
+    │   └── src/
+    │       ├── main.rs      winit ApplicationHandler and entry point
+    │       ├── gpu.rs       wgpu presenter (texture upload + fullscreen blit)
+    │       ├── platform.rs  DG_* C-callable platform callbacks
+    │       ├── platform/
+    │       │   └── keys.rs  winit KeyCode → Doom key byte mapping
+    │       └── rodio_backend.rs  rodio mixer-graph audio backend
+    └── web/                 wasm shell (`room-shell-web`, cdylib): wasm-bindgen exports,
+        │                    in-memory VFS CRT shim, Web Audio backend, Canvas2D/WebGL2
+        │                    presenters, static `www/` loader (browser smoke checklist in
+        │                    its README.md)
+        ├── crt/             `woom24-libc`: declaration-only `libc` seam crate for wasm
+        ├── scripts/
+        │   └── build-www.sh Builds the wasm artifact into `www/`
+        └── src/             Entry exports, init pipeline, launcher UI, wasm VFS,
+                             Web Audio backend, Canvas2D/WebGL2 presenters
 ```
 
 ## Prerequisites
@@ -77,14 +86,25 @@ woom24/                     Workspace manifest (Cargo.toml)
 
 ## Building
 
-The workspace splits the project in two: the `room` crate is the engine
-library (no windowing/GPU/audio dependencies), and `shells/native` (package
-`room-shell-native`) is the native platform shell (winit/wgpu/rodio).
-Build the shell with:
+The workspace splits the project into the `room` crate — the engine library (no
+windowing/GPU/audio dependencies) — and two platform shells: `shells/native`
+(package `room-shell-native`, winit/wgpu/rodio) and `shells/web` (package
+`room-shell-web`, wasm-bindgen/Web Audio). Build the native shell with:
 
 ```bash
 cargo build -p room-shell-native --release
 ```
+
+### Web shell
+
+```bash
+bash shells/web/scripts/build-www.sh
+python -m http.server 8000 --directory shells/web/www
+```
+
+Open `http://localhost:8000/` and supply a local IWAD. The wasm check used during
+development: `cargo check -p room -p woom24-libc -p room-shell-web --target wasm32-unknown-unknown`.
+The full browser smoke checklist (10 items) lives in `shells/web/README.md`.
 
 ## Running
 
@@ -93,6 +113,9 @@ cargo run -p room-shell-native --bin room -- -iwad doom1.wad
 ```
 
 Any arguments after `--` are forwarded to the Doom engine unchanged.
+
+The browser shell runs from static files instead — build and serve `shells/web/www/`
+as shown in *Web shell* above.
 
 ## How it works
 

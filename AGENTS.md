@@ -11,7 +11,7 @@ compatibility target. The name is the mission statement, deadpan on purpose:
 | **oom** | **(D)oom** — engine work: demo-exact simulation, Boom/MBF-family compatibility. |
 | **24** | **ID24** — the compatibility ceiling the project is named after; the roadmap ends there. |
 
-Status: **spec ① implemented** — platform layer lives in `shells/native`; `room` lib carries no windowing/GPU/audio deps; audio goes through the `AudioBackend` control plane. Wasm gap (CRT externs + LP64 guards) enumerated in the spec and handed to specs ②/③. GitHub-side fork: KurvCygnus/woom24 (origin); upstream: sunsided/room.
+Status: **spec ①+② implemented (branch `feat/spec2-3`)** — platform layer lives in `shells/native`; audio goes through the `AudioBackend` control plane with native (rodio) and web (Web Audio) backends; `shells/web` ships the wasm shell (CRT/VFS shim, DG_* + rAF loop, Canvas2D/WebGL2 presenters, two-entry contract per "Web Entry Contract"; wasm artifact ≈909 KB self-contained). Wasm gap (CRT externs + LP64 guards) enumerated in the spec and handed to specs ②/③ — ② done except the c_tests/LP64 policy (spec ③, next). GitHub-side fork: KurvCygnus/woom24 (origin); upstream: sunsided/room.
 This file is the binding contract for any agent working in this
 repository. When analyzing, reviewing, or generating code, strictly align with the constraints below.
 

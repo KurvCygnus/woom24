@@ -575,9 +575,8 @@ pub extern "C" fn TryRunTics() {
         let mut lowtic = get_low_tic();
         let availabletics = lowtic - gametic / ticdup;
 
-        let counts: c_int;
-        if NEW_SYNC != 0 {
-            counts = availabletics;
+        let counts: c_int = if NEW_SYNC != 0 {
+            availabletics
         } else {
             let mut c: c_int;
             if realtics < availabletics - 1 {
@@ -596,8 +595,8 @@ pub extern "C" fn TryRunTics() {
                 old_net_sync();
             }
 
-            counts = c;
-        }
+            c
+        };
 
         let mut counts = if counts < 1 { 1 } else { counts };
 
