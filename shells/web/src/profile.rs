@@ -4,7 +4,11 @@
 //! //! 不用 serde_json (依赖冻结 + AGENTS 反对弱类型 DTO) --
 //! //! 这个手写解析器只服务本 schema, golden 全覆盖.
 
-/// 完整启动档案. `pwads` 顺序即加载顺序 (契约的一部分).
+/// Complete boot profile. `pwads` order is the load order (part of the contract).
+///
+/// `engine_args` token contract: the host must pre-split every entry into a
+/// single argv token -- the shell forwards each element verbatim (one entry
+/// stays one argument; `"-warp 1 3"` is never re-split on spaces).
 #[derive(Debug, PartialEq, Clone)]
 pub struct BootProfile {
     pub iwad: String,
@@ -109,25 +113,34 @@ impl<'a> Reader<'a> {
 
     fn string(&mut self) -> Result<String, String> {
         self.eat(b'"')?;
-        let mut out = String::new();
+        // Collect raw bytes and validate UTF-8 at the end: a per-byte `c as char`
+        // would silently mojibake multi-byte characters (Latin-1 reinterpretation).
+        let mut out: Vec<u8> = Vec::new();
         loop {
             let c = self.b.get(self.i).copied().ok_or("unterminated string")?;
             self.i += 1;
             match c {
-                b'"' => return Ok(out),
+                b'"' => {
+                    return String::from_utf8(out)
+                        .map_err(|_| "string is not valid UTF-8".to_string())
+                }
                 b'\\' => {
                     let e = self.b.get(self.i).copied().ok_or("bad escape")?;
                     self.i += 1;
                     out.push(match e {
-                        b'"' => '"',
-                        b'\\' => '\\',
-                        b'/' => '/',
-                        b'n' => '\n',
-                        b't' => '\t',
+                        b'"' => b'"',
+                        b'\\' => b'\\',
+                        b'/' => b'/',
+                        b'n' => b'\n',
+                        b't' => b'\t',
                         _ => return Err("unsupported escape".to_string()),
                     });
                 }
-                _ => out.push(c as char),
+                // A raw NUL (e.g. the JS host passing 'a\u0000b' as a literal) is
+                // never legitimate in a profile value (filenames/argv): reject it
+                // here so no interior-NUL string can reach build_argv or the VFS.
+                0 => return Err("NUL byte in string value".to_string()),
+                _ => out.push(c),
             }
         }
     }
@@ -245,5 +258,22 @@ mod tests {
     #[test]
     fn duplicate_key_rejected() {
         assert!(parse_profile(r#"{"iwad":"a.wad","iwad":"b.wad"}"#).is_err());
+    }
+
+    #[test]
+    fn raw_nul_in_string_value_rejected_not_panic() {
+        // The JS host can hand over a raw U+0000 (a JS '\u0000' escape lands as a
+        // literal NUL byte inside the &str). Must be a clean Err, never a panic.
+        let json = format!(r#"{{"iwad":"a{}b.wad"}}"#, '\u{0}');
+        let err = parse_profile(&json).unwrap_err();
+        assert!(err.contains("NUL"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn utf8_string_values_decode_properly() {
+        // Regression for the round-0 mojibake: non-ASCII bytes inside a JSON
+        // string must decode as UTF-8, not be reinterpreted byte-wise as Latin-1.
+        let p = parse_profile("{\"iwad\":\"wäd.wad\"}").unwrap();
+        assert_eq!(p.iwad, "wäd.wad");
     }
 }

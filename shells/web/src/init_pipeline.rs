@@ -18,51 +18,65 @@ thread_local! {
     static ARG_STORAGE: RefCell<Vec<CString>> = const { RefCell::new(Vec::new()) };
 }
 
-/// 由档案构造引擎 argv.
-/// 约定: argv[0] = "woom24"; -iwad <名>; PWAD 逐个 -file <名>;
-/// SF2 不进 argv (i_sound 的 exists() 在 wasm 上恒 false, 见 Task 4 说明).
-fn build_argv(profile: &BootProfile) -> Vec<CString> {
-    let mut v = vec![CString::new("woom24").unwrap()];
-    v.push(CString::new("-iwad").unwrap());
-    v.push(CString::new(profile.iwad.clone()).unwrap());
+/// Build the engine argv from a boot profile.
+/// Convention: argv[0] = "woom24"; -iwad <name>; each PWAD via -file <name>;
+/// SF2 never enters argv (i_sound's exists() is always false on wasm, see Task 4).
+/// Every entry is a single argv token: hosts must pre-split `engine_args`
+/// (see `BootProfile` docs). Profile values are JS-reachable input, so an
+/// interior NUL maps to Err -- never an unwrap panic (AGENTS: input-reachable
+/// code must not panic).
+fn build_argv(profile: &BootProfile) -> Result<Vec<CString>, String> {
+    fn cstr(s: &str) -> Result<CString, String> {
+        CString::new(s).map_err(|_| format!("profile value contains NUL byte: {s:?}"))
+    }
+    let mut v = vec![cstr("woom24")?];
+    v.push(cstr("-iwad")?);
+    v.push(cstr(&profile.iwad)?);
     for pwad in &profile.pwads {
-        v.push(CString::new("-file").unwrap());
-        v.push(CString::new(pwad.clone()).unwrap());
+        v.push(cstr("-file")?);
+        v.push(cstr(pwad)?);
     }
     for a in &profile.engine_args {
-        // 引擎参数原样透传 (宿主档案是信任边界内的输入).
-        v.push(CString::new(a.clone()).unwrap());
+        // Engine args pass through verbatim (host profile is trusted-boundary input).
+        v.push(cstr(a)?);
     }
-    v
+    Ok(v)
 }
 
-/// 管线主体: 两入口在此汇合, 导出面之外没有任何分支.
+/// Pipeline body: both entries converge here; no branching outside the export surface.
 pub fn run(profile: &BootProfile) -> Result<(), String> {
-    // 1. IWAD 必须已在 VFS (minimal 入口刚注册; standard 入口由宿主预注册).
+    // 1. The IWAD must already sit in the VFS (minimal entry just registered it;
+    //    standard entry relies on the host pre-registering it).
     if wasm_vfs::vfs_get(&profile.iwad).is_none() {
         return Err(format!(
             "IWAD '{}' 未注册：先经 woom24_register_file 注册",
             profile.iwad
         ));
     }
-    // 2. 帧缓冲上限 (D5): 引擎侧 cap 属于后续自定义分辨率工作;
-    //    本 spec 先记录到呈现器画布尺寸钳制 (Task 5/6 已按 640×400 落地).
+    // 2. Validate argv before any side effect, so a malformed profile fails
+    //    without installing factories or reaching the engine.
+    let args = build_argv(profile)?;
+    // 3. Framebuffer cap (D5): the engine-side cap belongs to the upcoming
+    //    custom-resolution work; for this spec it is recorded through the
+    //    presenter's canvas clamp (Tasks 5/6 landed at 640×400).
     if let Some(res) = profile.max_render_res {
         log::info!("宿主最大渲染分辨率: {res}px（引擎侧 cap 待自定义分辨率工作）");
     }
-    // 3. 音频: 记住 SF2 名 (后端构造时从 VFS 预载), 装工厂.
+    // 4. Audio: remember the SF2 name (the backend preloads it from the VFS at
+    //    construction), then install the factory.
     web_audio::set_pending_sf2(profile.sf2.clone());
     room::audio::set_backend_factory(|| {
         web_audio::WebAudioBackend::new().map(|b| Box::new(b) as Box<dyn AudioBackend>)
     });
-    // 4. argv → doomgeneric_Create (D_DoomMain 由此返回, tick 交给 woom24_tick).
-    let args = build_argv(profile);
+    // 5. argv → doomgeneric_Create (D_DoomMain returns from here; ticking is
+    //    driven by woom24_tick).
     let mut argv: Vec<*mut c_char> = args.iter().map(|s| s.as_ptr() as *mut c_char).collect();
-    argv.push(std::ptr::null_mut()); // C 约定 argv[argc] = NULL
+    argv.push(std::ptr::null_mut()); // C convention: argv[argc] = NULL
     let argc = (argv.len() - 1) as c_int;
     ARG_STORAGE.with_borrow_mut(|s| *s = args);
-    // SAFETY: argv 指向 ARG_STORAGE 持有的 NUL 结尾串, 进程级存活;
-    // doomgeneric_Create 在本进程至多调用一次 (入口契约保证).
+    // SAFETY: argv points at NUL-terminated strings owned by ARG_STORAGE and
+    // lives for the whole process; doomgeneric_Create runs at most once per
+    // process (entry contract guarantee).
     unsafe {
         room::doom::doomgeneric::doomgeneric_Create(argc, argv.as_mut_ptr());
     }
@@ -84,13 +98,13 @@ mod tests {
         let p = BootProfile {
             iwad: "doom.wad".to_string(),
             pwads: vec!["a.wad".to_string(), "b.wad".to_string()],
-            // SF2 只进 set_pending_sf2, 绝不进 argv.
+            // SF2 goes to set_pending_sf2 only, never into argv.
             sf2: Some("sc55.sf2".to_string()),
             max_render_res: Some(1080),
             engine_args: vec!["-nomusic".to_string(), "-turbo 2".to_string()],
         };
         assert_eq!(
-            argv_names(&build_argv(&p)),
+            argv_names(&build_argv(&p).unwrap()),
             vec![
                 "woom24", "-iwad", "doom.wad", "-file", "a.wad", "-file", "b.wad", "-nomusic",
                 "-turbo 2",
@@ -100,7 +114,7 @@ mod tests {
 
     #[test]
     fn build_argv_keeps_engine_args_unsplit() {
-        // 带空格的参数按宿主原样透传 (不在此层做 M_ 解析).
+        // Args containing spaces pass through verbatim (no M_-style splitting here).
         let p = BootProfile {
             iwad: "d.wad".to_string(),
             pwads: Vec::new(),
@@ -108,14 +122,31 @@ mod tests {
             max_render_res: None,
             engine_args: vec!["-warp 1 3".to_string()],
         };
-        let v = argv_names(&build_argv(&p));
+        let v = argv_names(&build_argv(&p).unwrap());
         assert_eq!(*v.last().unwrap(), "-warp 1 3");
         assert_eq!(v[0], "woom24");
     }
 
     #[test]
+    fn build_argv_rejects_interior_nul_as_err() {
+        // Belt-and-braces for fix round 1: even if a NUL slipped past the profile
+        // parser (e.g. a profile built directly in Rust), argv construction must
+        // return Err -- never panic on CString::new.
+        let p = BootProfile {
+            iwad: "doom.wad".to_string(),
+            pwads: vec![format!("pw\u{0}ad.wad")],
+            sf2: None,
+            max_render_res: None,
+            engine_args: Vec::new(),
+        };
+        let err = build_argv(&p).unwrap_err();
+        assert!(err.contains("NUL"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn run_rejects_unregistered_iwad_before_engine_contact() {
-        // 测试线程的 VFS 为空: 管线必须在触到音频工厂 / 引擎之前就报错.
+        // The test thread's VFS is empty: the pipeline must fail before touching
+        // the audio factory or the engine.
         let p = BootProfile {
             iwad: "missing.wad".to_string(),
             pwads: Vec::new(),
@@ -124,6 +155,9 @@ mod tests {
             engine_args: Vec::new(),
         };
         let err = run(&p).unwrap_err();
-        assert!(err.contains("missing.wad"), "错误信息应带上 IWAD 名: {err}");
+        assert!(
+            err.contains("missing.wad"),
+            "error should name the IWAD: {err}"
+        );
     }
 }

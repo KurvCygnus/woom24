@@ -5,7 +5,7 @@
 //! //! 避开 wasm-bindgen-futures 新依赖; 读到的字节直接注册进 VFS.
 //! //! 用户点"开始"才构造档案并进入 init_pipeline -- 游戏绝不自启.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
@@ -18,6 +18,10 @@ thread_local! {
     /// change 事件里已读入并注册的 PWAD 名 (顺序 = FileList 顺序).
     static PWAD_NAMES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static SF2_NAME: RefCell<Option<String>> = const { RefCell::new(None) };
+    /// File reads started but not yet finished (fix round 1). Start refuses to
+    /// boot while this is non-zero, so in-flight PWADs can never be silently
+    /// missing from the boot profile.
+    static PENDING_READS: Cell<u32> = const { Cell::new(0) };
 }
 
 /// 在 body 上挂出配置面板: PWAD 多选 + SF2 单选 + 开始按钮 + 错误横幅.
@@ -71,8 +75,18 @@ pub fn show(max_render_res: u32, iwad_name: &str) -> Result<(), String> {
     let banner_for_cb = banner.clone();
     let on_click = Closure::<dyn FnMut()>::new(move || {
         banner_for_cb.set_text_content(None);
-        // 字节已在各自 change→onload 链里注册进 VFS;
-        // start 只需要把名字列表拼进档案.
+        // Fix round 1: file reads land in the VFS asynchronously (onload). While
+        // any read is still in flight, refuse to boot -- otherwise a quick Start
+        // click would silently drop the not-yet-registered PWADs from the profile.
+        let pending = PENDING_READS.with(|c| c.get());
+        if pending > 0 {
+            banner_for_cb.set_text_content(Some(&format!(
+                "文件仍在读取中（{pending} 个未完成），请稍后再点 Start"
+            )));
+            return;
+        }
+        // Bytes were registered into the VFS by each change→onload chain;
+        // Start only assembles the name lists into the boot profile.
         let pwad_names = PWAD_NAMES.with_borrow(|n| n.clone());
         let sf2_name = SF2_NAME.with_borrow(|n| n.clone());
         let profile = BootProfile {
@@ -135,31 +149,55 @@ fn on_files_picked(ev: &web_sys::Event, is_sf2: bool) -> Result<(), String> {
         .dyn_into::<web_sys::HtmlInputElement>()
         .map_err(|e| format!("cast: {e:?}"))?;
     let files = input.files().ok_or("no files")?;
+    // Fix round 1 (replace-append semantics): one picker session's FileList is
+    // the whole PWAD set -- clear the previous pick so re-picking cannot
+    // accumulate stale names. (SF2_NAME is single-valued and already replaces.)
+    if !is_sf2 {
+        PWAD_NAMES.with_borrow_mut(|n| n.clear());
+    }
     for i in 0..files.length() {
         let f = files.get(i).ok_or("file vanished")?;
         let name = f.name();
         let reader = web_sys::FileReader::new().map_err(js_err)?;
-        // 闭包持有 reader/fname/is_sf2 所有权; onload 时 result 已就绪.
-        //? reader 本体还要 read_as_array_buffer, 闭包里用克隆 (同一 JS 对象的两个句柄).
+        // The closure owns reader/fname/is_sf2; result is ready by onload time.
+        //? The reader itself is still needed for read_as_array_buffer below,
+        //? so the closures get clones (two handles to the same JS object).
         let reader_for_cb = reader.clone();
         let fname = name.clone();
-        let on_load = Closure::<dyn FnMut()>::new(move || match reader_for_cb.result() {
-            Ok(v) if !v.is_null() => {
-                let bytes = js_sys::Uint8Array::new(&v).to_vec();
-                wasm_vfs::vfs_register(&fname, bytes);
-                if is_sf2 {
-                    SF2_NAME.with_borrow_mut(|n| *n = Some(fname.clone()));
-                } else {
-                    PWAD_NAMES.with_borrow_mut(|n| n.push(fname.clone()));
+        let on_load = Closure::<dyn FnMut()>::new(move || {
+            // This read is finished (success path): release the pending slot.
+            PENDING_READS.with(|c| c.set(c.get().saturating_sub(1)));
+            match reader_for_cb.result() {
+                Ok(v) if !v.is_null() => {
+                    let bytes = js_sys::Uint8Array::new(&v).to_vec();
+                    wasm_vfs::vfs_register(&fname, bytes);
+                    if is_sf2 {
+                        SF2_NAME.with_borrow_mut(|n| *n = Some(fname.clone()));
+                    } else {
+                        PWAD_NAMES.with_borrow_mut(|n| n.push(fname.clone()));
+                    }
                 }
+                _ => web_sys::console::error_1(&JsValue::from_str(&format!("读取 {fname} 失败"))),
             }
-            _ => web_sys::console::error_1(&JsValue::from_str(&format!("读取 {fname} 失败"))),
         });
         reader.set_onload(Some(on_load.as_ref().unchecked_ref()));
         on_load.forget();
-        reader
-            .read_as_array_buffer(&f)
-            .map_err(|e| format!("read {name}: {e:?}"))?;
+        // Fix round 1: a failed read never fires onload -- decrement (and log)
+        // here too, so the pending counter cannot leak and block Start forever.
+        let on_error = Closure::<dyn FnMut()>::new(move || {
+            PENDING_READS.with(|c| c.set(c.get().saturating_sub(1)));
+            web_sys::console::error_1(&JsValue::from_str("file read failed"));
+        });
+        reader.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+        on_error.forget();
+        // Bookkeeping order: count the read as pending only once it actually
+        // starts; a synchronous start failure must undo the increment, since
+        // neither onload nor onerror will fire for it.
+        PENDING_READS.with(|c| c.set(c.get() + 1));
+        if let Err(e) = reader.read_as_array_buffer(&f) {
+            PENDING_READS.with(|c| c.set(c.get().saturating_sub(1)));
+            return Err(format!("read {name}: {e:?}"));
+        }
     }
     Ok(())
 }
