@@ -64,56 +64,44 @@ pub extern "C" fn fixed_mul(a: fixed_t, b: fixed_t) -> fixed_t
 #[doc(alias = "FixedDiv")]
 pub extern "C" fn fixed_div(a: fixed_t, b: fixed_t) -> fixed_t
 {
-    if (a.wrapping_abs() >> 14) >= b.wrapping_abs() {
-        if (a ^ b) < 0 {
+    if (a.wrapping_abs() >> 14) >= b.wrapping_abs()
+    {
+        if (a ^ b) < 0
+        {
             i32::MIN
         }
-        else {
+        else
+        {
             i32::MAX
         }
     }
-    else {
+    else
+    {
         (((a as i64) << 16) / b as i64) as fixed_t
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::{fixed_div, fixed_mul};
     use crate::doom::m_fixed::FRACUNIT;
 
-    // Adjudication note (F10 dtmc criterion: "does this function's
-    // observable behavior belong to the demo synchronization surface?"):
-    //   * fixed_mul -> dtmc: pure computation consumed by movement
-    //     (p_map/p_user/p_mobj), aiming (p_enemy/p_pspr), damage and
-    //     pickup scaling (p_inter), sight and render math (p_sight, r_*)
-    //     inside the 35 tics/s simulation -- wholly qualifying, extracted
-    //     in full.
-    //   * fixed_div -> dtmc: same call graph; the saturation guard is
-    //     demo-observable -- wholly qualifying, extracted in full. No
-    //     marshalling or static-mut glue exists to leave behind.
-    //   * FixedDiv2 -> absent from this port (vendor/doomgeneric/
-    //     m_fixed.c is the Chocolate-style C version with only FixedMul
-    //     and FixedDiv; vanilla's asm FixedDiv2 was never ported).
-    //     Nothing to extract; recorded in the module mapping table.
-    //
-    // Baseline vectors: written and run against the original FixedMul /
-    // FixedDiv paths BEFORE the extraction moved the bodies here
-    // (F10 pilot Sec.2.3), then retargeted to the new names -- same vectors,
-    // same results. Formulas transcribed from the extracted bodies:
-    //
-    //   fixed_mul: ((a as i64 * b as i64) >> FRACBITS) as fixed_t
-    //
-    //   fixed_div: if (a.wrapping_abs() >> 14) >= b.wrapping_abs() {
-    //                  if (a ^ b) < 0 { i32::MIN } else { i32::MAX }
-    //              } else {
-    //                  (((a as i64) << 16) / b as i64) as fixed_t
-    //              }
-    //
-    // There is no div-by-zero abort path in these tests: b == 0 makes
-    // the guard (|a| >> 14 >= |b| == 0) true for every a except
-    // i32::MIN, where the division itself would panic -- that one pair
-    // stays untested by design (see fixed_div's "On Calling").
+    /// Baseline contract (F10 dtmc pilot): these vectors were written
+    /// and run against the original `FixedMul` path BEFORE the body
+    /// moved here, then retargeted to `fixed_mul` -- same vectors, same
+    /// results.
+    ///
+    /// Adjudication (F10 dtmc criterion: "does this function's
+    /// observable behavior belong to the demo synchronization
+    /// surface?"): `fixed_mul` -> dtmc, wholly qualifying -- pure
+    /// computation consumed by movement (p_map/p_user/p_mobj), aiming
+    /// (p_enemy/p_pspr), damage and pickup scaling (p_inter), sight and
+    /// render math (p_sight, r_*) inside the 35 tics/s simulation; no
+    /// marshalling or `static mut` glue exists to leave behind.
+    ///
+    /// Transcribed formula: `((a as i64 * b as i64) >> FRACBITS) as
+    /// fixed_t`.
     #[test]
     fn baseline_fixed_mul()
     {
@@ -130,6 +118,26 @@ mod tests {
         assert_eq!(fixed_mul(-0x0001_0001, 0x0001_0001), -0x0001_0003);
     }
 
+    /// Baseline contract (F10 dtmc pilot): these vectors were written
+    /// and run against the original `FixedDiv` path BEFORE the body
+    /// moved here, then retargeted to `fixed_div` -- same vectors, same
+    /// results.
+    ///
+    /// Adjudication (F10 dtmc criterion: "does this function's
+    /// observable behavior belong to the demo synchronization
+    /// surface?"): `fixed_div` -> dtmc, wholly qualifying -- same call
+    /// graph as `fixed_mul`; the saturation guard is demo-observable;
+    /// no marshalling or `static mut` glue exists to leave behind.
+    ///
+    /// Transcribed formula: the `(abs(a) >> 14) >= abs(b)` saturation
+    /// guard (sign of `a ^ b` decides `i32::MAX` vs `i32::MIN`), else
+    /// `((a as i64) << 16) / b as i64` truncated through `as fixed_t`.
+    ///
+    /// No div-by-zero abort path is exercised here: `b == 0` makes the
+    /// guard (|a| >> 14 >= |b| == 0) true for every `a` except
+    /// `i32::MIN`, where the division itself would panic -- that one
+    /// pair stays untested by design (see `fixed_div`'s "On Calling"
+    /// section).
     #[test]
     fn baseline_fixed_div()
     {
