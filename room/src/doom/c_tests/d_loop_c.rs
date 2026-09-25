@@ -41,6 +41,12 @@ fn backuptics_is_power_of_two() {
 /// `gametic` is zero at program start; it increments once per rendered frame.
 #[test]
 fn gametic_default_zero() {
+    // Serialise against harness_hash's mutation/layout tests: they write
+    // `gametic` under the shared engine-statics test lock (see violations.rs),
+    // so this exact-value assert must hold it too.
+    let _g = crate::doom::violations::ENGINE_STATICS_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     unsafe {
         assert_eq!(c_ffi::gametic, 0, "gametic should be 0 at startup");
     }

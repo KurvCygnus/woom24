@@ -32,11 +32,15 @@ use super::tables::{ANG90, ANGLETOFINESHIFT, FINEMASK};
 // Constants
 // ---------------------------------------------------------------------------
 
-/// Screen width in pixels, re-exported from [`i_video`] for local use.
-const SCREENWIDTH: usize = crate::doom::i_video::SCREENWIDTH as usize;
+use crate::doom::i_video::SCREENWIDTH;
 
-/// Screen height in pixels, re-exported from [`i_video`] for local use.
-const SCREENHEIGHT: usize = crate::doom::i_video::SCREENHEIGHT as usize;
+/// Compile-time array cap for per-column tables (F1 M2, boom
+/// `MAX_SCREENWIDTH` shape): every per-column array in this module is sized
+/// to the cap, and `video_cfg` validation rejects rasters past it.
+const MAXW: usize = crate::doom::video_cfg::MAX_SCREENWIDTH as usize;
+
+/// Compile-time array cap for per-row tables; see [`MAXW`].
+const MAXH: usize = crate::doom::video_cfg::MAX_SCREENHEIGHT as usize;
 
 /// Maximum number of simultaneous visplanes per frame.
 ///
@@ -48,7 +52,7 @@ const MAXVISPLANES: usize = 128;
 ///
 /// Used as scratch space for sprite clipping arrays stored by
 /// [`R_StoreWallRange`] (in `r_segs`).  The C source comments this as `"?"`.
-const MAXOPENINGS: usize = SCREENWIDTH * 64;
+const MAXOPENINGS: usize = MAXW * 64;
 
 /// Number of distinct light levels used by the colormap tables.
 const LIGHTLEVELS: usize = 16;
@@ -126,21 +130,21 @@ pub struct visplane_t {
     /// `top[minx-1]` when `minx == 0`.
     pub pad1: c_uchar,
     /// Per-column top clip (inclusive screen-y).  `0xFF` means unused.
-    pub top: [c_uchar; SCREENWIDTH],
+    pub top: [c_uchar; MAXW],
     /// Padding byte after `top[]`; sentinel for `top[maxx+1]` when
     /// `maxx == SCREENWIDTH - 1`.
     pub pad2: c_uchar,
     /// Padding byte before `bottom[]`; mirrors the pad3 slot in C.
     pub pad3: c_uchar,
     /// Per-column bottom clip (inclusive screen-y).
-    pub bottom: [c_uchar; SCREENWIDTH],
+    pub bottom: [c_uchar; MAXW],
     /// Padding byte after `bottom[]`.
     pub pad4: c_uchar,
 }
 
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
-    std::mem::size_of::<visplane_t>() == 664,
+    std::mem::size_of::<visplane_t>() == 2 * MAXW + 24,
     "visplane_t size mismatch"
 );
 #[cfg(target_pointer_width = "64")]
@@ -158,13 +162,13 @@ const _: () = assert!(std::mem::offset_of!(visplane_t, pad1) == 20);
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::offset_of!(visplane_t, top) == 21);
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::offset_of!(visplane_t, pad2) == 341);
+const _: () = assert!(std::mem::offset_of!(visplane_t, pad2) == 21 + MAXW);
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::offset_of!(visplane_t, pad3) == 342);
+const _: () = assert!(std::mem::offset_of!(visplane_t, pad3) == 22 + MAXW);
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::offset_of!(visplane_t, bottom) == 343);
+const _: () = assert!(std::mem::offset_of!(visplane_t, bottom) == 23 + MAXW);
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(std::mem::offset_of!(visplane_t, pad4) == 663);
+const _: () = assert!(std::mem::offset_of!(visplane_t, pad4) == 23 + 2 * MAXW);
 
 /// Default initialization for visplane pool entries.
 impl Default for visplane_t {
@@ -177,10 +181,10 @@ impl Default for visplane_t {
             minx: 0,
             maxx: 0,
             pad1: 0,
-            top: [0xFF; SCREENWIDTH],
+            top: [0xFF; MAXW],
             pad2: 0,
             pad3: 0,
-            bottom: [0; SCREENWIDTH],
+            bottom: [0; MAXW],
             pad4: 0,
         }
     }
@@ -229,10 +233,10 @@ pub static mut visplanes: [visplane_t; MAXVISPLANES] = {
         minx: 0,
         maxx: 0,
         pad1: 0,
-        top: [0; SCREENWIDTH],
+        top: [0; MAXW],
         pad2: 0,
         pad3: 0,
-        bottom: [0; SCREENWIDTH],
+        bottom: [0; MAXW],
         pad4: 0,
     };
     let arr: [visplane_t; MAXVISPLANES] = [ZERO; MAXVISPLANES];
@@ -285,7 +289,7 @@ pub static mut lastopening: *mut c_short = ptr::null_mut();
 /// column `x`.  Initialized to `viewheight` (fully open) by
 /// [`R_ClearPlanes`].
 #[no_mangle]
-pub static mut floorclip: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
+pub static mut floorclip: [c_short; MAXW] = [0; MAXW];
 
 /// Per-column ceiling clip (lowest opaque pixel so far, inclusive).
 ///
@@ -293,7 +297,7 @@ pub static mut floorclip: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
 /// screen-y of the highest pixel that is still open for ceiling rendering in
 /// column `x`.  Initialized to `-1` (fully open) by [`R_ClearPlanes`].
 #[no_mangle]
-pub static mut ceilingclip: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
+pub static mut ceilingclip: [c_short; MAXW] = [0; MAXW];
 
 /// Per-row span start columns, indexed by screen-y.
 ///
@@ -301,14 +305,14 @@ pub static mut ceilingclip: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
 /// left edge of a span in progress here; [`R_MapPlane`] reads it to obtain
 /// `x1` when the span ends.
 #[no_mangle]
-pub static mut spanstart: [c_int; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut spanstart: [c_int; MAXH] = [0; MAXH];
 
 /// Per-row span stop columns (unused in the current implementation).
 ///
 /// Exported as `#[no_mangle]` for C callers.  Present in the C source but
 /// never written; kept for ABI compatibility.
 #[no_mangle]
-pub static mut spanstop: [c_int; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut spanstop: [c_int; MAXH] = [0; MAXH];
 
 /// Pointer into the distance-based light table for the current plane.
 ///
@@ -330,14 +334,14 @@ pub static mut planeheight: fixed_t = 0;
 /// Exported as `#[no_mangle]` for C callers.  Precomputed by `R_ExecuteSetViewSize`
 /// in `r_main` for each possible screen row.
 #[no_mangle]
-pub static mut yslope: [fixed_t; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut yslope: [fixed_t; MAXH] = [0; MAXH];
 
 /// Per-column angular distance scale from the screen center.
 ///
 /// Exported as `#[no_mangle]` for C callers.  Precomputed by `R_ExecuteSetViewSize`
 /// in `r_main`; used by [`R_MapPlane`] to project a flat texel onto a column.
 #[no_mangle]
-pub static mut distscale: [fixed_t; SCREENWIDTH] = [0; SCREENWIDTH];
+pub static mut distscale: [fixed_t; MAXW] = [0; MAXW];
 
 /// Base x-axis texture step per unit of distance, computed from `viewangle`.
 ///
@@ -359,25 +363,25 @@ pub static mut baseyscale: fixed_t = 0;
 /// recomputing `distance`, `xstep`, and `ystep` when the plane height has not
 /// changed since the previous span on the same row.
 #[no_mangle]
-pub static mut cachedheight: [fixed_t; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut cachedheight: [fixed_t; MAXH] = [0; MAXH];
 
 /// Cache of the last computed world distance for each screen row.
 ///
 /// Exported as `#[no_mangle]` for C callers.  Paired with [`cachedheight`].
 #[no_mangle]
-pub static mut cacheddistance: [fixed_t; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut cacheddistance: [fixed_t; MAXH] = [0; MAXH];
 
 /// Cache of the last computed flat x-step for each screen row.
 ///
 /// Exported as `#[no_mangle]` for C callers.  Paired with [`cachedheight`].
 #[no_mangle]
-pub static mut cachedxstep: [fixed_t; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut cachedxstep: [fixed_t; MAXH] = [0; MAXH];
 
 /// Cache of the last computed flat y-step for each screen row.
 ///
 /// Exported as `#[no_mangle]` for C callers.  Paired with [`cachedheight`].
 #[no_mangle]
-pub static mut cachedystep: [fixed_t; SCREENHEIGHT] = [0; SCREENHEIGHT];
+pub static mut cachedystep: [fixed_t; MAXH] = [0; MAXH];
 
 // ---------------------------------------------------------------------------
 // Imports from other modules

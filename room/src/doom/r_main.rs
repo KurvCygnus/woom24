@@ -9,9 +9,11 @@
 use std::ffi::{c_int, c_short, c_uint};
 use std::ptr;
 
+use crate::doom::crt::c_printf;
 use crate::doom::d_player::PlayerT;
-use crate::doom::i_video::{SCREENHEIGHT as SCREENHEIGHT_IV, SCREENWIDTH as SCREENWIDTH_IV};
+use crate::doom::i_video::{SCREENHEIGHT, SCREENWIDTH};
 use crate::doom::m_bbox::BBox;
+use crate::doom::video_cfg::MAX_SCREENWIDTH;
 use crate::doom::m_fixed::{angle_t, fixed_t, FixedDiv, FixedMul};
 use crate::doom::m_fixed::{FRACBITS, FRACUNIT};
 use crate::doom::p_telept::mobj_t;
@@ -27,12 +29,6 @@ use crate::types::Boolean;
 /// Number of fine-angle steps spanning the horizontal field of view (90 degrees
 /// expressed in fine-angle units; `FINEANGLES / 4 = 2048`).
 const FIELDOFVIEW: c_int = 2048;
-
-/// Screen pixel width, mirrored from `i_video` as a `usize` for array sizing.
-const SCREENWIDTH: usize = SCREENWIDTH_IV as usize;
-
-/// Screen pixel height, mirrored from `i_video` as a `usize` for array sizing.
-const SCREENHEIGHT: usize = SCREENHEIGHT_IV as usize;
 
 /// Number of distinct light levels used in the `scalelight` / `zlight` tables.
 const LIGHTLEVELS: usize = 16;
@@ -224,9 +220,12 @@ pub static mut viewangletox: [c_int; tables::FINEANGLES / 2 + 1] = [0; tables::F
 /// column.
 ///
 /// `xtoviewangle[x]` gives the left-edge angle of the frustum slice at
-/// column `x`. Sized `SCREENWIDTH + 1` to include the right-edge sentinel.
+/// column `x`. Sized `MAX_SCREENWIDTH + 1` (boom `xtoviewangle[MAX_SCREENWIDTH+1]`,
+/// `r_main.c:81`) to include the right-edge sentinel for any raster the
+/// `video_cfg` validation admits; only `[0..=viewwidth]` is filled and read.
 #[no_mangle]
-pub static mut xtoviewangle: [angle_t; SCREENWIDTH + 1] = [0; SCREENWIDTH + 1];
+pub static mut xtoviewangle: [angle_t; MAX_SCREENWIDTH as usize + 1] =
+    [0; MAX_SCREENWIDTH as usize + 1];
 
 /// Distance-to-light lookup table indexed by `[light_level][scale]`.
 ///
@@ -779,7 +778,7 @@ pub unsafe extern "C" fn R_InitLightTables() {
         let startmap = (((LIGHTLEVELS - 1 - i) * 2) * NUMCOLORMAPS / LIGHTLEVELS) as c_int;
         for j in 0..MAXLIGHTZ {
             let mut scale = FixedDiv(
-                (SCREENWIDTH as c_int / 2) * FRACUNIT,
+                (SCREENWIDTH / 2) * FRACUNIT,
                 ((j + 1) << LIGHTZSHIFT) as c_int,
             );
             scale >>= LIGHTSCALESHIFT;
@@ -845,8 +844,8 @@ pub unsafe extern "C" fn R_ExecuteSetViewSize() {
     setsizeneeded = Boolean::FALSE;
 
     if setblocks == 11 {
-        scaledviewwidth = SCREENWIDTH as c_int;
-        viewheight = SCREENHEIGHT as c_int;
+        scaledviewwidth = SCREENWIDTH;
+        viewheight = SCREENHEIGHT;
     } else {
         scaledviewwidth = setblocks * 32;
         viewheight = (setblocks * 168 / 10) & !7;
@@ -879,8 +878,8 @@ pub unsafe extern "C" fn R_ExecuteSetViewSize() {
     R_InitTextureMapping();
 
     // psprite scales
-    pspritescale = FRACUNIT * viewwidth / SCREENWIDTH as c_int;
-    pspriteiscale = FRACUNIT * SCREENWIDTH as c_int / viewwidth;
+    pspritescale = FRACUNIT * viewwidth / SCREENWIDTH;
+    pspriteiscale = FRACUNIT * SCREENWIDTH / viewwidth;
 
     // thing clipping
     for i in 0..viewwidth as usize {
@@ -907,7 +906,7 @@ pub unsafe extern "C" fn R_ExecuteSetViewSize() {
         let startmap = (((LIGHTLEVELS - 1 - i) * 2) * NUMCOLORMAPS / LIGHTLEVELS) as c_int;
         for j in 0..MAXLIGHTSCALE {
             let mut level = startmap
-                - (j as c_int * SCREENWIDTH as c_int)
+                - (j as c_int * SCREENWIDTH)
                     / (viewwidth << detailshift)
                     / DISTMAP as c_int;
 
@@ -942,19 +941,19 @@ pub unsafe extern "C" fn R_ExecuteSetViewSize() {
 #[no_mangle]
 pub unsafe extern "C" fn R_Init() {
     R_InitData();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_InitPointToAngle();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_InitTables();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_SetViewSize(screenblocks, detailLevel);
     R_InitPlanes();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     R_InitLightTables();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
     crate::doom::r_sky::R_InitSkyMap();
     R_InitTranslationTables();
-    libc::printf(c".".as_ptr());
+    c_printf(c".".as_ptr());
 
     framecount = 0;
 }
@@ -1021,12 +1020,20 @@ pub unsafe extern "C" fn R_PointInSubsector(x: fixed_t, y: fixed_t) -> *mut subs
 pub unsafe extern "C" fn R_SetupFrame(player: *mut PlayerT) {
     viewplayer = player;
     let mo = (*player).mo as *mut mobj_t;
-    viewx = (*mo).x;
-    viewy = (*mo).y;
-    viewangle = (*mo).angle.wrapping_add(viewangleoffset as u32);
+    // F1 M1: the camera reads the interpolation board's sampled quad when
+    // uncapped rendering is active; the sample degrades to the live
+    // simulation values under the guard set (first tic, paused, spawn,
+    // teleport), so the vanilla path is unchanged when sampling is off.
+    let cam = crate::doom::r_interp::sample_camera(
+        player,
+        mo as *mut crate::doom::c_ffi::mobj_t,
+    );
+    viewx = cam.x;
+    viewy = cam.y;
+    viewangle = cam.angle.wrapping_add(viewangleoffset as u32);
     extralight = (*player).extralight;
 
-    viewz = (*player).viewz;
+    viewz = cam.z;
 
     viewsin = tables::finesine[(viewangle >> ANGLETOFINESHIFT) as usize];
     viewcos = *tables::finecosine

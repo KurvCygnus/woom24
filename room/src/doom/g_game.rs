@@ -36,24 +36,31 @@
 
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
+use crate::i_error;
 use crate::doom::sounds::Sfx;
 use std::ffi::{c_char, c_int, c_uint, c_void};
 
 use std::ptr;
 
+use crate::doom::crt::{c_printf3, c_snprintf1, c_snprintf2};
 use crate::doom::d_mode::{
     commercial, doom, exe_chex, exe_doom_1_2, exe_doom_1_666, exe_doom_1_7, exe_doom_1_8,
     exe_final2, exe_ultimate, shareware,
 };
 use crate::doom::d_player::{PlayerT, TiccmdT, MAXPLAYERS};
 use crate::doom::doomstat::{gamemission, gamemode, gameversion};
+use crate::doom::i_system::I_Error;
+use crate::doom::m_menu::gammamsg;
 use crate::doom::m_random::P_Random;
 use crate::doom::p_inter::maxammo;
 use crate::doom::p_setup::{
     deathmatch_p, deathmatchstarts, mapthing_t as SetupMapThing, playerstarts,
 };
 use crate::doom::p_telept::{mapthing_t, mobj_t};
-use crate::doom::tables::{finecosine, finesine, finetangent};
+use crate::doom::tables::{
+    finecosine, finesine, finetangent, tantoangle, ANG45, ANGLETOFINESHIFT,
+};
+use crate::doom::violations::{self, VanillaViolation};
 use crate::doom::wi_stuff::{wbplayerstruct_t, wbstartstruct_t};
 
 // ---------------------------------------------------------------------------
@@ -650,13 +657,6 @@ static mut DEMOVERSIONBUF: [c_char; 16] = [0; 16];
 // ---------------------------------------------------------------------------
 
 extern "C" {
-    /// libc `snprintf` - variadic; only the buffer-pointer / length form is
-    /// actually invoked from this module (turbo banner and demo-version text).
-    fn snprintf(buf: *mut c_char, len: usize, fmt: *const c_char, ...) -> c_int;
-
-    /// Engine-wide fatal error from `i_system.c`. Kept variadic because call
-    /// sites pass `printf`-style format arguments.
-    fn I_Error(format: *const c_char, ...) -> !;
     /// Engine-wide clean shutdown from `i_system.c` (used by single demos).
     fn I_Quit() -> !;
 }
@@ -1546,7 +1546,7 @@ pub unsafe extern "C" fn G_Ticker() {
                 M_snprintf_clamp(
                     std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
                     80,
-                    snprintf(
+                    c_snprintf1(
                         std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
                         80,
                         c"%s is turbo!".as_ptr(),
@@ -1559,11 +1559,7 @@ pub unsafe extern "C" fn G_Ticker() {
 
             if netgame != 0 && netdemo == 0 && (gametic % ticdup) == 0 {
                 if gametic > BACKUPTICS as c_int && consistancy[i][buf] != (*cmd).consistancy {
-                    I_Error(
-                        c"consistency failure (%i should be %i)".as_ptr(),
-                        (*cmd).consistancy as c_int,
-                        consistancy[i][buf] as c_int,
-                    );
+                    I_Error(c"consistency failure (%i should be %i)".as_ptr());
                 }
                 let mo = players[i].mo as *mut mobj_t;
                 if !mo.is_null() {
@@ -1737,9 +1733,11 @@ pub unsafe extern "C" fn G_PlayerReborn(player: c_int) {
 ///
 /// The teleport-fog placement mirrors the vanilla Doom bug carried in PrBoom+
 /// where the `an` angle index overflows into `finetangent[]` for spawns
-/// facing certain compass directions; the four special-case `an` values
-/// (4096, 5120, 6144, 7168) reproduce that table lookup exactly to keep
-/// demos compatible.
+/// facing west, southwest, south, or southeast (angles 180..315); the
+/// special-case `an` values (4096, 5120, 6144, 7168, and 8192 for 360
+/// degrees) reproduce those table lookups exactly to keep demos compatible
+/// (docs/vanilla-workarounds.md #6, census: `TeleportFogAngleOverrun`).
+/// See `g_check_spot_fog_offset` for the offset arithmetic.
 ///
 /// # Safety
 /// Dereferences `mthing`; reads and mutates the players / bodyque / corpse
@@ -1782,34 +1780,10 @@ pub unsafe extern "C" fn G_CheckSpot(playernum: c_int, mthing: *mut mapthing_t) 
     let ss = R_PointInSubsector(x, y);
 
     // Replicate vanilla signed-angle overflow (from PrBoom+)
-    let an_raw = (0x10000000i32).wrapping_mul((*mthing).angle as i32 / 45);
-    let xa: fixed_t;
-    let ya: fixed_t;
-    match an_raw {
-        4096 => {
-            xa = finetangent[2048];
-            ya = finetangent[0];
-        }
-        5120 => {
-            xa = finetangent[3072];
-            ya = finetangent[1024];
-        }
-        6144 => {
-            xa = finesine[0];
-            ya = finetangent[2048];
-        }
-        7168 => {
-            xa = finesine[1024];
-            ya = finetangent[3072];
-        }
-        0 | 1024 | 2048 | 3072 => {
-            xa = unsafe { *finecosine.0.add(an_raw as usize) };
-            ya = finesine[an_raw as usize];
-        }
-        _ => {
-            I_Error(c"G_CheckSpot: unexpected angle %d\n".as_ptr(), an_raw);
-        }
-    }
+    let (xa, ya) = match g_check_spot_fog_offset((*mthing).angle as c_int) {
+        Some(offset) => offset,
+        None => I_Error(c"G_CheckSpot: unexpected angle %d\n".as_ptr()),
+    };
 
     let floorheight = (*(*ss).sector).floorheight;
     let mo = P_SpawnMobj(x + 20 * xa, y + 20 * ya, floorheight, MT_TFOG);
@@ -1818,6 +1792,66 @@ pub unsafe extern "C" fn G_CheckSpot(playernum: c_int, mthing: *mut mapthing_t) 
         S_StartSound(mo as *mut c_void, Sfx::Telept as c_int);
     }
     1
+}
+
+// ---------------------------------------------------------------------------
+// G_CheckSpot fog-offset helper
+// ---------------------------------------------------------------------------
+
+//* Teleport-fog offset lookup, extracted from `G_CheckSpot` so the
+//* vanilla-overflow case table is unit-testable without a live level
+//* (the caller needs blockmap, subsectors and the mobj zone).
+//*
+//* Vanilla compiled `(ANG45 * (angle/45)) >> ANGLETOFINESHIFT` with a signed
+//* shift: for angles >= 180 the multiply overflows into the sign bit, so
+//* `an` goes negative and the table lookups land in `finetangent[]`
+//* (docs/vanilla-workarounds.md #6). Chocolate reproduces the observable
+//* values with the switch below, transcribed from
+//* reference/chocolate-doom/src/doom/g_game.c:1223-1268: it deliberately
+//* avoids the overflow and switches on the positive scale
+//* `an = (ANG45 >> ANGLETOFINESHIFT) * (angle/45)` = `1024 * angle/45`,
+//* whose 4096/5120/6144/7168 cases name the overrun indices explicitly.
+//* `None` is chocolate's `default:` arm (`I_Error` in the caller).
+fn g_check_spot_fog_offset(angle: c_int) -> Option<(fixed_t, fixed_t)> {
+    let an = ((ANG45 >> ANGLETOFINESHIFT) as i32).wrapping_mul(angle / 45);
+    match an {
+        4096 => {
+            // Vanilla -4096: finecosine[-4096] / finesine[-4096]
+            violations::record(VanillaViolation::TeleportFogAngleOverrun);
+            Some((finetangent[2048], finetangent[0]))
+        }
+        5120 => {
+            // Vanilla -3072: finecosine[-3072] / finesine[-3072]
+            violations::record(VanillaViolation::TeleportFogAngleOverrun);
+            Some((finetangent[3072], finetangent[1024]))
+        }
+        6144 => {
+            // Vanilla -2048: finecosine[-2048] / finesine[-2048]
+            violations::record(VanillaViolation::TeleportFogAngleOverrun);
+            Some((finesine[0], finetangent[2048]))
+        }
+        7168 => {
+            // Vanilla -1024: finecosine[-1024] / finesine[-1024]
+            violations::record(VanillaViolation::TeleportFogAngleOverrun);
+            Some((finesine[1024], finetangent[3072]))
+        }
+        0 | 1024 | 2048 | 3072 => {
+            // SAFETY: `an` is 0..=3072; `finecosine` aims at
+            // `finesine[FINEANGLES/4]`, so the reads stay inside
+            // `finesine`'s 10240 entries.
+            Some((
+                unsafe { *finecosine.0.add(an as usize) },
+                finesine[an as usize],
+            ))
+        }
+        8192 => {
+            // 360 degrees: finecosine[8192] overran one past `finesine`,
+            // into `tantoangle[0]` in the DOS binary's adjacent layout;
+            // `finesine[8192]` itself is in-range (sine of 360 deg = 0).
+            Some((tantoangle[0] as fixed_t, finesine[8192]))
+        }
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1840,7 +1874,7 @@ pub unsafe extern "C" fn G_CheckSpot(playernum: c_int, mthing: *mut mapthing_t) 
 pub unsafe extern "C" fn G_DeathMatchSpawnPlayer(playernum: c_int) {
     let selections = deathmatch_p.offset_from(std::ptr::addr_of!(deathmatchstarts[0])) as c_int;
     if selections < 4 {
-        I_Error(c"Only %i deathmatch spots, 4 required".as_ptr(), selections);
+        I_Error(c"Only %i deathmatch spots, 4 required".as_ptr());
     }
 
     for _ in 0..20 {
@@ -1984,6 +2018,11 @@ pub unsafe extern "C" fn G_SecretExitLevel() {
 ///   `didsecret` on every player.
 /// * Doom II: secret-exit on MAP15 -> MAP31, on MAP31 -> MAP32; normal-exit
 ///   on MAP31 or MAP32 -> MAP16.
+/// * Doom II: a map33 normal exit reads its par time from one int past
+///   `cpars[31]` -- the first four bytes of the adjacent GAMMALVL0 string;
+///   emulated explicitly per chocolate (docs/vanilla-workarounds.md #9).
+///   Commercial maps outside 1..=33 have no vanilla value and abort via
+///   `I_Error` instead of an out-of-bounds read.
 /// * Doom 1 episode-4 par-time deliberately reads off the end of `pars[]`
 ///   into `cpars[]` to reproduce the vanilla overflow bug used by statcheck
 ///   regression tests.
@@ -2076,10 +2115,19 @@ pub unsafe extern "C" fn G_DoCompleted() {
     wminfo.maxfrags = 0;
 
     wminfo.partime = if gamemode == commercial {
-        35 * cpars[(gamemap - 1) as usize]
+        match commercial_partime(gamemap) {
+            Some(partime) => partime,
+            None => {
+                //* Copy first: `format!` inside `i_error!` would borrow the
+                //* mutable static (static_mut_refs).
+                let map = gamemap;
+                i_error!("G_DoCompleted: commercial map {} has no vanilla par time", map)
+            }
+        }
     } else if gameepisode < 4 {
         35 * pars[gameepisode as usize][gamemap as usize]
     } else {
+        violations::record(VanillaViolation::ParTimeOverrun);
         35 * cpars[gamemap as usize]
     };
 
@@ -2100,6 +2148,60 @@ pub unsafe extern "C" fn G_DoCompleted() {
 
     StatCopy(&raw mut wminfo as *mut _ as *mut crate::doom::statdump::wbstartstruct_t);
     WI_Start(&raw mut wminfo);
+}
+
+// ---------------------------------------------------------------------------
+// G_DoCompleted commercial par-time helper
+// ---------------------------------------------------------------------------
+
+//* Commercial par-time selection for `G_DoCompleted`, extracted so the map33
+//* emulation is unit-testable without a live level completion (same pattern
+//* as `g_check_spot_fog_offset`).
+//*
+//* Chocolate has no special case either: doom2.exe just evaluates
+//* `cpars[gamemap-1]`, and for map 33 that index lands one int past the
+//* array, in the first four bytes of the GAMMALVL0 rodata string adjacent to
+//* `cpars` in the DOS binary. Rust's bounds check would turn that read into
+//* a panic, so the overrun is reproduced explicitly
+//* (docs/vanilla-workarounds.md #9). `None` is the guard arm for maps the
+//* references assign no value to (map <= 0 or > 33): chocolate does a plain
+//* unguarded read there, which we cannot model; the caller raises I_Error.
+//* (The parameter cannot be named `gamemap`: that would shadow the static.)
+fn commercial_partime(map: c_int) -> Option<c_int> {
+    match map {
+        1..=32 => Some(35 * unsafe {
+            // SAFETY: plain read of a compile-time-initialized table.
+            cpars[(map - 1) as usize]
+        }),
+        33 => {
+            violations::record(VanillaViolation::ParTimeOverrun);
+            Some(35i32.wrapping_mul(gammalvl0_prefix_i32()))
+        }
+        _ => None,
+    }
+}
+
+//* The port's GAMMALVL0 equivalent: the first gamma message ("Gamma
+//* correction OFF", `gammamsg[0]` in m_menu.rs). Reading the live static --
+//* not a frozen copy of the text -- mirrors chocolate's
+//* `DEH_String(GAMMALVL0)` indirection, so a future DSDHacked string
+//* replacement would move map33's par time exactly as chocolate's does.
+//* Chocolate loads the first `sizeof(int)` bytes of the string and runs the
+//* result through `LONG()`, i.e. it interprets the four bytes as
+//* little-endian on every host; `from_le_bytes` is the same
+//* host-independent model.
+fn gammalvl0_prefix_i32() -> c_int {
+    let bytes = unsafe {
+        // SAFETY: read-only access to a const-initialized table; nothing
+        // writes `gammamsg` after initialization.
+        [
+            gammamsg[0][0] as u8,
+            gammamsg[0][1] as u8,
+            gammamsg[0][2] as u8,
+            gammamsg[0][3] as u8,
+        ]
+    };
+    i32::from_le_bytes(bytes)
 }
 
 // ---------------------------------------------------------------------------
@@ -2273,8 +2375,6 @@ pub unsafe extern "C" fn G_DoSaveGame() {
         if save_stream.is_null() {
             I_Error(
                 c"Failed to open either '%s' or '%s' to write savegame.".as_ptr() as *const c_char,
-                temp_savegame_file,
-                recovery_savegame_file,
             );
         }
     } else {
@@ -2299,8 +2399,6 @@ pub unsafe extern "C" fn G_DoSaveGame() {
     if !recovery_savegame_file.is_null() {
         I_Error(
             c"Failed to open savegame file '%s' for writing.\nBut your game has been saved to '%s' for recovery.".as_ptr(),
-            temp_savegame_file,
-            recovery_savegame_file,
         );
     }
 
@@ -2708,7 +2806,7 @@ pub unsafe extern "C" fn G_RecordDemo(name: *mut c_char) {
     M_snprintf_clamp(
         demoname,
         demoname_size,
-        snprintf(demoname, demoname_size, c"%s.lmp".as_ptr(), name),
+        c_snprintf1(demoname, demoname_size, c"%s.lmp".as_ptr(), name),
     );
     let mut maxsize: c_int = 0x20000;
     let i = M_CheckParmWithArgs(c"-maxdemo".as_ptr().cast_mut(), 1);
@@ -2738,9 +2836,7 @@ pub unsafe extern "C" fn G_VanillaVersionCode() -> c_int {
 /// exercise the table directly.
 fn g_vanilla_version_code_for(gv: c_int) -> c_int {
     match gv {
-        v if v == exe_doom_1_2 => unsafe {
-            I_Error(c"Doom 1.2 does not have a version code!".as_ptr())
-        },
+        v if v == exe_doom_1_2 => I_Error(c"Doom 1.2 does not have a version code!".as_ptr()),
         v if v == exe_doom_1_666 => 106,
         v if v == exe_doom_1_7 => 107,
         v if v == exe_doom_1_8 => 108,
@@ -2841,7 +2937,7 @@ unsafe fn demo_version_description(version: c_int) -> *const c_char {
                 M_snprintf_clamp(
                     std::ptr::addr_of_mut!(DEMOVERSIONBUF[0]),
                     16,
-                    snprintf(
+                    c_snprintf2(
                         std::ptr::addr_of_mut!(DEMOVERSIONBUF[0]),
                         16,
                         c"%i.%i (unknown)".as_ptr(),
@@ -2896,7 +2992,7 @@ pub unsafe extern "C" fn G_DoPlayDemo() {
             See: https://www.doomworld.com/classicdoom/info/patches.php\n\
             This appears to be %s.\0";
         // C code uses printf (not I_Error) here so demo playback continues
-        libc::printf(
+        c_printf3(
             message.as_ptr() as *const libc::c_char,
             demoversion,
             G_VanillaVersionCode(),
@@ -2921,10 +3017,7 @@ pub unsafe extern "C" fn G_DoPlayDemo() {
     consoleplayer = *demo_p as c_int;
     demo_p = demo_p.add(1);
     if consoleplayer < 0 || consoleplayer >= MAXPLAYERS as c_int {
-        I_Error(
-            c"G_DoPlayDemo: consoleplayer %d out of range\n".as_ptr(),
-            consoleplayer,
-        );
+        I_Error(c"G_DoPlayDemo: consoleplayer %d out of range\n".as_ptr());
     }
 
     for i in 0..MAXPLAYERS {
@@ -2997,17 +3090,9 @@ pub unsafe extern "C" fn G_TimeDemo(name: *mut c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn G_CheckDemoStatus() -> boolean {
     if timingdemo != 0 {
-        let endtime = I_GetTime();
-        let realtics = endtime - starttime;
-        let fps = (gametic as f32 * 35.0) / realtics as f32;
         timingdemo = 0;
         demoplayback = 0;
-        I_Error(
-            c"timed %i gametics in %i realtics (%f fps)".as_ptr(),
-            gametic,
-            realtics,
-            fps as f64,
-        );
+        I_Error(c"timed %i gametics in %i realtics (%f fps)".as_ptr());
     }
 
     if demoplayback != 0 {
@@ -3042,7 +3127,7 @@ pub unsafe extern "C" fn G_CheckDemoStatus() -> boolean {
         );
         Z_Free(demobuffer as *mut c_void);
         demorecording = 0;
-        I_Error(c"Demo %s recorded".as_ptr(), demoname);
+        I_Error(c"Demo %s recorded".as_ptr());
     }
 
     0
@@ -3313,6 +3398,142 @@ mod tests {
         assert_eq!(BTS_SAVEGAME, 2);
         assert_eq!(BTS_SAVEMASK, 28);
         assert_eq!(BTS_SAVESHIFT, 2);
+    }
+
+    // --- G_CheckSpot teleport-fog offset (docs/vanilla-workarounds.md #6) ---
+
+    /// For every legal mapthing angle the fog offset pair must come from the
+    /// chocolate switch (reference/chocolate-doom/src/doom/g_game.c:1223-1268),
+    /// never from the `I_Error` default arm. The offset index is
+    /// `an = (ANG45 >> ANGLETOFINESHIFT) * (angle/45)` = `1024 * angle/45`:
+    /// 0/45/90/135 land in the in-range arms (finecosine/finesine at
+    /// an = 0/1024/2048/3072); 180/225/270/315 land in the vanilla
+    /// signed-index overrun, so those arms read `finetangent[]` at the
+    /// exact indices chocolate's case bodies name; 360 is chocolate's
+    /// `case 8192` (`finecosine[8192]` overran into `tantoangle[0]` in the
+    /// DOS binary's adjacent table layout).
+    #[test]
+    fn g_check_spot_fog_matches_chocolate_case_table() {
+        // In-range arms.
+        let (xa0, ya0) = unsafe { (*finecosine.0.add(0), finesine[0]) };
+        assert_eq!(g_check_spot_fog_offset(0), Some((xa0, ya0)));
+        let (xa45, ya45) = unsafe { (*finecosine.0.add(1024), finesine[1024]) };
+        assert_eq!(g_check_spot_fog_offset(45), Some((xa45, ya45)));
+        let (xa90, ya90) = unsafe { (*finecosine.0.add(2048), finesine[2048]) };
+        assert_eq!(g_check_spot_fog_offset(90), Some((xa90, ya90)));
+        let (xa135, ya135) = unsafe { (*finecosine.0.add(3072), finesine[3072]) };
+        assert_eq!(g_check_spot_fog_offset(135), Some((xa135, ya135)));
+
+        // Finetangent overrun arms (case 4096 / 5120 / 6144 / 7168).
+        assert_eq!(
+            g_check_spot_fog_offset(180),
+            Some((finetangent[2048], finetangent[0]))
+        );
+        assert_eq!(
+            g_check_spot_fog_offset(225),
+            Some((finetangent[3072], finetangent[1024]))
+        );
+        assert_eq!(
+            g_check_spot_fog_offset(270),
+            Some((finesine[0], finetangent[2048]))
+        );
+        assert_eq!(
+            g_check_spot_fog_offset(315),
+            Some((finesine[1024], finetangent[3072]))
+        );
+
+        // 360 degrees: chocolate's `case 8192` body verbatim.
+        assert_eq!(
+            g_check_spot_fog_offset(360),
+            Some((tantoangle[0] as fixed_t, finesine[8192]))
+        );
+
+        // No legal mapthing angle may reach the `I_Error` default arm.
+        for angle in (0..=360).step_by(45) {
+            assert!(
+                g_check_spot_fog_offset(angle).is_some(),
+                "angle {} must not hit the I_Error default arm",
+                angle
+            );
+        }
+
+        // The overrun arms ARE the vanilla-defect emulation being replayed,
+        // so replaying one must leave a census hit behind (Violations
+        // census, docs/vanilla-workarounds.md #6). The crate-wide census
+        // lock spans the snapshot/assert window: no sibling census test's
+        // reset_all() may zero the counter in between (see violations.rs).
+        let _census = violations::CENSUS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let before = violations::hits(VanillaViolation::TeleportFogAngleOverrun);
+        assert!(g_check_spot_fog_offset(180).is_some());
+        assert!(
+            violations::hits(VanillaViolation::TeleportFogAngleOverrun) > before,
+            "the finetangent overrun arm must record TeleportFogAngleOverrun"
+        );
+    }
+
+    // --- G_DoCompleted commercial par time (docs/vanilla-workarounds.md #9) ---
+
+    /// The commercial par-time switch must never index `cpars` out of bounds:
+    /// maps 1-32 use `cpars[map-1]`, and map 33 uses chocolate's GAMMALVL0
+    /// model (reference/chocolate-doom/src/doom/g_game.c:1526-1535): the
+    /// first four bytes of the "Gamma correction OFF" message read as a
+    /// little-endian int, scaled by TICRATE with C wrap semantics (the
+    /// product overflows i32). The pre-fix code evaluated `cpars[32]` here,
+    /// a bounds panic on WAD-reachable input. Map 33's arm IS the emulation,
+    /// so it must also record a `ParTimeOverrun` census hit.
+    #[test]
+    fn commercial_map33_exit_uses_gammalvl0_model_not_panic() {
+        unsafe {
+            // Our GAMMALVL0 equivalent is the gamma-message table's first
+            // entry ("Gamma correction OFF", m_menu.rs) -- the port's copy of
+            // the doom2.exe rodata string the overrun reads into. Pin its
+            // prefix so the expectation below stays honest if the text is
+            // ever touched.
+            let prefix: [u8; 4] = [
+                gammamsg[0][0] as u8,
+                gammamsg[0][1] as u8,
+                gammamsg[0][2] as u8,
+                gammamsg[0][3] as u8,
+            ];
+            let cpars32 = i32::from_le_bytes(prefix);
+
+            // Constant pin (controller-verified: 'G','a','m','m'
+            // little-endian): a silent `gammamsg[0]` text change must fail
+            // here, not slide both sides of the map33 expectation below.
+            assert_eq!(gammalvl0_prefix_i32(), 0x6D6D6147);
+
+            // Maps 1-32: the ordinary cpars[map-1] path, untouched.
+            for map in 1..=32 {
+                assert_eq!(
+                    commercial_partime(map),
+                    Some(35 * cpars[(map - 1) as usize]),
+                    "commercial map {} must use cpars[{}]",
+                    map,
+                    map - 1
+                );
+            }
+
+            // Guard arm: maps with no reference-defined par time must take
+            // the caller's I_Error path, never an unguarded read.
+            assert_eq!(commercial_partime(0), None);
+            assert_eq!(commercial_partime(34), None);
+
+            // Map 33: 35 * cpars32 with C's wrap (vanilla's product
+            // overflows the int; debug Rust must wrap, not panic). The
+            // crate-wide census lock spans the snapshot/assert window
+            // (see violations.rs).
+            let _census = violations::CENSUS_TEST_LOCK
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let before = violations::hits(VanillaViolation::ParTimeOverrun);
+            assert_eq!(commercial_partime(33), Some(35i32.wrapping_mul(cpars32)));
+            assert!(
+                violations::hits(VanillaViolation::ParTimeOverrun) > before,
+                "the map33 GAMMALVL0 emulation must record ParTimeOverrun"
+            );
+        }
     }
 }
 

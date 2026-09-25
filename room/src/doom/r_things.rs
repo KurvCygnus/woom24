@@ -23,8 +23,12 @@ use crate::doom::tables::ANG45;
 // Constants
 // ---------------------------------------------------------------------------
 
-/// Screen width in pixels; mirrors `SCREENWIDTH` from `i_video`.
-const SCREENWIDTH: usize = crate::doom::i_video::SCREENWIDTH as usize;
+/// Compile-time array cap for per-column tables (F1 M2, boom
+/// `MAX_SCREENWIDTH` shape); the live raster width is the `SCREENWIDTH`
+/// static re-exported from `i_video`.
+const MAXW: usize = crate::doom::video_cfg::MAX_SCREENWIDTH as usize;
+
+use crate::doom::i_video::SCREENWIDTH;
 
 /// Maximum number of visible sprites that can be projected in a single frame.
 /// Sprites beyond this limit are silently dropped into `overflowsprite`.
@@ -151,12 +155,15 @@ pub static mut pspriteiscale: fixed_t = 0;
 pub static mut spritelights: *mut *mut u8 = ptr::null_mut();
 
 /// Clipping array initialised to -1 for psprite bottom clipping.
+/// Sized to the compile-time cap (boom `negonearray[MAX_SCREENWIDTH]`);
+/// only `[0..viewwidth]` is initialised and read.
 #[no_mangle]
-pub static mut negonearray: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
+pub static mut negonearray: [c_short; MAXW] = [0; MAXW];
 
 /// Clipping array initialised to viewheight for psprite top clipping.
+/// Sized to the compile-time cap; see [`negonearray`].
 #[no_mangle]
-pub static mut screenheightarray: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
+pub static mut screenheightarray: [c_short; MAXW] = [0; MAXW];
 
 /// Pointer to the sprite definition table.
 #[no_mangle]
@@ -442,7 +449,7 @@ unsafe fn R_InitSpriteDefs(namelist: *mut *mut c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn R_InitSprites(namelist: *mut *mut c_char) {
     for i in 0..SCREENWIDTH {
-        negonearray[i] = -1;
+        negonearray[i as usize] = -1;
     }
     R_InitSpriteDefs(namelist);
 }
@@ -638,9 +645,15 @@ pub unsafe extern "C" fn R_DrawVisSprite(vis: *mut vissprite_t, _x1: c_int, _x2:
 pub unsafe extern "C" fn R_ProjectSprite(thing: *mut c_void) {
     let thing = thing as *mut crate::doom::c_ffi::mobj_t;
 
+    // F1 M1: sprite placement reads the interpolation board's sampled
+    // position/angle when uncapped rendering is active; the sample falls back
+    // to the live values under the guard set (spawn, missile first pair,
+    // paused, teleport snap, board off), keeping the vanilla path unchanged.
+    let pos = crate::doom::r_interp::sample_mobj(thing);
+
     // Transform the origin point.
-    let tr_x = (*thing).x - viewx;
-    let tr_y = (*thing).y - viewy;
+    let tr_x = pos.x - viewx;
+    let tr_y = pos.y - viewy;
 
     let gxt = FixedMul(tr_x, viewcos);
     let gyt = -FixedMul(tr_y, viewsin);
@@ -696,9 +709,9 @@ pub unsafe extern "C" fn R_ProjectSprite(thing: *mut c_void) {
         flip = sprframe.flip[0] as c_int;
     } else {
         // Choose a different rotation based on player view.
-        let ang = R_PointToAngle((*thing).x, (*thing).y);
+        let ang = R_PointToAngle(pos.x, pos.y);
         let rot = ((ang
-            .wrapping_sub((*thing).angle)
+            .wrapping_sub(pos.angle)
             .wrapping_add((ANG45 / 2) * 9))
             >> 29) as usize;
         lump = sprframe.lump[rot] as c_int;
@@ -726,10 +739,10 @@ pub unsafe extern "C" fn R_ProjectSprite(thing: *mut c_void) {
     let vis = R_NewVisSprite();
     (*vis).mobjflags = (*thing).flags;
     (*vis).scale = xscale << detailshift;
-    (*vis).gx = (*thing).x;
-    (*vis).gy = (*thing).y;
-    (*vis).gz = (*thing).z;
-    (*vis).gzt = (*thing).z + *spritetopoffset.add(lump as usize);
+    (*vis).gx = pos.x;
+    (*vis).gy = pos.y;
+    (*vis).gz = pos.z;
+    (*vis).gzt = pos.z + *spritetopoffset.add(lump as usize);
     (*vis).texturemid = (*vis).gzt - viewz;
     (*vis).x1 = if x1 < 0 { 0 } else { x1 };
     (*vis).x2 = if x2 >= viewwidth { viewwidth - 1 } else { x2 };
@@ -876,8 +889,15 @@ pub unsafe extern "C" fn R_DrawPSprite(psp: *mut PspdefT) {
     let lump = sprframe.lump[0] as c_int;
     let flip = sprframe.flip[0] as c_int;
 
+    // F1 M1: the weapon overlay reads the interpolation board's sampled
+    // screen position when uncapped rendering is active. The flash slot
+    // samples the weapon pair (vanilla copies sx/sy from the weapon slot
+    // every tic), and a sprite state change snaps (Woof! p_pspr.c:1221), so
+    // the weapon never slides between two different frames.
+    let (sx, sy) = crate::doom::r_interp::sample_psp(psp as *const PspdefT as *mut PspdefT);
+
     // Calculate edges of the shape.
-    let mut tx = psp.sx - 160 * FRACUNIT;
+    let mut tx = sx - 160 * FRACUNIT;
     tx -= *spriteoffset.add(lump as usize);
     let x1 = (centerxfrac + FixedMul(tx, pspritescale)) >> FRACBITS;
 
@@ -899,7 +919,7 @@ pub unsafe extern "C" fn R_DrawPSprite(psp: *mut PspdefT) {
     let vis = &mut avis;
     vis.mobjflags = 0;
     vis.texturemid =
-        (BASEYCENTER << FRACBITS) + FRACUNIT / 2 - (psp.sy - *spritetopoffset.add(lump as usize));
+        (BASEYCENTER << FRACBITS) + FRACUNIT / 2 - (sy - *spritetopoffset.add(lump as usize));
     vis.x1 = if x1 < 0 { 0 } else { x1 };
     vis.x2 = if x2 >= viewwidth { viewwidth - 1 } else { x2 };
     vis.scale = pspritescale << detailshift;
@@ -1085,8 +1105,8 @@ pub unsafe extern "C" fn R_SortVisSprites() {
 pub unsafe extern "C" fn R_DrawSprite(spr: *mut vissprite_t) {
     let spr = &*spr;
 
-    static mut CLIPBOT: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
-    static mut CLIPTOP: [c_short; SCREENWIDTH] = [0; SCREENWIDTH];
+    static mut CLIPBOT: [c_short; MAXW] = [0; MAXW];
+    static mut CLIPTOP: [c_short; MAXW] = [0; MAXW];
 
     for x in spr.x1..=spr.x2 {
         CLIPBOT[x as usize] = -2;

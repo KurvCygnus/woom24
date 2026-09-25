@@ -398,6 +398,7 @@ use crate::doom::p_switch::P_InitSwitchList;
 use crate::doom::r_data::{R_FlatNumForName, R_PrecacheLevel, R_TextureNumForName};
 use crate::doom::r_things::R_InitSprites;
 use crate::doom::s_sound::S_Start;
+use crate::doom::violations::{self, VanillaViolation};
 use crate::doom::w_wad::{
     W_CacheLumpNum, W_GetNumForName, W_LumpLength, W_ReadLump, W_ReleaseLumpNum,
 };
@@ -532,6 +533,7 @@ pub extern "C" fn P_LoadSegs(lump: c_int) {
             if (*ldef).flags & LinedefFlag::TWOSIDED as i16 != 0 {
                 let sidenum = (*ldef).sidenum[side as usize ^ 1];
                 if sidenum < 0 || sidenum as c_int >= numsides {
+                    violations::record(VanillaViolation::MissedBackSideOverrun);
                     (*li).backsector = GetSectorAtNullAddress();
                 } else {
                     (*li).backsector = sides.offset(sidenum as isize).as_ref().unwrap().sector;
@@ -1186,6 +1188,7 @@ unsafe fn P_LoadReject(lumpnum: c_int) {
     if lumplen >= minlength {
         rejectmatrix = W_CacheLumpNum(lumpnum, PU_LEVEL) as *mut u8;
     } else {
+        violations::record(VanillaViolation::RejectPadOverrun);
         rejectmatrix =
             Z_Malloc(minlength, PU_LEVEL, &raw mut rejectmatrix as *mut c_void) as *mut u8;
         W_ReadLump(lumpnum as c_uint, rejectmatrix as *mut c_void);

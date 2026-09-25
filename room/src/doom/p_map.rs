@@ -36,6 +36,7 @@ use crate::doom::p_setup::{bmaporgx, bmaporgy, lines};
 use crate::doom::p_sight::{bottomslope, topslope, P_CheckSight};
 use crate::doom::r_main::{validcount, R_PointInSubsector, R_PointToAngle2};
 use crate::doom::tables::{finecosine, finesine, ANG180, ANGLETOFINESHIFT};
+use crate::doom::violations::{self, VanillaViolation};
 use crate::i_error;
 
 // ---------------------------------------------------------------------------
@@ -46,7 +47,7 @@ use crate::i_error;
 ///
 /// The Rust port uses 20 slots (matching `MAXSPECIALCROSS` in the C source)
 /// while the original vanilla limit was 8 (`MAXSPECIALCROSS_ORIGINAL`).
-const MAXSPECIALCROSS: usize = 20;
+pub(crate) const MAXSPECIALCROSS: usize = 20;
 
 /// Original vanilla Doom limit for special lines crossed per move.
 ///
@@ -380,7 +381,16 @@ pub unsafe extern "C" fn PIT_CheckLine(ld: *mut line_t) -> c_uint {
         tmdropoffz = lowfloor;
     }
     if ld.special != 0 {
-        spechit[numspechit as usize] = ld as *const _ as *mut _;
+        //? Bounds-guarded push (mirrors woof/dsda-prboom2, where the spechit
+        //? store is always in-bounds and only the counting continues past the
+        //? array). Vanilla doom2.exe trampled its own DOS .bss layout here;
+        //? that layout does not exist in this port, so an unguarded write
+        //? would clobber arbitrary wasm .bss neighbors instead (observed as
+        //? the browser ticdup=0 freeze). Demo compatibility for overrun
+        //? demos is preserved by SpechitOverrun's emulated writes below.
+        if numspechit >= 0 && (numspechit as usize) < MAXSPECIALCROSS {
+            spechit[numspechit as usize] = ld as *const _ as *mut _;
+        }
         numspechit += 1;
         if numspechit > MAXSPECIALCROSS_ORIGINAL {
             SpechitOverrun(ld as *const _ as *mut _);
@@ -609,6 +619,11 @@ pub unsafe extern "C" fn P_TryMove(thing: *mut mobj_t, x: fixed_t, y: fixed_t) -
     if (*thing).flags & (MF_TELEPORT | MF_NOCLIP) == 0 {
         while numspechit > 0 {
             numspechit -= 1;
+            //? Entries beyond the array were never stored (see the guarded
+            //? push in PIT_CheckLine); skip them instead of reading OOB.
+            if numspechit as usize >= MAXSPECIALCROSS {
+                continue;
+            }
             let ld = spechit[numspechit as usize];
             let side = P_PointOnLineSide((*thing).x, (*thing).y, ld);
             let oldside = P_PointOnLineSide(oldx, oldy, ld);
@@ -1501,6 +1516,7 @@ pub unsafe extern "C" fn P_ChangeSector(sector: *mut sector_t, crunch: c_int) ->
 /// Must only be called from [`PIT_CheckLine`] after `numspechit` has been
 /// incremented beyond [`MAXSPECIALCROSS_ORIGINAL`].
 unsafe fn SpechitOverrun(ld: *mut line_t) {
+    violations::record(VanillaViolation::SpechitOverrun);
     static mut baseaddr: c_uint = 0;
     if baseaddr == 0 {
         let p = M_CheckParmWithArgs(c"-spechit".as_ptr().cast_mut(), 1);
@@ -1530,5 +1546,158 @@ unsafe fn SpechitOverrun(ld: *mut line_t) {
                 numspechit as c_int
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    /// Drives `PIT_CheckLine` with a synthetic two-sided special line while
+    /// `numspechit` is already at/after the array bound, and asserts the push
+    /// stays inside `spechit` (the words directly after the array act as the
+    /// sentinel). This pins the woof/dsda-style bound on the spechit store:
+    /// the pre-fix port wrote `spechit[numspechit]` unguarded, trampling
+    /// whatever .bss symbol the linker had placed after the array (observed
+    /// in the browser as the ticdup=0 freeze). Shared fixture: both spechit
+    /// tests below drive exactly this construction; do not duplicate it.
+    fn drive_pit_check_line_past_spechit_bound()
+    {
+        unsafe
+        {
+            // Snapshot every global PIT_CheckLine touches.
+            let spechit_before = std::ptr::addr_of!(spechit).read();
+            let numspechit_before = numspechit;
+            let tmbbox_before = tmbbox;
+            let tmthing_before = tmthing;
+            let tmceilingz_before = tmceilingz;
+            let tmfloorz_before = tmfloorz;
+            let tmdropoffz_before = tmdropoffz;
+            let ceilingline_before = ceilingline;
+            let (opentop_b, openbottom_b, openrange_b, lowfloor_b) =
+                (opentop, openbottom, openrange, lowfloor);
+            let (myargc_b, myargv_b) = (crate::doom::m_argv::myargc, crate::doom::m_argv::myargv);
+
+            // Synthetic map: a vertical two-sided special line at x=0.
+            let mut line: Box<line_t> = Box::new(std::mem::zeroed());
+            let mut v1: Box<crate::doom::c_ffi::vertex_t> = Box::new(std::mem::zeroed());
+            let mut v2: Box<crate::doom::c_ffi::vertex_t> = Box::new(std::mem::zeroed());
+            let mut front: Box<sector_t> = Box::new(std::mem::zeroed());
+            let mut back: Box<sector_t> = Box::new(std::mem::zeroed());
+            let mut mo: Box<mobj_t> = Box::new(std::mem::zeroed());
+
+            v1.x = 0;
+            v1.y = -16 * FRACUNIT;
+            v2.x = 0;
+            v2.y = 16 * FRACUNIT;
+            line.v1 = &mut *v1;
+            line.v2 = &mut *v2;
+            line.dx = 0;
+            line.dy = 32 * FRACUNIT;
+            line.slopetype = 1; // ST_VERTICAL
+            line.sidenum = [0, 1];
+            line.bbox = [
+                16 * FRACUNIT,  // BBox::TOP
+                -16 * FRACUNIT, // BBox::BOTTOM
+                0,              // BBox::LEFT
+                0,              // BBox::RIGHT
+            ];
+            line.special = 1;
+            front.ceilingheight = 128 * FRACUNIT;
+            front.floorheight = 0;
+            back.ceilingheight = 128 * FRACUNIT;
+            back.floorheight = 0;
+            line.frontsector = &mut *front as *mut sector_t as *mut c_void;
+            line.backsector = &mut *back as *mut sector_t as *mut c_void;
+
+            mo.flags = MF_MISSILE; // skips the blocking-flag checks
+            tmthing = &mut *mo;
+
+            // Viewing box straddles the line (LEFT < 0 < RIGHT) so
+            // P_BoxOnLineSide returns -1 and the special is recorded.
+            tmbbox[BBox::TOP] = 8 * FRACUNIT;
+            tmbbox[BBox::BOTTOM] = -8 * FRACUNIT;
+            tmbbox[BBox::RIGHT] = 8 * FRACUNIT;
+            tmbbox[BBox::LEFT] = -8 * FRACUNIT;
+
+            tmceilingz = 256 * FRACUNIT;
+            tmfloorz = -64 * FRACUNIT;
+            tmdropoffz = -64 * FRACUNIT;
+            crate::doom::m_argv::myargc = 0;
+            crate::doom::m_argv::myargv = std::ptr::null_mut();
+
+            let after_end = std::ptr::addr_of!(spechit) as *const c_int;
+            let sentinel_before: [c_int; 8] = core::array::from_fn(|i| after_end.add(20 + i).read());
+
+            // Push while the counter is already at and past the bound: the
+            // pre-fix build wrote spechit[20] and spechit[25] here.
+            for expected in [20, 25] {
+                numspechit = expected;
+                let rc = PIT_CheckLine(&mut *line);
+                assert_eq!(rc, 1, "line must not block");
+                assert_eq!(numspechit, expected + 1, "counter must still advance");
+            }
+
+            let sentinel_after: [c_int; 8] = core::array::from_fn(|i| after_end.add(20 + i).read());
+            assert_eq!(
+                sentinel_after, sentinel_before,
+                "spechit overflow wrote past the array (tmbbox/static neighbors clobbered)"
+            );
+            for i in 0..MAXSPECIALCROSS {
+                assert!(
+                    spechit_before[i].is_null() || spechit_before[i] == spechit[i],
+                    "in-bounds spechit slot {} unexpectedly rewritten",
+                    i
+                );
+            }
+
+            // Restore.
+            std::ptr::addr_of_mut!(spechit).write(spechit_before);
+            numspechit = numspechit_before;
+            tmbbox = tmbbox_before;
+            tmthing = tmthing_before;
+            tmceilingz = tmceilingz_before;
+            tmfloorz = tmfloorz_before;
+            tmdropoffz = tmdropoffz_before;
+            ceilingline = ceilingline_before;
+            opentop = opentop_b;
+            openbottom = openbottom_b;
+            openrange = openrange_b;
+            lowfloor = lowfloor_b;
+            crate::doom::m_argv::myargc = myargc_b;
+            crate::doom::m_argv::myargv = myargv_b;
+        }
+    }
+
+    #[test]
+    fn pit_check_line_push_stays_in_bounds_beyond_the_array()
+    {
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        drive_pit_check_line_past_spechit_bound();
+    }
+
+    #[test]
+    fn spechit_emulation_records_census_hit()
+    {
+        // Census window: besides the module lock below, the crate-wide
+        // census lock must be held so no sibling census test's reset_all()
+        // zeroes the counter mid-window (see violations.rs).
+        let _census = violations::CENSUS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        violations::reset_all();
+        // Drive PIT_CheckLine across the emulation threshold exactly as the
+        // existing bounds test does (shared fixture, no duplicated
+        // construction); the emulation trigger inside SpechitOverrun must
+        // leave a census hit behind.
+        drive_pit_check_line_past_spechit_bound();
+        assert!(
+            violations::hits(VanillaViolation::SpechitOverrun) > 0,
+            "crossing the spechit emulation threshold must record a census hit"
+        );
     }
 }

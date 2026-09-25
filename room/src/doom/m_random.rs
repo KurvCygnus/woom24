@@ -78,13 +78,7 @@ pub extern "C" fn M_ClearRandom() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    /// Process-wide guard that serialises tests touching the global
-    /// `rndindex`/`prndindex` so parallel `cargo test` invocations do not
-    /// interleave.
-    // Random globals are process-wide; serialise tests that mutate them.
-    static LOCK: Mutex<()> = Mutex::new(());
+    use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
 
     /// Spot-check that `RNDTABLE` still contains the canonical Doom
     /// values at a few known positions.
@@ -100,7 +94,7 @@ mod tests {
     /// of `RNDTABLE` in order (the pre-increment makes index 0 unused).
     #[test]
     fn m_random_walks_the_table() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         assert_eq!(M_Random(), RNDTABLE[1] as c_int);
         assert_eq!(M_Random(), RNDTABLE[2] as c_int);
@@ -111,7 +105,7 @@ mod tests {
     /// first call to either after `M_ClearRandom` returns `RNDTABLE[1]`.
     #[test]
     fn p_and_m_independent() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         let a = M_Random();
         let b = P_Random();
@@ -126,7 +120,7 @@ mod tests {
     /// been advanced by prior calls.
     #[test]
     fn clear_resets_both() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_Random();
         M_Random();
         P_Random();
@@ -140,7 +134,7 @@ mod tests {
     /// `RNDTABLE[1]` then `RNDTABLE[2]`.
     #[test]
     fn p_random_increments_prndindex() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         assert_eq!(P_Random(), RNDTABLE[1] as c_int);
         assert_eq!(P_Random(), RNDTABLE[2] as c_int);
@@ -153,7 +147,7 @@ mod tests {
     /// covered by `clear_resets_both`).
     #[test]
     fn clear_also_resets_prndindex() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         P_Random();
         P_Random();
         M_ClearRandom();
@@ -166,7 +160,7 @@ mod tests {
     /// so the 257th call returns RNDTABLE[1] — identical to the first call.
     #[test]
     fn m_random_wraps_at_256() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         let first = M_Random();
         for _ in 1..256 {
@@ -183,7 +177,7 @@ mod tests {
     /// P_Random and M_Random share the same RNDTABLE but use independent cursors.
     #[test]
     fn p_and_m_cursors_are_independent() {
-        let _g = LOCK.lock().unwrap();
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         // advance M five steps
         for _ in 0..5 {

@@ -12,17 +12,20 @@
 //!   call site compares ASCII (IWAD names, lump names, argument words),
 //!   so ASCII case folding matches the C originals' behavior in the
 //!   "C" locale.
-//! - `strdup`, `mkdir`, and `errno_location` forward to the POSIX or
-//!   UCRT symbol depending on the target. On targets with no CRT at all
-//!   (notably `wasm32-unknown-unknown`) they are still compiled so the
-//!   crate type-checks, but panic with a clear message if ever called;
-//!   the engine's wasm entry points must use the Rust-side I/O paths
-//!   instead.
+//! - `strdup` and `errno_location` forward to the POSIX or UCRT symbol
+//!   depending on the target. On targets with no CRT at all (notably
+//!   `wasm32-unknown-unknown`) they are still compiled so the crate
+//!   type-checks, but panic with a clear message if ever called; the
+//!   engine's wasm entry points must use the Rust-side I/O paths instead.
+//!   `mkdir` follows the same pattern except on `wasm32`, where it degrades
+//!   to `-1` instead of panicking (the engine's only call is a no-op there;
+//!   see the `mkdir` docs).
 
 use std::ffi::{c_char, c_int};
 
 #[cfg(not(target_arch = "wasm32"))]
-extern "C" {
+extern "C"
+{
     #[cfg(unix)]
     #[link_name = "strdup"]
     fn posix_strdup(s: *const c_char) -> *mut c_char;
@@ -50,26 +53,23 @@ extern "C" {
 ///
 /// Reimplemented in Rust rather than declared `extern "C"`: MSVC has no
 /// `strcasecmp` symbol and `wasm32-unknown-unknown` has no libc.
-pub fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    strncasecmp(s1, s2, usize::MAX)
-}
+pub fn strcasecmp(s1: *const c_char, s2: *const c_char) -> c_int { strncasecmp(s1, s2, usize::MAX) }
 
 /// Case-insensitive comparison of at most `n` bytes of two
 /// NUL-terminated C strings, mirroring C `strncasecmp` (ASCII only).
-pub fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
-    unsafe {
+pub fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int
+{
+    unsafe
+    {
         let mut i: usize = 0;
-        while i < n {
+        while i < n
+        {
             let b1 = *s1.add(i) as u8;
             let b2 = *s2.add(i) as u8;
             let l1 = b1.to_ascii_lowercase();
             let l2 = b2.to_ascii_lowercase();
-            if l1 != l2 {
-                return c_int::from(l1) - c_int::from(l2);
-            }
-            if b1 == 0 {
-                return 0;
-            }
+            if l1 != l2 { return c_int::from(l1) - c_int::from(l2); }
+            if b1 == 0 { return 0; }
             i += 1;
         }
     }
@@ -82,15 +82,10 @@ pub fn strncasecmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
 /// # Safety
 ///
 /// `s` must point to a valid, NUL-terminated C string.
-pub unsafe fn strdup(s: *const c_char) -> *mut c_char {
-    #[cfg(unix)]
-    {
-        posix_strdup(s)
-    }
-    #[cfg(windows)]
-    {
-        ucrt_strdup(s)
-    }
+pub unsafe fn strdup(s: *const c_char) -> *mut c_char
+{
+    #[cfg(unix)] { posix_strdup(s) }
+    #[cfg(windows)] { ucrt_strdup(s) }
     #[cfg(not(any(unix, windows)))]
     {
         let _ = s;
@@ -101,22 +96,29 @@ pub unsafe fn strdup(s: *const c_char) -> *mut c_char {
 /// Creates a directory (POSIX `mkdir` / UCRT `_mkdir`; the mode argument
 /// is ignored on Windows).
 ///
+/// On `wasm32-unknown-unknown` (no CRT) this returns `-1` without touching
+/// the filesystem: the web shell's VFS is immutable after registration, and
+/// the engine's only call (`M_MakeDirectory(".")` during boot) is a no-op on
+/// every host anyway — the previous panic there killed every browser boot.
+/// The `-1` degradation matches `M_MakeDirectory`'s "failure is fine"
+/// contract (the caller ignores the result).
+///
 /// # Safety
 ///
 /// `path` must point to a valid, NUL-terminated C string.
-pub unsafe fn mkdir(path: *const c_char, _mode: u32) -> c_int {
-    #[cfg(unix)]
-    {
-        posix_mkdir(path, _mode)
-    }
-    #[cfg(windows)]
-    {
-        ucrt_mkdir(path)
-    }
-    #[cfg(not(any(unix, windows)))]
+pub unsafe fn mkdir(path: *const c_char, _mode: u32) -> c_int
+{
+    #[cfg(unix)] { posix_mkdir(path, _mode) }
+    #[cfg(windows)] { ucrt_mkdir(path) }
+    #[cfg(target_arch = "wasm32")]
     {
         let _ = path;
-        panic!("no CRT on wasm: mkdir() is unavailable on this target")
+        -1
+    }
+    #[cfg(not(any(unix, windows, target_arch = "wasm32")))]
+    {
+        let _ = path;
+        panic!("no CRT on this target: mkdir() is unavailable")
     }
 }
 
@@ -124,33 +126,172 @@ pub unsafe fn mkdir(path: *const c_char, _mode: u32) -> c_int {
 /// (glibc `__errno_location` / UCRT `_errno`).
 ///
 /// Panics on targets with no CRT (`wasm32-unknown-unknown`).
-pub fn errno_location() -> *mut c_int {
+pub fn errno_location() -> *mut c_int
+{
     #[cfg(unix)]
-    unsafe {
-        posix_errno_location()
-    }
+    unsafe { posix_errno_location() }
     #[cfg(windows)]
-    unsafe {
-        ucrt_errno()
-    }
-    #[cfg(not(any(unix, windows)))]
+    unsafe { ucrt_errno() }
+    #[cfg(not(any(unix, windows)))] { panic!("no CRT on wasm: errno is unavailable on this target") }
+}
+
+// ---------------------------------------------------------------------------
+// printf / snprintf shape wrappers
+// ---------------------------------------------------------------------------
+
+/// Values passable as a C variadic printf argument: integers and pointers
+/// (the engine's audited format set never passes floats).
+pub trait CArg { fn into_vararg(self) -> usize; }
+
+impl CArg for usize { fn into_vararg(self) -> usize { self } }
+
+impl CArg for c_int { fn into_vararg(self) -> usize { self as usize } }
+
+impl CArg for u32 { fn into_vararg(self) -> usize { self as usize } }
+
+impl<T> CArg for *const T { fn into_vararg(self) -> usize { self as usize } }
+
+impl<T> CArg for *mut T { fn into_vararg(self) -> usize { self as usize } }
+
+/// `printf(fmt, ...)` for the exact shapes the engine calls, so each call
+/// site keeps natural argument types on every target. Host targets keep the
+/// real variadic `libc::printf`; `wasm32` binds the per-shape symbols
+/// `printf0`..`printf4` exported by the web shell's CRT shim — rust-lld
+/// checks call signatures strictly there and would otherwise replace any
+/// arity-mismatched call with a trapping `signature_mismatch` stub.
+///
+/// # Safety
+///
+/// `fmt` must be a NUL-terminated C string and the arguments must match
+/// its format specifiers, mirroring the C `printf` contract.
+pub unsafe fn c_printf(fmt: *const c_char) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::printf(fmt) }
+    #[cfg(target_arch = "wasm32")] { libc::printf0(fmt) }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf1<A: CArg>(fmt: *const c_char, a: A) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::printf(fmt, a.into_vararg()) }
+    #[cfg(target_arch = "wasm32")] { libc::printf1(fmt, a.into_vararg()) }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf2<A: CArg, B: CArg>(fmt: *const c_char, a: A, b: B) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::printf(fmt, a.into_vararg(), b.into_vararg()) }
+    #[cfg(target_arch = "wasm32")] { libc::printf2(fmt, a.into_vararg(), b.into_vararg()) }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf3<A: CArg, B: CArg, C: CArg>(fmt: *const c_char, a: A, b: B, c: C) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::printf(fmt, a.into_vararg(), b.into_vararg(), c.into_vararg()) }
+    #[cfg(target_arch = "wasm32")] { libc::printf3(fmt, a.into_vararg(), b.into_vararg(), c.into_vararg()) }
+}
+
+/// See [`c_printf`].
+///
+/// # Safety
+///
+/// As [`c_printf`].
+pub unsafe fn c_printf4<A: CArg, B: CArg, C: CArg, D: CArg>(
+    fmt: *const c_char,
+    a: A,
+    b: B,
+    c: C,
+    d: D,
+) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))]
     {
-        panic!("no CRT on wasm: errno is unavailable on this target")
+        libc::printf(
+            fmt,
+            a.into_vararg(),
+            b.into_vararg(),
+            c.into_vararg(),
+            d.into_vararg(),
+        )
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        libc::printf4(
+            fmt,
+            a.into_vararg(),
+            b.into_vararg(),
+            c.into_vararg(),
+            d.into_vararg(),
+        )
     }
 }
 
+/// `snprintf(s, n, fmt, ...)` for the shapes the engine calls; see
+/// [`c_printf`] for why the shapes are fixed per call arity.
+///
+/// # Safety
+///
+/// As [`c_printf`]; `s` must be writable for at least `n` bytes.
+pub unsafe fn c_snprintf1<A: CArg>(s: *mut c_char, n: usize, fmt: *const c_char, a: A) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::snprintf(s, n, fmt, a.into_vararg()) }
+    #[cfg(target_arch = "wasm32")] { libc::snprintf1(s, n, fmt, a.into_vararg()) }
+}
+
+/// See [`c_snprintf1`].
+///
+/// # Safety
+///
+/// As [`c_snprintf1`].
+pub unsafe fn c_snprintf2<A: CArg, B: CArg>(
+    s: *mut c_char,
+    n: usize,
+    fmt: *const c_char,
+    a: A,
+    b: B,
+) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::snprintf(s, n, fmt, a.into_vararg(), b.into_vararg()) }
+    #[cfg(target_arch = "wasm32")] { libc::snprintf2(s, n, fmt, a.into_vararg(), b.into_vararg()) }
+}
+
+/// `sscanf(s, fmt, ...)` for the single-conversion shape the engine calls
+/// (`M_StrToInt`); see [`c_printf`] for why the shape is fixed per arity.
+/// `a` is the output pointer slot.
+///
+/// # Safety
+///
+/// As [`c_printf`]; `a` must point to a writable `c_int`.
+pub unsafe fn c_sscanf1<A: CArg>(s: *const c_char, fmt: *const c_char, a: A) -> c_int
+{
+    #[cfg(not(target_arch = "wasm32"))] { libc::sscanf(s, fmt, a.into_vararg()) }
+    #[cfg(target_arch = "wasm32")] { libc::sscanf1(s, fmt, a.into_vararg()) }
+}
+
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::{strcasecmp, strncasecmp};
     use std::ffi::c_char;
 
     /// Interprets a NUL-terminated byte literal as a C string pointer.
-    fn cstr(b: &[u8]) -> *const c_char {
-        b.as_ptr().cast::<c_char>()
-    }
+    fn cstr(b: &[u8]) -> *const c_char { b.as_ptr().cast::<c_char>() }
 
     #[test]
-    fn strcasecmp_mirrors_c_semantics() {
+    fn strcasecmp_mirrors_c_semantics()
+    {
         // Equal modulo ASCII case.
         assert_eq!(
             strcasecmp(cstr(b"ABCDEFGHIJKLMNOP\0"), cstr(b"abcdefghijklmnop\0")),
@@ -166,7 +307,8 @@ mod tests {
     }
 
     #[test]
-    fn strncasecmp_compares_at_most_n_bytes() {
+    fn strncasecmp_compares_at_most_n_bytes()
+    {
         assert_eq!(strncasecmp(cstr(b"ABCDE\0"), cstr(b"abcde\0"), 5), 0);
         // Differences past the n-byte window are ignored: with n = 3 only
         // "ABC" vs "abc" is inspected, so the later D/X mismatch is not seen.

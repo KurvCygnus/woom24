@@ -15,9 +15,10 @@
 //!
 //! Rust differences from C:
 //! - The C code allocates the screen buffer with `malloc` and never frees it
-//!   (intentional leak in a long-running process).  This port allocates via
-//!   `Vec<u32>` and uses `std::mem::forget` to produce the same intentional
-//!   leak, maintaining ABI equivalence while using Rust allocation.
+//!   (intentional leak in a long-running process).  This port allocates an
+//!   exact-size zeroed buffer with `std::alloc` for the same ABI behavior;
+//!   since F1 M2 the reconfiguration path owns that pointer and swaps it via
+//!   [`realloc_screen_buffer`].
 //! - Several ported Rust modules (`p_ceilng`, `p_doors`, etc.) export
 //!   `#[no_mangle]` functions that are only called from C.  Without an
 //!   explicit reference in Rust, the linker's dead-code elimination (LTO)
@@ -45,20 +46,113 @@ use super::p_telept::P_Telept_Link_Anchor;
 use super::p_user::P_User_Link_Anchor;
 use super::r_main::R_Main_Link_Anchor;
 
-/// Width of the doomgeneric frame buffer in pixels.
+/// Width of the doomgeneric frame buffer in pixels at boot.
 ///
-/// Matches `DOOMGENERIC_RESX` in `doomgeneric.h` (default 640).
+/// Matches `DOOMGENERIC_RESX` in `doomgeneric.h` (default 640). Since F1 M2
+/// the *live* present dimensions are the runtime values behind [`dg_res_x`]
+/// and [`dg_res_y`]; this constant is the boot-time default and the classic
+/// header-parity value only.
 pub const DOOMGENERIC_RESX: usize = 640;
 
-/// Height of the doomgeneric frame buffer in pixels.
+/// Height of the doomgeneric frame buffer in pixels at boot.
 ///
-/// Matches `DOOMGENERIC_RESY` in `doomgeneric.h` (default 400).
+/// Matches `DOOMGENERIC_RESY` in `doomgeneric.h` (default 400); see
+/// [`DOOMGENERIC_RESX`].
 pub const DOOMGENERIC_RESY: usize = 400;
 
-/// Total pixel count for one complete frame (`RESX * RESY`).
+/// Total pixel count for the boot-time present buffer (`RESX * RESY`).
 ///
-/// Convenience constant used when allocating or iterating over [`DG_ScreenBuffer`].
+/// Boot-time constant; the live pixel count is [`dg_pixels`].
 pub const DOOMGENERIC_PIXELS: usize = DOOMGENERIC_RESX * DOOMGENERIC_RESY;
+
+/// Live present-buffer width in pixels. Written only by
+/// [`realloc_screen_buffer`]; read through [`dg_res_x`].
+static mut DG_RES_X: usize = DOOMGENERIC_RESX;
+
+/// Live present-buffer height in pixels. See [`DG_RES_X`].
+static mut DG_RES_Y: usize = DOOMGENERIC_RESY;
+
+/// Live present-buffer width in pixels.
+pub fn dg_res_x() -> usize
+{
+    unsafe { DG_RES_X }
+}
+
+/// Live present-buffer height in pixels.
+pub fn dg_res_y() -> usize
+{
+    unsafe { DG_RES_Y }
+}
+
+/// Live present-buffer dimensions as `(width, height)`.
+pub fn dg_res() -> (usize, usize)
+{
+    (dg_res_x(), dg_res_y())
+}
+
+/// Live present-buffer pixel count (`width * height`).
+pub fn dg_pixels() -> usize
+{
+    dg_res_x() * dg_res_y()
+}
+
+/// Replace the shared present buffer with one of `width x height` pixels.
+///
+/// F1 M2 reconfiguration path: the doomgeneric buffer follows `VideoConfig`
+/// (the raster size times the integer present scale) instead of the fixed
+/// 640x400. The previous allocation is freed through the exact layout that
+/// created it; the boot allocation in [`doomgeneric_Create`] intentionally
+/// leaks only in the C sense of "never freed by the engine loop" — here the
+/// reconfiguration path owns the pointer and reclaims it.
+///
+/// Returns `Err` when the new allocation cannot be made; in that case the
+/// old buffer is left untouched and the caller reports the failure through
+/// the established degradation contract.
+///
+/// # Safety
+///
+/// [`DG_ScreenBuffer`] is replaced; the platform side must not read it
+/// between the swap and the next `DG_DrawFrame` (single-threaded engine
+/// contract). Callers must keep `width * height` within the `VideoConfig`
+/// caps.
+pub unsafe fn realloc_screen_buffer(width: usize, height: usize) -> Result<(), String>
+{
+    let pixels = width
+        .checked_mul(height)
+        .ok_or_else(|| format!("present buffer size overflow for {width}x{height}"))?;
+
+    let new_buffer = alloc_zeroed_pixels(pixels);
+    if new_buffer.is_null()
+    {
+        return Err(format!(
+            "failed to allocate {width}x{height} doomgeneric present buffer"
+        ));
+    }
+
+    if !DG_ScreenBuffer.is_null()
+    {
+        let old_layout = std::alloc::Layout::array::<u32>(dg_pixels())
+            .expect("u32 array layout for the live present buffer is representable");
+        std::alloc::dealloc(DG_ScreenBuffer.cast::<u8>(), old_layout);
+    }
+
+    DG_ScreenBuffer = new_buffer;
+    DG_RES_X = width;
+    DG_RES_Y = height;
+    Ok(())
+}
+
+/// Allocate a zeroed `pixels`-count `u32` buffer with the exact layout this
+/// module later frees. Returns null on allocation failure.
+unsafe fn alloc_zeroed_pixels(pixels: usize) -> *mut u32
+{
+    let Ok(layout) = std::alloc::Layout::array::<u32>(pixels)
+    else
+    {
+        return std::ptr::null_mut();
+    };
+    std::alloc::alloc_zeroed(layout).cast::<u32>()
+}
 
 /// Shared frame-buffer pointer written by the renderer and read by the platform backend.
 ///
@@ -110,6 +204,22 @@ extern "C" {
     static mut myargv: *mut *mut c_char;
 }
 
+/// Whether [`doomgeneric_Create`] has run to completion.
+///
+//* Frame-entry latch (browser BUG A fix): the web shell's rAF loop can call
+//* `doomgeneric_frame`/`doomgeneric_Tick` before (or instead of) a start
+//* entry — every engine global is still zero-initialised then, so the first
+//* `TryRunTics` divides by `ticdup == 0`. The frame entries consult this
+//* latch and no-op until creation has finished; see `d_main.rs`.
+static mut DG_CREATED: bool = false;
+
+/// Returns `true` once [`doomgeneric_Create`] has completed; the frame-entry
+/// points (`doomgeneric_Tick`, `doomgeneric_frame`) no-op before that.
+pub fn dg_created() -> bool
+{
+    unsafe { DG_CREATED }
+}
+
 /// Initialise the Doom engine and enter the main game loop.
 ///
 /// Corresponds to `doomgeneric_Create` in `doomgeneric.c`.  This is the
@@ -125,7 +235,9 @@ extern "C" {
 ///    `Vec` and intentionally leak it so the lifetime matches the C `malloc`
 ///    version.
 /// 5. Call `DG_Init` so the platform backend can create its window/context.
-/// 6. Call `D_DoomMain`, which never returns under normal operation.
+/// 6. Call `D_DoomMain`, which returns once boot completes on this port (the
+///    host then drives frames via the frame entries) and arms the
+///    `DG_CREATED` latch as its last step.
 ///
 /// # Safety
 /// - `argv` must point to an array of at least `argc` valid NUL-terminated
@@ -155,13 +267,27 @@ pub unsafe extern "C" fn doomgeneric_Create(argc: c_int, argv: *mut *mut c_char)
 
     M_FindResponseFile();
 
-    let total_pixels = DOOMGENERIC_RESX * DOOMGENERIC_RESY;
-    let mut buffer = vec![0u32; total_pixels];
-    DG_ScreenBuffer = buffer.as_mut_ptr();
-    std::mem::forget(buffer);
+    // Boot-time present buffer: the classic 640x400 (the default VideoConfig
+    // keeps today's 2x integer doubling of the 320x200 raster). Exact-size
+    // zeroed allocation so the F1 M2 reconfiguration path can free it with
+    // the same layout later.
+    let boot_pixels = DOOMGENERIC_RESX * DOOMGENERIC_RESY;
+    // SAFETY: layout is representable (640*400 u32s); a boot failure to
+    // allocate is unrecoverable and aborts with a diagnostic.
+    let buffer = unsafe { alloc_zeroed_pixels(boot_pixels) };
+    assert!(
+        !buffer.is_null(),
+        "doomgeneric_Create: failed to allocate the {DOOMGENERIC_RESX}x{DOOMGENERIC_RESY} present buffer"
+    );
+    DG_ScreenBuffer = buffer;
 
     DG_Init();
     D_DoomMain();
+
+    // D_DoomMain returns on this port (the host drives subsequent frames via
+    // the frame entries); only from here are those entries safe to enter.
+    // SAFETY: plain static write, main-thread-only engine contract.
+    unsafe { DG_CREATED = true };
 }
 
 #[cfg(test)]

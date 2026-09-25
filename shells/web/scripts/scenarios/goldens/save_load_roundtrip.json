@@ -1,0 +1,95 @@
+{
+  "scenario": "save_load_roundtrip",
+  "provenance": {
+    "commit": "81baa14e06f2df9d59321af582829a340be45e65",
+    "rationale": "Initial blessing of the menu-scripted save/load roundtrip (ESC -> Save Game -> slot 0 -> typed name -> ENTER; play on (turn only, RNG stays frozen); ESC -> Load Game -> slot 0). Anchor saved_a carries state_hash_load (gametic + both RNG indices zeroed -- G_InitNew's M_ClearRandom and the loop tic counter are the words a savegame does not carry, so the full state_hash can never agree across a load); the final expect_state_at_load step re-digests the loaded state after the same idle-tic count and must equal saved_a's load digest. Full state_hash at loaded_a intentionally differs (gametic)."
+  },
+  "anchors": [
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "tic_a",
+      "gametic": 140,
+      "state_hash": "0xa7bad37207530c4a",
+      "frame_hash": null
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "p170",
+      "gametic": 170,
+      "state_hash": "0xc8f263ea1706f905",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "p176",
+      "gametic": 176,
+      "state_hash": "0xdfef44c352d34a45",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "p182",
+      "gametic": 182,
+      "state_hash": "0x10b95e058fee8b85",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "saved_a",
+      "gametic": 184,
+      "state_hash": "0x83dc5f10cd5e9b45",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "turned",
+      "gametic": 218,
+      "state_hash": "0x3422c272dea01e54",
+      "frame_hash": null,
+      "state_hash_load": "0x46a9ac2fcd9a5728"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "q240",
+      "gametic": 240,
+      "state_hash": "0x679ef081832aedf7",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "q244",
+      "gametic": 244,
+      "state_hash": "0xa2e26949b3b31277",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "q252",
+      "gametic": 252,
+      "state_hash": "0xe2606a7cfb451b87",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "q280",
+      "gametic": 280,
+      "state_hash": "0xf7008b777362dd38",
+      "frame_hash": null,
+      "state_hash_load": "0x4783f72fce547a59"
+    },
+    {
+      "scenario": "save_load_roundtrip",
+      "anchor": "loaded_a",
+      "gametic": 280,
+      "state_hash": "0xf7008b777362dd38",
+      "frame_hash": null
+    }
+  ]
+}

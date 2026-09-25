@@ -72,11 +72,12 @@ fn sp_timex_is_16() {
     assert_eq!(c_ffi::SP_TIMEX, 16);
 }
 
-/// `SP_TIMEY = SCREENHEIGHT − 32 = 168` pixels from the top.
+/// `SP_TIMEY = SCREENHEIGHT − 32 = 168` pixels from the top. F1 M2: a
+/// function of the runtime raster height; the default raster pins 168.
 #[test]
 fn sp_timey_is_screenheight_minus_32() {
-    assert_eq!(c_ffi::SP_TIMEY, SCREENHEIGHT - 32);
-    assert_eq!(c_ffi::SP_TIMEY, 168);
+    assert_eq!(c_ffi::SP_TIMEY(), unsafe { SCREENHEIGHT } - 32);
+    assert_eq!(c_ffi::SP_TIMEY(), 168);
 }
 
 /// `SHOWNEXTLOCDELAY = 4` tics before showing the "next level" map dot.

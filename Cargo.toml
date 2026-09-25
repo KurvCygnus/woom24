@@ -5,5 +5,7 @@ members = [
     "doomgeneric-sys",
     "room",
     "shells/native",
+    "shells/web",
+    "shells/web/crt",
 ]
 resolver = "2"

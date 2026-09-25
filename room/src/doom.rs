@@ -35,6 +35,7 @@ pub mod dummy;
 pub mod f_finale;
 pub mod f_wipe;
 pub mod g_game;
+pub mod harness_hash;
 pub mod hu_lib;
 pub mod hu_stuff;
 pub mod i_cdmus;
@@ -79,6 +80,7 @@ pub mod p_user;
 pub mod r_bsp;
 pub mod r_data;
 pub mod r_draw;
+pub mod r_interp;
 pub mod r_main;
 pub mod r_plane;
 pub mod r_segs;
@@ -93,6 +95,8 @@ pub mod statdump;
 pub mod statenum;
 pub mod tables;
 pub mod v_video;
+pub mod video_cfg;
+pub mod violations;
 pub mod w_checksum;
 pub mod w_file;
 pub mod w_main;
@@ -100,8 +104,9 @@ pub mod w_wad;
 pub mod wi_stuff;
 pub mod z_zone;
 
-// Differential C-vs-Rust tests assume the LP64 data model
-// (`c_long`/`c_ulong` == 8 bytes, see `c_tests/harness.rs`); Windows is
-// LLP64, so this suite is Unix-only until that is audited.
+// Differential C-vs-Rust tests: LP64-only by policy -- the oracle is the
+// compiled C side (see docs/audit-c-long.md and
+// docs/spec-3-c-tests-lp64.md). Wasm determinism is
+// anchored by golden demo tests on the host (same simulation code).
 #[cfg(all(test, unix))]
 mod c_tests;

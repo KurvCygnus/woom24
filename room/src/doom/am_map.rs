@@ -572,15 +572,70 @@ pub static mut automapactive: c_int = 0;
 
 /// Width of the automap framebuffer window in pixels.
 ///
-/// Initialised to `SCREENWIDTH`; the automap always fills the full screen
-/// width.  C origin: `finit_width` in am_map.c.
-static mut finit_width: c_int = SCREENWIDTH;
+/// The automap always fills the full screen width; refreshed from the
+/// runtime raster width on every [`AM_initVariables`] (crispy moved the same
+/// pair out of static initializers when `SCREENWIDTH` went runtime).
+/// C origin: `finit_width` in am_map.c.
+static mut finit_width: c_int = 320;
 
 /// Height of the automap framebuffer window in pixels.
 ///
-/// `SCREENHEIGHT - 32` to leave room for the status bar.
-/// C origin: `finit_height` in am_map.c.
-static mut finit_height: c_int = SCREENHEIGHT - 32;
+/// `SCREENHEIGHT - 32` to leave room for the status bar; refreshed on every
+/// [`AM_initVariables`].  C origin: `finit_height` in am_map.c.
+static mut finit_height: c_int = 168;
+
+/// Re-seat the automap's latched video state after the raster moved under
+/// it (fix round 1, Critical 2).
+///
+/// A `video_cfg` reconfiguration swaps `I_VideoBuffer`; the automap's
+/// `fb` copy then points into freed zone memory (UAF) and stale
+/// `finit_width`/`finit_height` defeat the `AM_drawFline` clipping bounds.
+/// While the map is open the view window and scale are also re-fit over
+/// the new extent — `AM_LevelInit`'s re-seat minus the per-level mark
+/// clear, because a resolution switch must not erase player marks.
+///
+/// Chosen over a per-frame re-seat in `AM_Drawer` (the other option the
+/// review offered): re-reading `I_VideoBuffer` every frame keeps `fb`
+/// fresh but leaves `finit_*`/`f_w`/`f_h` stale — still an out-of-bounds
+/// hazard on a down-switch — and adds static reads to the draw hot path.
+/// The change-detecting re-seat (see `AM_Drawer`) runs once per
+/// reconfiguration and re-fits everything together.
+pub unsafe fn AM_reseatVideoState()
+{
+    fb = I_VideoBuffer;
+    finit_width = SCREENWIDTH;
+    finit_height = SCREENHEIGHT - 32;
+
+    if automapactive != 0
+    {
+        f_x = 0;
+        f_y = 0;
+        f_w = finit_width;
+        f_h = finit_height;
+        AM_findMinMaxBoundaries();
+        scale_mtof = FixedDiv(min_scale_mtof, (0.7 * FRACUNIT as f64) as fixed_t);
+        if scale_mtof > max_scale_mtof
+        {
+            scale_mtof = min_scale_mtof;
+        }
+        scale_ftom = FixedDiv(FRACUNIT, scale_mtof);
+        AM_activateNewScale();
+    }
+}
+
+/// The automap's latched framebuffer pointer (test / verification accessor
+/// for the fix-round-1 re-seat).
+pub fn am_framebuffer() -> *mut u8
+{
+    unsafe { fb }
+}
+
+/// The automap's window extent as `(finit_width, finit_height)` (test /
+/// verification accessor for the fix-round-1 re-seat).
+pub fn am_window_dims() -> (c_int, c_int)
+{
+    unsafe { (finit_width, finit_height) }
+}
 
 /// Left edge of the automap window in screen pixels.
 ///
@@ -1069,6 +1124,12 @@ unsafe fn AM_changeWindowLoc() {
 unsafe fn AM_initVariables() {
     automapactive = 1;
     fb = I_VideoBuffer;
+
+    // F1 M2: the automap window tracks the live raster (finit_height keeps
+    // the 32-row status-bar reservation). Crispy moved the same pair out of
+    // static initializers when SCREENWIDTH became runtime.
+    finit_width = SCREENWIDTH;
+    finit_height = SCREENHEIGHT - 32;
 
     f_oldloc.x = c_int::MAX;
     amclock = 0;
@@ -2133,6 +2194,16 @@ unsafe fn AM_drawCrosshair(color: c_int) {
 pub unsafe extern "C" fn AM_Drawer() {
     if automapactive == 0 {
         return;
+    }
+
+    // Fix round 1 (Critical 2): a video_cfg reconfiguration while the map is
+    // open moves the raster under the latched video state; re-seat before
+    // the first `AM_clearFB` write. The fb compare catches even an
+    // A->B->A pair of swaps between two map frames (finit dims alone would
+    // not); detect-by-diff so normal frames pay nothing and user zoom is
+    // untouched.
+    if fb != I_VideoBuffer || finit_width != SCREENWIDTH || finit_height != SCREENHEIGHT - 32 {
+        AM_reseatVideoState();
     }
 
     AM_clearFB(BACKGROUND);

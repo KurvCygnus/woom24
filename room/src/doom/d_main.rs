@@ -9,7 +9,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
-use crate::doom::crt::{strcasecmp, strncasecmp};
+use crate::doom::crt::{c_snprintf2, strcasecmp, strncasecmp};
 use crate::doom::d_mode;
 use crate::doom::d_player::{consoleplayer, players, MAXPLAYERS};
 use crate::doom::doomstat::{gamedescription, gamemission, gamemode, gameversion, modifiedgame};
@@ -425,7 +425,12 @@ use crate::doom::d_net::{D_CheckNetGame, D_ConnectNetGame};
 use crate::doom::d_event::D_PopEvent;
 
 // d_loop.rs
-use crate::doom::d_loop::{gametic, D_StartGameLoop, NetUpdate, TryRunTics};
+use crate::doom::d_loop::{
+    gametic, pump_tic_cap, singletics, D_StartGameLoop, NetUpdate, TryRunTics,
+};
+
+// r_interp.rs
+use crate::doom::r_interp;
 
 // d_iwad.rs
 use crate::doom::d_iwad::{D_FindIWAD, D_SaveGameIWADName};
@@ -762,6 +767,19 @@ pub extern "C" fn D_Display() {
             }
 
             wipestart = nowtime;
+            // F1 M1: refresh the interpolation fraction once per wipe
+            // iteration — the wipe presents many frames per simulated tic
+            // (Woof! re-samples per wipe pass, `d_main.c:396-401`).
+            // Fix round 1 (review Important 3/4): the poll itself is gated
+            // on board activity, not just the samples — the legacy
+            // `doomgeneric_Tick` path never arms the board, so it must not
+            // pay the extra `I_GetTimeMS` polls either. That keeps the
+            // tick/clock-poll pattern (and the demo golden baselines built
+            // on it) exactly at the c7bda6c baseline, and the code now
+            // matches the gate this comment always claimed.
+            if r_interp::board_active() {
+                r_interp::refresh_fraction();
+            }
             let done = wipe_ScreenWipe(
                 1, // wipe_Melt
                 0,
@@ -887,19 +905,106 @@ extern "C" fn D_GrabMouseCallback() -> Boolean {
 }
 
 // ---------------------------------------------------------------------------
-// doomgeneric_Tick
+// doomgeneric_Tick / doomgeneric_frame
 // ---------------------------------------------------------------------------
 
 /// Execute one rendered frame: run game tics, update sounds, and draw the display.
 ///
 /// Called by the doomgeneric platform layer once per video frame.
+///
+//* Engine-created latch (browser BUG A fix): a host may drive this entry
+//* before `doomgeneric_Create` (the web loader starts its rAF loop with the
+//* launcher UI, whose Start click performs the creation much later). Every
+//* engine global is still zero-initialised then — `TryRunTics` divides by
+//* `ticdup == 0` — so the call must no-op entirely, without pumping,
+//* presenting, or touching any engine state.
 #[no_mangle]
 pub extern "C" fn doomgeneric_Tick() {
+    if !crate::doom::doomgeneric::dg_created() {
+        return;
+    }
     unsafe {
         // Frame synchronous IO operations
         I_StartFrame();
 
         TryRunTics(); // will run at least one tic
+
+        // Update positional sounds
+        let console = consoleplayer;
+        let mo = if console >= 0 && (console as usize) < MAXPLAYERS {
+            players[console as usize].mo
+        } else {
+            std::ptr::null_mut()
+        };
+        S_UpdateSounds(mo as *mut crate::doom::s_sound::MobjStub);
+
+        // Update display
+        if screenvisible != 0 {
+            D_Display();
+        }
+    }
+}
+
+/// Maximum tics one [`doomgeneric_frame`] call may pump. A browser tab that
+/// was suspended returns with seconds of accumulated clock debt; pumping all
+/// of it (what the references do, `woof/src/d_loop.c:777-785`) would freeze
+/// the tab for the whole debt. Four tics (~114 ms of simulation) bound the
+/// catch-up per frame — a woom24 browser-shell POLICY, never a simulation
+/// policy; the human pass may tune the constant (config constant, not a
+/// setting).
+pub const MAX_TICS_PER_FRAME: c_int = 4;
+
+/// Frame/pump split (F1 M1): advance simulation by 0..`MAX_TICS_PER_FRAME`
+/// tics, then present exactly one interpolated frame.
+///
+/// `now_ms` must come from the same clock the shell feeds to
+/// `DG_GetTicksMs` — the fraction interpolating between the last two tic
+/// boundaries is derived from it via the engine's own timer baseline, so no
+/// new time source exists (Woof! computes the same quantity per `D_Display`,
+/// `d_main.c:255-261`). When no full tic period has elapsed the call pumps
+/// zero tics and still presents — that is what uncaps the render rate.
+///
+/// The legacy [`doomgeneric_Tick`] stays for tests and compat: it always runs
+/// at least one tic and never activates the interpolation board, so its
+/// output stays bit-identical to the pre-F1 engine.
+///
+//* Engine-created latch (browser BUG A fix, same rationale as
+//* [`doomgeneric_Tick`]): a pre-`doomgeneric_Create` call would pump
+//* `TryRunTics` into a zero-initialised engine (`ticdup == 0` division) and
+//* present an unrendered screen buffer — no-op until creation has finished.
+#[no_mangle]
+pub extern "C" fn doomgeneric_frame(now_ms: u32) {
+    if !crate::doom::doomgeneric::dg_created() {
+        return;
+    }
+    unsafe {
+        // Frame synchronous IO operations
+        I_StartFrame();
+
+        // One fraction sample per present (render-loop state only).
+        r_interp::begin_frame(now_ms);
+
+        // Pump 0..N tics through the existing ticker: only call TryRunTics
+        // when the engine clock has a due tic, so the call never blocks; the
+        // cap keeps the catch-up burst bounded. The cap is shell
+        // CONFIGURATION (set once, sticky) — the deterministic landing tests
+        // dial it to 1 for their tic-exact landing crawl.
+        if pump_tic_cap == 0 {
+            pump_tic_cap = MAX_TICS_PER_FRAME;
+        }
+        // Per-frame budget: the sticky cap (a test dial may lower it).
+        let budget = if pump_tic_cap < MAX_TICS_PER_FRAME {
+            pump_tic_cap
+        } else {
+            MAX_TICS_PER_FRAME
+        };
+        let start_gametic = gametic;
+        while gametic - start_gametic < budget {
+            if singletics == 0 && I_GetTime() <= gametic {
+                break; // next tic period not reached; present instead of waiting
+            }
+            TryRunTics();
+        }
 
         // Update positional sounds
         let console = consoleplayer;
@@ -1129,7 +1234,7 @@ unsafe fn GetGameName(gamename: *mut c_char) -> *mut c_char {
             // exactly two `%i` specifiers (matching the banner patterns), and `version/100` /
             // `version%100` are both `c_int` values that satisfy them. `expanded` has room for
             // `gamename_size` bytes. Dynamic format from DEH — cannot use c_write! (not a literal).
-            let result = libc::snprintf(
+            let result = c_snprintf2(
                 expanded,
                 gamename_size,
                 deh_sub,

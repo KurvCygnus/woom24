@@ -1,0 +1,30 @@
+{
+  "scenario": "sf2_music",
+  "provenance": {
+    "commit": "81baa14e06f2df9d59321af582829a340be45e65",
+    "rationale": "Negative-contract blessing (defect B, F9 spec §Problem): SF2 name 'test.sf2' is in the boot profile but registered nowhere, so the engine's exists() gate cannot see it -- the flow pins the warning 'No soundfont found' on the captured warn channel plus music_active=false / zero counters via harness_audio_stats. EXPECTED FLIP: when the fork bridges the SF2 gate to the backend, this warning disappears and the flow must be upgraded to the positive contract (music_active=true with a real committed SF2 fixture); until then the warning assert is the defect-B catch, blessed as-is."
+  },
+  "anchors": [
+    {
+      "scenario": "sf2_music",
+      "anchor": "t140",
+      "gametic": 140,
+      "state_hash": "0x238003c052dd095a",
+      "frame_hash": null
+    },
+    {
+      "scenario": "sf2_music",
+      "anchor": "t490",
+      "gametic": 490,
+      "state_hash": "0xee1b43713c3387dd",
+      "frame_hash": null
+    },
+    {
+      "scenario": "sf2_music",
+      "anchor": "t980",
+      "gametic": 980,
+      "state_hash": "0x876bbed570809f3c",
+      "frame_hash": "0x59b5d1a98f8f73cd"
+    }
+  ]
+}

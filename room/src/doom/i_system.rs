@@ -12,17 +12,25 @@
 
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
+use crate::doom::crt::{c_printf, c_printf2};
 use crate::doom::m_argv::{myargc, myargv, M_CheckParmWithArgs, M_ParmExists};
 use crate::doom::m_misc::M_StrToInt;
 use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
 use std::ptr;
+use std::sync::Mutex;
 
 use crate::i_error;
 use crate::types::Boolean;
 
 /// Default size of the zone heap, in MiB, when `-mb` is not supplied.
 /// Mirrors the `DEFAULT_RAM` macro in `i_system.c`.
-const DEFAULT_RAM: c_int = 6; // MiB
+///
+//* Deviation from vanilla's 6: the vanilla-DOS budget starves the modern
+//* tenant mix (640x400 present-path buffers, accumulated level caches) on
+//* the restart path - spec 4 defect A froze at wipe_init_melt's 1,280-byte
+//* Z_Malloc. Zone size is not observable by demos or any cataloged
+//* emulation (see docs/vanilla-workarounds.md, zone sizing policy).
+const DEFAULT_RAM: c_int = 32; // MiB
 
 /// Minimum size of the zone heap, in MiB. `AutoAllocMemory` keeps
 /// halving the request until it succeeds or drops below this floor.
@@ -131,7 +139,7 @@ pub extern "C" fn I_ZoneBase(size: *mut c_int) -> *mut u8 {
 
         let zonemem = AutoAllocMemory(size, default_ram, min_ram);
 
-        libc::printf(
+        c_printf2(
             c"zone memory: %p, %x allocated for zone\n".as_ptr(),
             zonemem,
             *size,
@@ -179,7 +187,7 @@ pub extern "C" fn I_PrintStartupBanner(gamedescription: *mut c_char) {
         I_PrintDivider();
         I_PrintBanner(gamedescription);
         I_PrintDivider();
-        libc::printf(
+        c_printf(
             c" Room, like Doom Generic, is free software, covered by the GNU General Public\n License.  There is NO warranty; not even for MERCHANTABILITY or FITNESS\n FOR A PARTICULAR PURPOSE. You are welcome to change and distribute\n copies under certain conditions. See the source for more information.\n".as_ptr(),
         );
         I_PrintDivider();
@@ -265,6 +273,29 @@ unsafe fn ZenityErrorBox(message: *const c_char) -> c_int {
     }
 }
 
+/// Last message passed to `I_Error`, for hosts that render crash state
+/// (wasm page overlay, headless harness assertions). Diagnostics only:
+/// never read by simulation.
+static LAST_I_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+/// Record `msg` as the last `I_Error` message. Poisoning-tolerant by
+/// design: a lost message on the fatal path is acceptable, a second
+/// panic there is not.
+fn set_last_i_error(msg: String)
+{
+    if let Ok(mut slot) = LAST_I_ERROR.lock()
+    {
+        *slot = Some(msg);
+    }
+}
+
+/// Host-facing reader for the last `I_Error` message. `None` = no fatal
+/// error has fired this process.
+pub fn last_i_error() -> Option<String>
+{
+    LAST_I_ERROR.lock().ok().and_then(|s| s.clone())
+}
+
 /// Fatal error handler: prints `msg` to stderr, runs all
 /// `run_on_error` exit callbacks, optionally pops up a GUI dialog,
 /// then terminates with exit code -1. Never returns.
@@ -277,7 +308,7 @@ unsafe fn ZenityErrorBox(message: *const c_char) -> c_int {
 /// pre-formatted C string - the `i_error!` macro takes care of
 /// formatting on the caller side.
 #[no_mangle]
-pub extern "C" fn I_Error(msg: *const c_char) {
+pub extern "C" fn I_Error(msg: *const c_char) -> ! {
     unsafe {
         static mut already_quitting: bool = false;
 
@@ -288,7 +319,15 @@ pub extern "C" fn I_Error(msg: *const c_char) {
         }
 
         let msg_cstr = CStr::from_ptr(msg);
-        eprintln!("{}", msg_cstr.to_string_lossy());
+        let msg_str = msg_cstr.to_string_lossy().into_owned();
+        //* wasm targets have no stderr, so the message would be lost
+        //* entirely; the log facade (routed to the host console by the
+        //* shells) is the only channel that reaches the user there.
+        //* The last-error channel additionally survives the exit trap, so
+        //* the page overlay and harness can read it after death.
+        set_last_i_error(msg_str.clone());
+        log::error!("{}", msg_str);
+        eprintln!("{}", msg_str);
         eprintln!();
 
         let mut entry = exit_funcs;
@@ -304,7 +343,7 @@ pub extern "C" fn I_Error(msg: *const c_char) {
             ZenityErrorBox(msg);
         }
 
-        std::process::exit(-1);
+        std::process::exit(-1)
     }
 }
 
@@ -478,4 +517,40 @@ pub unsafe extern "C" fn I_System_Link_Anchor() {
     I_PrintDivider();
     I_PrintStartupBanner(ptr::null_mut());
     I_ErrorV(ptr::null());
+}
+
+#[cfg(test)]
+mod tests
+{
+    use super::*;
+
+    #[test]
+    fn zone_base_default_is_32_mib()
+    {
+        // The restart-melt freeze (spec 4 defect A) exhausted the 6 MiB
+        // vanilla-DOS budget; the modern tenant mix needs headroom. The -mb
+        // override path is untouched code and pins MIN_RAM semantics.
+        let mut size: c_int = 0;
+        let base = I_ZoneBase(&mut size);
+        assert_eq!(size, 32 * 1024 * 1024, "default zone budget must be 32 MiB");
+        assert!(!base.is_null(), "I_ZoneBase must return a live zone base");
+        // Leak on purpose: the zone is process-lifetime state (exactly what the
+        // engine does at boot); freeing it would need Z_Free machinery not wired
+        // to raw malloc'd bases.
+    }
+
+    #[test]
+    fn last_i_error_roundtrip()
+    {
+        // Host-safe: this exercises the set/last pair directly - calling
+        // `I_Error` itself would exit the test process.
+        super::set_last_i_error("Z_Malloc: failed on allocation".to_string());
+        assert_eq!(
+            super::last_i_error().as_deref(),
+            Some("Z_Malloc: failed on allocation"),
+            "the shell overlay and harness must read the exact I_Error text"
+        );
+        super::set_last_i_error("second".to_string());
+        assert_eq!(super::last_i_error().as_deref(), Some("second"), "latest wins");
+    }
 }

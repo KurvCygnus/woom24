@@ -23,17 +23,23 @@ bytemuck = { version = "1", features = ["derive"] }
 # Logging facade.
 log = "0.4"
 
-# Pure-Rust SF2 soundfont synthesizer. The music playback data plane (mixer
-# graph + soundfont rendering) moved to the native shell; kept listed here
-# because the engine's `doom::i_sound` docs still reference the
-# rustysynth-backed music path.
+# Pure-Rust SF2 soundfont synthesizer. Backs the shell-independent synthesis
+# core in `src/audio/synth.rs` (`SynthFont`/`SynthEngine`): the single
+# "MIDI bytes -> interleaved stereo f32" implementation shared by the native
+# and web audio output adapters.
 rustysynth = "1"
-
-# libc bindings for C FFI (FILE, fopen, fclose, fseek, fread, printf, etc.)
-libc = "0.2"
 
 # Optional heap profiler (use with --features dhat-heap).
 dhat = { version = "0.3", optional = true }
+
+# libc bindings for C FFI (FILE, fopen, fclose, fseek, fread, printf, etc.)
+# Host targets keep the real libc; wasm32 swaps in this repo's declaration
+# shim, implemented in shells/web/src/wasm_vfs.rs (spec 2 D1).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+woom24-libc = { path = "../shells/web/crt" }
 
 [dev-dependencies]
 # Simple logger backed by stderr (used by the demo_playthrough integration test).

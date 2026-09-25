@@ -66,7 +66,8 @@ pub mod types;
 /// copies of these stubs; this module only exists under `cfg(test)` and is
 /// never part of the shipped library.
 #[cfg(test)]
-mod dg_test_stubs {
+mod dg_test_stubs
+{
     #[no_mangle]
     extern "C" fn DG_Init() {}
     #[no_mangle]
@@ -74,13 +75,9 @@ mod dg_test_stubs {
     #[no_mangle]
     extern "C" fn DG_SleepMs(_ms: u32) {}
     #[no_mangle]
-    extern "C" fn DG_GetTicksMs() -> u32 {
-        0
-    }
+    extern "C" fn DG_GetTicksMs() -> u32 { 0 }
     #[no_mangle]
-    extern "C" fn DG_GetKey(_pressed: *mut i32, _doom_key: *mut u8) -> i32 {
-        0
-    }
+    extern "C" fn DG_GetKey(_pressed: *mut i32, _doom_key: *mut u8) -> i32 { 0 }
     #[no_mangle]
     extern "C" fn DG_SetWindowTitle(_title: *const std::ffi::c_char) {}
 }

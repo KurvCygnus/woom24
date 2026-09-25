@@ -15,7 +15,7 @@
 use std::ffi::{c_int, c_short};
 
 use crate::doom::c_ffi;
-use crate::doom::i_video::SCREENWIDTH;
+use crate::doom::video_cfg::MAX_SCREENWIDTH;
 use crate::doom::m_fixed::FRACUNIT;
 
 // ---------------------------------------------------------------------------
@@ -158,24 +158,25 @@ fn spritename_initially_null() {
 }
 
 // ---------------------------------------------------------------------------
-// Clipping arrays – length == SCREENWIDTH
+// Clipping arrays – length == MAX_SCREENWIDTH (F1 M2, boom
+// `MAX_SCREENWIDTH` array shape; only [0..viewwidth] is initialised and read)
 // ---------------------------------------------------------------------------
 
-/// `negonearray` is `short negonearray[SCREENWIDTH]`; used to initialise the
-/// bottom-clip array for psprite rendering.
+/// `negonearray` is `short negonearray[MAX_SCREENWIDTH]`; used to initialise
+/// the bottom-clip array for psprite rendering.
 #[test]
 fn negonearray_length_is_screenwidth() {
     unsafe {
-        assert_eq!(c_ffi::negonearray.len(), SCREENWIDTH as usize);
+        assert_eq!(c_ffi::negonearray.len(), MAX_SCREENWIDTH as usize);
     }
 }
 
-/// `screenheightarray` is `short screenheightarray[SCREENWIDTH]`; used to
+/// `screenheightarray` is `short screenheightarray[MAX_SCREENWIDTH]`; used to
 /// initialise the top-clip array for psprite rendering.
 #[test]
 fn screenheightarray_length_is_screenwidth() {
     unsafe {
-        assert_eq!(c_ffi::screenheightarray.len(), SCREENWIDTH as usize);
+        assert_eq!(c_ffi::screenheightarray.len(), MAX_SCREENWIDTH as usize);
     }
 }
 

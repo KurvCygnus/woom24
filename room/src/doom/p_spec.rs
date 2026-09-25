@@ -40,6 +40,7 @@ use crate::doom::r_data::{
     R_TextureNumForName,
 };
 use crate::doom::s_sound::S_StartSound;
+use crate::doom::violations::{self, VanillaViolation};
 use crate::doom::z_zone::PU_LEVSPEC;
 use crate::i_error;
 
@@ -1317,6 +1318,7 @@ pub unsafe extern "C" fn EV_DoDonut(line: *mut line_t) -> c_int {
 
             let (s3_floorheight, s3_floorpic) = if s3.is_null() {
                 eprintln!("EV_DoDonut: WARNING: emulating buffer overrun due to NULL back sector. Unexpected behavior may occur in Vanilla Doom.");
+                violations::record(VanillaViolation::DonutOverrun);
                 let mut fh = 0;
                 let mut fp = 0i16;
                 DonutOverrun(&mut fh, &mut fp, line, s1);

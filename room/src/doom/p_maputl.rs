@@ -18,6 +18,7 @@ use crate::doom::c_ffi::{
 use crate::doom::info::*;
 use crate::doom::m_fixed::{fixed_t, FixedDiv, FixedMul};
 use crate::doom::m_fixed::{FRACBITS, FRACUNIT};
+use crate::doom::violations::{self, VanillaViolation};
 
 /// The original Doom intercepts array capacity (128 entries).
 ///
@@ -700,6 +701,7 @@ unsafe fn InterceptsOverrun(num_intercepts: c_int, intercept: *mut intercept_t) 
     if num_intercepts <= MAXINTERCEPTS_ORIGINAL as c_int {
         return;
     }
+    violations::record(VanillaViolation::InterceptsOverrun);
     let location = (num_intercepts - MAXINTERCEPTS_ORIGINAL as c_int - 1) * 12;
     InterceptsMemoryOverrun(location, (*intercept).frac);
     InterceptsMemoryOverrun(location + 4, (*intercept).isaline);

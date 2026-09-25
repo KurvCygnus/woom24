@@ -26,7 +26,8 @@
 
 use std::path::PathBuf;
 
-fn main() {
+fn main()
+{
     let vendor = PathBuf::from("../vendor/doomgeneric");
 
     // Emit cargo rerun-if-changed directives so the build is incremental.
@@ -195,35 +196,34 @@ fn main() {
 
     let mut build = cc::Build::new();
 
-    build
+    build.
         // Use the vendor directory for include resolution.
-        .include(&vendor)
+        include(&vendor).
         // Match the original doomgeneric Linux build flags.
-        .define("NORMALUNIX", None)
-        .define("LINUX", None)
-        .define("_DEFAULT_SOURCE", None)
+        define("NORMALUNIX", None).
+        define("LINUX", None).
+        define("_DEFAULT_SOURCE", None).
         // Do NOT define FEATURE_MULTIPLAYER – networking code is compiled
         // out via #ifdef guards throughout the source.
         // Do NOT define FEATURE_SOUND – sound is out of scope.
-        .flag_if_supported("-Wno-unused-parameter")
-        .flag_if_supported("-Wno-sign-compare")
-        .flag_if_supported("-Wno-implicit-fallthrough")
-        .flag_if_supported("-Wno-unused-but-set-variable")
-        .flag_if_supported("-Wno-maybe-uninitialized");
+        flag_if_supported("-Wno-unused-parameter").
+        flag_if_supported("-Wno-sign-compare").
+        flag_if_supported("-Wno-implicit-fallthrough").
+        flag_if_supported("-Wno-unused-but-set-variable").
+        flag_if_supported("-Wno-maybe-uninitialized");
 
     // If the user is running with AddressSanitizer on the Rust side, also
     // instrument the C code so that overflows in C are reported with exact
     // line numbers instead of being hidden behind the FFI boundary.
-    if std::env::var("ASAN").is_ok() {
-        build
-            .flag_if_supported("-fsanitize=address")
-            .flag_if_supported("-fno-omit-frame-pointer")
-            .flag_if_supported("-g");
+    if std::env::var("ASAN").is_ok()
+    {
+        build.
+            flag_if_supported("-fsanitize=address").
+            flag_if_supported("-fno-omit-frame-pointer").
+            flag_if_supported("-g");
     }
 
-    for src in lib_sources {
-        build.file(vendor.join(src));
-    }
+    for src in lib_sources { build.file(vendor.join(src)); }
 
     // Exposes C #define constants and struct layout values for Rust layout-guard tests.
     build.file("test_helpers.c");

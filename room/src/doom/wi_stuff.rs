@@ -32,6 +32,7 @@ use std::cell::UnsafeCell;
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
+use crate::doom::crt::c_printf1;
 use crate::doom::d_event::event_t;
 use crate::doom::d_mode;
 use crate::doom::d_player::MAXPLAYERS;
@@ -70,7 +71,12 @@ const SP_STATSY: c_int = 50;
 /// Screen x of the time display in single-player view (matches C `SP_TIMEX`).
 const SP_TIMEX: c_int = 16;
 /// Screen y of the time display in single-player view (matches C `SP_TIMEY`).
-const SP_TIMEY: c_int = SCREENHEIGHT - 32;
+/// F1 M2: `SCREENHEIGHT` is the runtime raster height, so SP_TIMEY is
+/// computed at the call sites instead of baked into a const.
+fn SP_TIMEY() -> c_int {
+    let height = unsafe { SCREENHEIGHT };
+    height - 32
+}
 
 /// Screen y of the stats header row in netgame view (matches C `NG_STATSY`).
 const NG_STATSY: c_int = 50;
@@ -867,7 +873,7 @@ unsafe fn WI_drawOnLnode(n: c_int, c: *mut *mut patch_t) {
             *c.offset(i as isize),
         );
     } else {
-        libc::printf(c"Could not place patch on level %d".as_ptr(), n + 1);
+        c_printf1(c"Could not place patch on level %d".as_ptr(), n + 1);
     }
 }
 
@@ -1814,12 +1820,12 @@ unsafe fn WI_drawStats() {
     V_DrawPatch(SP_STATSX, SP_STATSY + 2 * lh, sp_secret);
     WI_drawPercent(SCREENWIDTH - SP_STATSX, SP_STATSY + 2 * lh, cnt_secret[0]);
 
-    V_DrawPatch(SP_TIMEX, SP_TIMEY, timepatch);
-    WI_drawTime(SCREENWIDTH / 2 - SP_TIMEX, SP_TIMEY, cnt_time);
+    V_DrawPatch(SP_TIMEX, SP_TIMEY(), timepatch);
+    WI_drawTime(SCREENWIDTH / 2 - SP_TIMEX, SP_TIMEY(), cnt_time);
 
     if (*wbs).epsd < 3 {
-        V_DrawPatch(SCREENWIDTH / 2 + SP_TIMEX, SP_TIMEY, par);
-        WI_drawTime(SCREENWIDTH - SP_TIMEX, SP_TIMEY, cnt_par);
+        V_DrawPatch(SCREENWIDTH / 2 + SP_TIMEX, SP_TIMEY(), par);
+        WI_drawTime(SCREENWIDTH - SP_TIMEX, SP_TIMEY(), cnt_par);
     }
 }
 

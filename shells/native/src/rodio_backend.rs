@@ -24,7 +24,8 @@ use crate::audio_music::MusicState;
 /// `S` is the underlying mono source; `buffered` holds the input sample
 /// between the left output and the right output so each input frame produces
 /// exactly two output frames.
-pub(crate) struct PannedSource<S> {
+pub(crate) struct PannedSource<S>
+{
     /// Mono input source.  Read once per emitted stereo frame.
     inner: S,
     /// Shared gain state, read every output sample.
@@ -35,12 +36,15 @@ pub(crate) struct PannedSource<S> {
 }
 
 /// Construction helper for [`PannedSource`].
-impl<S: Source> PannedSource<S> {
+impl<S: Source> PannedSource<S>
+{
     /// Wrap `inner` and pair it with a shared [`PanState`] for live gain
     /// updates.  The wrapped source must be mono; multi-channel input is
     /// unsupported (only one input sample is read per emitted stereo frame).
-    pub(crate) fn new(inner: S, pan: Arc<PanState>) -> Self {
-        Self {
+    pub(crate) fn new(inner: S, pan: Arc<PanState>) -> Self
+    {
+        Self
+        {
             inner,
             pan,
             buffered: None,
@@ -49,16 +53,20 @@ impl<S: Source> PannedSource<S> {
 }
 
 /// Iterator impl producing alternating left/right samples.
-impl<S: Source> Iterator for PannedSource<S> {
+impl<S: Source> Iterator for PannedSource<S>
+{
     type Item = f32;
 
     /// Pull one stereo sample. State machine on `buffered`: when empty,
     /// fetch a fresh mono sample from `inner`, cache it, and emit it
     /// scaled by the left gain; when full, emit the cached sample
     /// scaled by the right gain and clear the cache.
-    fn next(&mut self) -> Option<f32> {
-        match self.buffered.take() {
-            None => {
+    fn next(&mut self) -> Option<f32>
+    {
+        match self.buffered.take()
+        {
+            None =>
+            {
                 let s = self.inner.next()?;
                 let l = s * f32::from_bits(self.pan.l_gain.load(Ordering::Relaxed));
                 self.buffered = Some(s);
@@ -70,24 +78,17 @@ impl<S: Source> Iterator for PannedSource<S> {
 }
 
 /// `rodio::Source` impl that advertises the wrapped source as stereo.
-impl<S: Source> Source for PannedSource<S> {
+impl<S: Source> Source for PannedSource<S>
+{
     /// Length of the current contiguous span in samples; doubled because each
     /// mono input sample yields two output samples.
-    fn current_span_len(&self) -> Option<usize> {
-        self.inner.current_span_len().map(|n| n * 2)
-    }
+    fn current_span_len(&self) -> Option<usize> { self.inner.current_span_len().map(|n| n * 2) }
     /// Always 2 (stereo).
-    fn channels(&self) -> rodio::ChannelCount {
-        std::num::NonZero::new(2).unwrap()
-    }
+    fn channels(&self) -> rodio::ChannelCount { std::num::NonZero::new(2).unwrap() }
     /// Pass through the underlying mono source's sample rate.
-    fn sample_rate(&self) -> rodio::SampleRate {
-        self.inner.sample_rate()
-    }
+    fn sample_rate(&self) -> rodio::SampleRate { self.inner.sample_rate() }
     /// Pass through the underlying source's total duration (if any).
-    fn total_duration(&self) -> Option<Duration> {
-        self.inner.total_duration()
-    }
+    fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
 }
 
 /// State for one of Doom's eight logical SFX channels.
@@ -96,7 +97,8 @@ impl<S: Source> Source for PannedSource<S> {
 /// the live `rodio::Player` currently playing on this channel (dropping it
 /// stops playback immediately); the shared `pan` outlives individual players
 /// so volume/separation updates between sounds remain coherent.
-pub(crate) struct ChannelState {
+pub(crate) struct ChannelState
+{
     /// Active rodio player for this channel, or `None` when idle.  Dropping
     /// the player halts playback.
     pub(crate) player: Option<Player>,
@@ -107,11 +109,14 @@ pub(crate) struct ChannelState {
 }
 
 /// Default-construction helper for [`ChannelState`].
-impl ChannelState {
+impl ChannelState
+{
     /// Build an idle channel: no active player and a centred-volume pan state
     /// (`vol = 127`, `sep = 127`).
-    pub(crate) fn new() -> Self {
-        Self {
+    pub(crate) fn new() -> Self
+    {
+        Self
+        {
             player: None,
             pan: Arc::new(PanState::new(127, 127)),
         }
@@ -124,7 +129,8 @@ impl ChannelState {
 
 /// The native shell's audio backend: the engine's former `AudioState`,
 /// renamed, with the mixer handle inlined into the struct.
-pub struct RodioBackend {
+pub struct RodioBackend
+{
     /// The device-bound sink.  Held only to keep the audio device open for
     /// the lifetime of the engine; the mixer below is what we actually push
     /// samples through.
@@ -141,23 +147,28 @@ pub struct RodioBackend {
 }
 
 /// Construction helper for [`RodioBackend`].
-impl RodioBackend {
+impl RodioBackend
+{
     /// Open the default audio device and build a fresh [`RodioBackend`].
     ///
     /// Returns an error if the platform refuses to open a default output
     /// device (e.g. no audio hardware, audio daemon not running).  On success
     /// the eight channel slots are empty (`player == None`) and music
     /// playback is idle.
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>>
+    {
         let device_sink = rodio::DeviceSinkBuilder::open_default_sink()?;
         let mixer = device_sink.mixer().clone();
         let channels = Box::new(std::array::from_fn(|_| ChannelState::new()));
-        Ok(Self {
-            _device_sink: device_sink,
-            mixer,
-            channels,
-            music: MusicState::new(),
-        })
+        Ok(
+            Self
+            {
+                _device_sink: device_sink,
+                mixer,
+                channels,
+                music: MusicState::new(),
+            }
+        )
     }
 }
 
@@ -165,7 +176,8 @@ impl RodioBackend {
 /// `impl AudioBackend for AudioState` (and its inherent helpers) that lived
 /// in `room/src/audio/mod.rs` before the move; the only delta is the struct
 /// name.
-impl AudioBackend for RodioBackend {
+impl AudioBackend for RodioBackend
+{
     /// Start playing a Doom DMX SFX blob on the given logical channel.
     ///
     /// `data` is the raw `DSxxxxx` lump bytes; `vol` is the Doom 0-127 volume
@@ -176,13 +188,10 @@ impl AudioBackend for RodioBackend {
     /// range or if the SFX lump fails to decode.  Any previously playing
     /// sound on the same channel is replaced (its `Player` is dropped, which
     /// stops playback immediately).
-    fn start_sound(&mut self, data: &[u8], vol: i32, sep: i32, channel: usize) -> bool {
-        if channel >= 8 {
-            return false;
-        }
-        let Some((sample_rate, samples)) = decode_doom_sfx(data) else {
-            return false;
-        };
+    fn start_sound(&mut self, data: &[u8], vol: i32, sep: i32, channel: usize) -> bool
+    {
+        if channel >= 8 { return false; }
+        let Some((sample_rate, samples)) = decode_doom_sfx(data) else { return false; };
         let pan = Arc::clone(&self.channels[channel].pan);
         pan.update(vol, sep);
         let buf = SamplesBuffer::new(
@@ -200,65 +209,53 @@ impl AudioBackend for RodioBackend {
     /// Immediately stop whatever is playing on the given channel.
     /// Out-of-range `channel` values are silently ignored, matching the
     /// permissive behaviour of the SDL backend.
-    fn stop_sound(&mut self, channel: usize) {
-        if channel >= 8 {
-            return;
-        }
+    fn stop_sound(&mut self, channel: usize)
+    {
+        if channel >= 8 { return; }
         self.channels[channel].player = None;
     }
 
     /// Update the volume and stereo separation of an in-flight sound without
     /// restarting it.  Out-of-range `channel` values are silently ignored.
-    fn update_sound_params(&self, channel: usize, vol: i32, sep: i32) {
-        if channel >= 8 {
-            return;
-        }
+    fn update_sound_params(&self, channel: usize, vol: i32, sep: i32)
+    {
+        if channel >= 8 { return; }
         self.channels[channel].pan.update(vol, sep);
     }
 
     /// Return `true` if the channel still has unconsumed samples.
     /// Out-of-range `channel` values report `false`.
-    fn is_playing(&self, channel: usize) -> bool {
-        if channel >= 8 {
-            return false;
-        }
-        self.channels[channel]
-            .player
-            .as_ref()
-            .is_some_and(|p| !p.empty())
+    fn is_playing(&self, channel: usize) -> bool
+    {
+        if channel >= 8 { return false; }
+        self.channels[channel].
+            player.
+            as_ref().
+            is_some_and(|p| !p.empty())
     }
 
-    fn load_sound_font(&mut self, path: &std::path::Path) {
-        self.music.load_sound_font(path)
-    }
-    fn play_music(&mut self, midi_bytes: &[u8], looping: bool) {
+    fn load_sound_font(&mut self, path: &std::path::Path) { self.music.load_sound_font(path) }
+    fn play_music(&mut self, midi_bytes: &[u8], looping: bool)
+    {
         let mixer = self.mixer.clone();
         self.music.play(midi_bytes, looping, &mixer);
     }
-    fn stop_music(&mut self) {
-        self.music.stop()
-    }
-    fn set_music_volume(&self, vol: i32) {
-        self.music.set_volume(vol)
-    }
-    fn pause_music(&self) {
-        self.music.pause()
-    }
-    fn resume_music(&self) {
-        self.music.resume()
-    }
-    fn is_music_playing(&self) -> bool {
-        self.music.is_playing()
-    }
+    fn stop_music(&mut self) { self.music.stop() }
+    fn set_music_volume(&self, vol: i32) { self.music.set_volume(vol) }
+    fn pause_music(&self) { self.music.pause() }
+    fn resume_music(&self) { self.music.resume() }
+    fn is_music_playing(&self) -> bool { self.music.is_playing() }
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use std::num::NonZero;
 
     #[test]
-    fn panned_source_center_two_samples() {
+    fn panned_source_center_two_samples()
+    {
         let buf = SamplesBuffer::new(
             NonZero::new(1).unwrap(),
             NonZero::new(11025).unwrap(),
@@ -278,7 +275,8 @@ mod tests {
     }
 
     #[test]
-    fn panned_source_hard_left() {
+    fn panned_source_hard_left()
+    {
         let buf = SamplesBuffer::new(
             NonZero::new(1).unwrap(),
             NonZero::new(11025).unwrap(),
@@ -293,7 +291,8 @@ mod tests {
     }
 
     #[test]
-    fn panned_source_channels_is_2() {
+    fn panned_source_channels_is_2()
+    {
         use rodio::Source;
         let buf = SamplesBuffer::new(
             NonZero::new(1).unwrap(),
@@ -306,7 +305,8 @@ mod tests {
     }
 
     #[test]
-    fn panned_source_live_pan_update() {
+    fn panned_source_live_pan_update()
+    {
         let buf = SamplesBuffer::new(
             NonZero::new(1).unwrap(),
             NonZero::new(11025).unwrap(),

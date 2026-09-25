@@ -73,9 +73,6 @@ const LIGHTSCALESHIFT: u32 = 12;
 /// Mask for the fine-angle table (8192 entries, indices 0..=8191).
 const FINEMASK: usize = 0x1FFF;
 
-/// Screen width in pixels, re-exported from [`i_video`] for local use.
-const SCREENWIDTH: usize = crate::doom::i_video::SCREENWIDTH as usize;
-
 /// Maximum number of drawsegs that can be stored per frame.
 const MAXDRAWSEGS: usize = 256;
 
@@ -88,6 +85,7 @@ use crate::doom::r_data::{textureheight, texturetranslation, R_GetColumn};
 use crate::doom::r_draw::{
     dc_colormap, dc_iscale, dc_source, dc_texturemid, dc_x, dc_yh, dc_yl, viewheight,
 };
+use crate::doom::r_interp;
 use crate::doom::r_main::{
     centeryfrac, colfunc, extralight, fixedcolormap, scalelight, viewangle, viewz, xtoviewangle,
     R_PointToDist, R_ScaleFromGlobalAngle,
@@ -387,17 +385,18 @@ pub unsafe extern "C" fn R_RenderMaskedSegRange(ds: *mut drawseg_t, x1: c_int, x
     crate::doom::r_things::mceilingclip = (*ds).sprtopclip;
 
     if (*(*curline).linedef).flags & (super::c_ffi::LinedefFlag::DONTPEGBOTTOM as c_short) != 0 {
-        dc_texturemid = if (*frontsector).floorheight > (*backsector).floorheight {
-            (*frontsector).floorheight
-        } else {
-            (*backsector).floorheight
+        // F1 M1: heights sampled through the interpolation board.
+        dc_texturemid = {
+            let ffh = r_interp::sector_floor(frontsector as *mut super::c_ffi::sector_t);
+            let bfh = r_interp::sector_floor(backsector as *mut super::c_ffi::sector_t);
+            if ffh > bfh { ffh } else { bfh }
         };
         dc_texturemid = dc_texturemid + *textureheight.add(texnum as usize) - viewz;
     } else {
-        dc_texturemid = if (*frontsector).ceilingheight < (*backsector).ceilingheight {
-            (*frontsector).ceilingheight
-        } else {
-            (*backsector).ceilingheight
+        dc_texturemid = {
+            let fch = r_interp::sector_ceiling(frontsector as *mut super::c_ffi::sector_t);
+            let bch = r_interp::sector_ceiling(backsector as *mut super::c_ffi::sector_t);
+            if fch < bch { fch } else { bch }
         };
         dc_texturemid -= viewz;
     }
@@ -676,8 +675,16 @@ pub unsafe extern "C" fn R_StoreWallRange(start: c_int, stop: c_int) {
         (*ds_p).scale2 = (*ds_p).scale1;
     }
 
-    worldtop = (*frontsector).ceilingheight - viewz;
-    worldbottom = (*frontsector).floorheight - viewz;
+    // F1 M1: all wall-span geometry reads the interpolation board's sampled
+    // sector heights (live heights when the board is off/uncovered), so the
+    // wall spans, silhouettes and clip windows stay mutually consistent per
+    // frame and match the visplane heights sampled in R_Subsector. The back
+    // sector is sampled only in the two-sided branch (null there is legal).
+    let ffh = r_interp::sector_floor(frontsector as *mut super::c_ffi::sector_t);
+    let fch = r_interp::sector_ceiling(frontsector as *mut super::c_ffi::sector_t);
+
+    worldtop = fch - viewz;
+    worldbottom = ffh - viewz;
 
     midtexture = 0;
     toptexture = 0;
@@ -692,8 +699,7 @@ pub unsafe extern "C" fn R_StoreWallRange(start: c_int, stop: c_int) {
         markceiling = 1;
 
         if (*linedef).flags & (super::c_ffi::LinedefFlag::DONTPEGBOTTOM as c_short) != 0 {
-            let vtop =
-                (*frontsector).floorheight + *textureheight.add((*sidedef).midtexture as usize);
+            let vtop = ffh + *textureheight.add((*sidedef).midtexture as usize);
             rw_midtexturemid = vtop - viewz;
         } else {
             rw_midtexturemid = worldtop;
@@ -706,41 +712,44 @@ pub unsafe extern "C" fn R_StoreWallRange(start: c_int, stop: c_int) {
         (*ds_p).bsilheight = c_int::MAX;
         (*ds_p).tsilheight = c_int::MIN;
     } else {
+        let bfh = r_interp::sector_floor(backsector as *mut super::c_ffi::sector_t);
+        let bch = r_interp::sector_ceiling(backsector as *mut super::c_ffi::sector_t);
+
         // two sided line
         (*ds_p).sprtopclip = ptr::null_mut();
         (*ds_p).sprbottomclip = ptr::null_mut();
         (*ds_p).silhouette = 0;
 
-        if (*frontsector).floorheight > (*backsector).floorheight {
+        if ffh > bfh {
             (*ds_p).silhouette = SIL_BOTTOM;
-            (*ds_p).bsilheight = (*frontsector).floorheight;
-        } else if (*backsector).floorheight > viewz {
+            (*ds_p).bsilheight = ffh;
+        } else if bfh > viewz {
             (*ds_p).silhouette = SIL_BOTTOM;
             (*ds_p).bsilheight = c_int::MAX;
         }
 
-        if (*frontsector).ceilingheight < (*backsector).ceilingheight {
+        if fch < bch {
             (*ds_p).silhouette |= SIL_TOP;
-            (*ds_p).tsilheight = (*frontsector).ceilingheight;
-        } else if (*backsector).ceilingheight < viewz {
+            (*ds_p).tsilheight = fch;
+        } else if bch < viewz {
             (*ds_p).silhouette |= SIL_TOP;
             (*ds_p).tsilheight = c_int::MIN;
         }
 
-        if (*backsector).ceilingheight <= (*frontsector).floorheight {
+        if bch <= ffh {
             (*ds_p).sprbottomclip = std::ptr::addr_of_mut!(negonearray[0]);
             (*ds_p).bsilheight = c_int::MAX;
             (*ds_p).silhouette |= SIL_BOTTOM;
         }
 
-        if (*backsector).floorheight >= (*frontsector).ceilingheight {
+        if bfh >= fch {
             (*ds_p).sprtopclip = std::ptr::addr_of_mut!(screenheightarray[0]);
             (*ds_p).tsilheight = c_int::MIN;
             (*ds_p).silhouette |= SIL_TOP;
         }
 
-        worldhigh = (*backsector).ceilingheight - viewz;
-        worldlow = (*backsector).floorheight - viewz;
+        worldhigh = bch - viewz;
+        worldlow = bfh - viewz;
 
         if (*frontsector).ceilingpic as c_int == skyflatnum
             && (*backsector).ceilingpic as c_int == skyflatnum
@@ -766,8 +775,7 @@ pub unsafe extern "C" fn R_StoreWallRange(start: c_int, stop: c_int) {
             markceiling = 0;
         }
 
-        if (*backsector).ceilingheight <= (*frontsector).floorheight
-            || (*backsector).floorheight >= (*frontsector).ceilingheight
+        if bch <= ffh || bfh >= fch
         {
             markceiling = 1;
             markfloor = 1;
@@ -778,8 +786,7 @@ pub unsafe extern "C" fn R_StoreWallRange(start: c_int, stop: c_int) {
             if (*linedef).flags & (super::c_ffi::LinedefFlag::DONTPEGTOP as c_short) != 0 {
                 rw_toptexturemid = worldtop;
             } else {
-                let vtop = (*backsector).ceilingheight
-                    + *textureheight.add((*sidedef).toptexture as usize);
+                let vtop = bch + *textureheight.add((*sidedef).toptexture as usize);
                 rw_toptexturemid = vtop - viewz;
             }
         }
@@ -845,11 +852,11 @@ pub unsafe extern "C" fn R_StoreWallRange(start: c_int, stop: c_int) {
         }
     }
 
-    if (*frontsector).floorheight >= viewz {
+    if ffh >= viewz {
         markfloor = 0;
     }
 
-    if (*frontsector).ceilingheight <= viewz && (*frontsector).ceilingpic as c_int != skyflatnum {
+    if fch <= viewz && (*frontsector).ceilingpic as c_int != skyflatnum {
         markceiling = 0;
     }
 

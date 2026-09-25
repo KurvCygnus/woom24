@@ -53,6 +53,7 @@
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 use crate::doom::c_ffi::screen_mode_t;
+use crate::doom::crt::c_printf;
 use crate::doom::m_argv::M_CheckParm;
 use crate::doom::z_zone::{Z_Free, Z_Malloc};
 use std::ffi::{c_int, c_void};
@@ -64,18 +65,17 @@ use crate::doom::z_zone::PU_STATIC;
 /// `stdout` for the progress-print flushes. UCRT exposes no `stdout`
 /// data symbol, so Windows flushes the NULL stream (i.e. all streams)
 /// instead of the POSIX `stdout` object.
-unsafe fn stdout_placeholder() -> *mut libc::FILE {
+unsafe fn stdout_placeholder() -> *mut libc::FILE
+{
     #[cfg(unix)]
     {
-        extern "C" {
-            static mut stdout: *mut libc::FILE;
-        }
+        extern "C" { static mut stdout: *mut libc::FILE; }
         std::ptr::addr_of_mut!(stdout)
     }
-    #[cfg(windows)]
-    {
-        std::ptr::null_mut()
-    }
+    //* wasm32 is neither unix nor windows: without this branch the function
+    //* body would be empty on ILP32 (E0308). The wasm fflush shim ignores the
+    //* stream argument, so the null semantics match the windows branch.
+    #[cfg(not(unix))] { ptr::null_mut() }
 }
 
 /// Source framebuffer for the current scale call, set by
@@ -151,7 +151,7 @@ unsafe extern "C" fn i_scale_1x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
     let mut bufp = src_buffer.add((y1 * SCREENWIDTH + x1) as usize);
     let mut screenp = dest_buffer.add((y1 * dest_pitch + x1) as usize);
     for _ in y1..y2 {
-        std::ptr::copy_nonoverlapping(bufp, screenp, w);
+        ptr::copy_nonoverlapping(bufp, screenp, w);
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
     }
@@ -403,10 +403,10 @@ unsafe extern "C" fn i_init_stretch_tables(palette: *mut u8) {
     if !stretch_tables[0].is_null() {
         return;
     }
-    libc::printf(c"I_InitStretchTables: Generating lookup tables..".as_ptr());
+    c_printf(c"I_InitStretchTables: Generating lookup tables..".as_ptr());
     libc::fflush(stdout_placeholder());
     stretch_tables[0] = generate_stretch_table(palette, 20);
-    libc::printf(c"..".as_ptr());
+    c_printf(c"..".as_ptr());
     libc::fflush(stdout_placeholder());
     stretch_tables[1] = generate_stretch_table(palette, 40);
     libc::puts(c"".as_ptr());
@@ -423,7 +423,7 @@ unsafe extern "C" fn i_init_squash_table(palette: *mut u8) {
     if !half_stretch_table.is_null() {
         return;
     }
-    libc::printf(c"I_InitSquashTable: Generating lookup table..".as_ptr());
+    c_printf(c"I_InitSquashTable: Generating lookup table..".as_ptr());
     libc::fflush(stdout_placeholder());
     half_stretch_table = generate_stretch_table(palette, 50);
     libc::puts(c"".as_ptr());
@@ -447,13 +447,13 @@ pub unsafe extern "C" fn I_ResetScaleTables(palette: *mut u8) {
     if !stretch_tables[0].is_null() {
         Z_Free(stretch_tables[0] as *mut c_void);
         Z_Free(stretch_tables[1] as *mut c_void);
-        libc::printf(c"I_ResetScaleTables: Regenerating lookup tables..\n".as_ptr());
+        c_printf(c"I_ResetScaleTables: Regenerating lookup tables..\n".as_ptr());
         stretch_tables[0] = generate_stretch_table(palette, 20);
         stretch_tables[1] = generate_stretch_table(palette, 40);
     }
     if !half_stretch_table.is_null() {
         Z_Free(half_stretch_table as *mut c_void);
-        libc::printf(c"I_ResetScaleTables: Regenerating lookup table..\n".as_ptr());
+        c_printf(c"I_ResetScaleTables: Regenerating lookup table..\n".as_ptr());
         half_stretch_table = generate_stretch_table(palette, 50);
     }
 }
@@ -483,7 +483,7 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
     let mut bufp = src_buffer;
     let mut screenp = dest_buffer;
     for _ in (0..SCREENHEIGHT).step_by(5) {
-        std::ptr::copy_nonoverlapping(bufp, screenp, SCREENWIDTH as usize);
+        ptr::copy_nonoverlapping(bufp, screenp, SCREENWIDTH as usize);
         screenp = screenp.add(dest_pitch as usize);
         write_blended_line_1x(
             screenp,
@@ -517,7 +517,7 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        std::ptr::copy_nonoverlapping(bufp, screenp, SCREENWIDTH as usize);
+        ptr::copy_nonoverlapping(bufp, screenp, SCREENWIDTH as usize);
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
     }
@@ -805,7 +805,7 @@ unsafe extern "C" fn i_stretch_5x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         let mut screenp = dest_buffer.add((2 * dest_pitch) as usize);
         let mut y = 0;
         while y < 1198 {
-            std::ptr::write_bytes(screenp, 0, 1600);
+            ptr::write_bytes(screenp, 0, 1600);
             screenp = screenp.add((dest_pitch * 3) as usize);
             y += 3;
         }

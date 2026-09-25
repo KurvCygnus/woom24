@@ -30,13 +30,12 @@ use std::ptr;
 
 use super::z_zone::PU_STATIC;
 
-/// Doom's logical screen width in palette-indexed pixels. The
-/// renderer always paints into a `SCREENWIDTH * SCREENHEIGHT`
-/// buffer; `I_FinishUpdate` scales/letterboxes from there.
-pub const SCREENWIDTH: c_int = 320;
-
-/// Doom's logical screen height in palette-indexed pixels.
-pub const SCREENHEIGHT: c_int = 200;
+// F1 M2 (L3 video_cfg): the raster dimensions are runtime values owned by
+// `video_cfg`; they are re-exported here so every existing
+// `use crate::doom::i_video::SCREENWIDTH` import keeps working. Reads are
+// static reads now (the constants they replaced were compile-time), so code
+// in safe functions must read them inside an `unsafe` block.
+pub use crate::doom::video_cfg::{SCREENHEIGHT, SCREENWIDTH};
 
 /// 32-bit pixel as the framebuffer expects it: BGRA with alpha last.
 ///
@@ -118,8 +117,9 @@ pub static mut mouse_acceleration: c_float = 2.0;
 pub static mut mouse_threshold: c_int = 10;
 
 /// Integer upscaling factor used by `I_FinishUpdate` to enlarge the
-/// 320x200 Doom buffer to fit the framebuffer. Picked automatically
-/// in `I_InitGraphics` or overridden with `-scaling <n>`.
+/// raster-sized Doom buffer to fit the framebuffer. Picked automatically
+/// in `I_InitGraphics`, overridden with `-scaling <n>`, and set by the
+/// `video_cfg` reconfiguration thereafter (F1 M2).
 #[no_mangle]
 pub static mut fb_scaling: c_int = 1;
 
@@ -250,7 +250,8 @@ unsafe fn cmap_to_rgb565(out: *mut u8, inp: *mut u8, in_pixels: c_int) {
 /// Initialise the video subsystem: pick the framebuffer pixel layout
 /// (`-gfxmode rgba8888|rgb565`, default rgba8888), compute the
 /// integer scaling factor (`-scaling <n>` or auto-fit), allocate the
-/// 320x200 palette buffer, mark the screen visible, and start input.
+/// raster-sized palette buffer (dimensions from `video_cfg`; 320x200 at
+/// the default config), mark the screen visible, and start input.
 ///
 /// Mirrors `I_InitGraphics` from `i_video.c`. The Rust version
 /// reads `-scaling` digits manually (no `atoi`) and skips the C
@@ -265,8 +266,8 @@ unsafe fn cmap_to_rgb565(out: *mut u8, inp: *mut u8, in_pixels: c_int) {
 #[no_mangle]
 pub unsafe extern "C" fn I_InitGraphics() {
     s_Fb = mem::zeroed::<FB_ScreenInfo>();
-    s_Fb.xres = super::doomgeneric::DOOMGENERIC_RESX as u32;
-    s_Fb.yres = super::doomgeneric::DOOMGENERIC_RESY as u32;
+    s_Fb.xres = super::doomgeneric::dg_res_x() as u32;
+    s_Fb.yres = super::doomgeneric::dg_res_y() as u32;
     s_Fb.xres_virtual = s_Fb.xres;
     s_Fb.yres_virtual = s_Fb.yres;
 
@@ -346,6 +347,45 @@ pub unsafe extern "C" fn I_InitGraphics() {
     I_InitInput();
 }
 
+/// Re-create the palette frame buffer and the present geometry for a new
+/// raster size (F1 M2 `video_cfg` reconfiguration).
+///
+/// This is the runtime analogue of the allocation path in `I_InitGraphics`:
+/// frees the previous `I_VideoBuffer` (zone `PU_STATIC` block), allocates the
+/// new one, and retargets the framebuffer descriptor and `fb_scaling` to the
+/// doomgeneric present buffer's current dimensions.
+///
+/// The doomgeneric present buffer itself must already have been resized (see
+/// `doomgeneric::realloc_screen_buffer`), because `s_Fb` follows its
+/// dimensions. Failure to allocate the palette buffer follows the established
+/// degradation contract: `I_Error` (native) / the log-channel banner (web).
+///
+/// # Safety
+///
+/// Frees and replaces the global `I_VideoBuffer`; callers must ensure no
+/// frame render is in flight and must schedule a view rebuild (the
+/// `video_cfg::apply` path does both).
+pub unsafe fn reinit_video_buffer(width: c_int, height: c_int, fb_scaling_new: c_int) {
+    if !I_VideoBuffer.is_null() {
+        Z_Free(I_VideoBuffer as *mut c_void);
+    }
+
+    I_VideoBuffer = Z_Malloc(width * height, PU_STATIC, ptr::null_mut()) as *mut u8;
+    if I_VideoBuffer.is_null() {
+        i_error!(
+            "video_cfg: failed to allocate {}x{} frame buffer\n",
+            width,
+            height
+        );
+    }
+
+    fb_scaling = fb_scaling_new;
+    s_Fb.xres = super::doomgeneric::dg_res_x() as u32;
+    s_Fb.yres = super::doomgeneric::dg_res_y() as u32;
+    s_Fb.xres_virtual = s_Fb.xres;
+    s_Fb.yres_virtual = s_Fb.yres;
+}
+
 /// Release the palette-indexed screen buffer. Mirrors
 /// `I_ShutdownGraphics` from `i_video.c`. The Rust version also
 /// nulls `I_VideoBuffer` so a subsequent stray dereference faults
@@ -394,7 +434,7 @@ pub unsafe extern "C" fn I_UpdateNoBlit() {}
 
 /// Blit and present one frame.
 ///
-/// Converts the 320x200 palette buffer at `I_VideoBuffer` into the
+/// Converts the raster-sized palette buffer at `I_VideoBuffer` into the
 /// final framebuffer at `DG_ScreenBuffer`, centring it inside the
 /// configured `s_Fb.xres x s_Fb.yres` window with `x_offset` and
 /// `y_offset` padding bytes per row, repeating each Doom scanline

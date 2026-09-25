@@ -1,0 +1,15 @@
+{
+  "name": "title_attract",
+  "iwad": "doom1.wad",
+  "sf2": null,
+  "pwads": [],
+  "boot": { "mode": "standard", "args": [], "clock_armed": true, "boot_ms": 2000 },
+  "steps": [
+    { "wait_gametic": 140 },
+    { "anchor": "t140", "frame_hash": true },
+    { "wait_gametic": 490 },
+    { "anchor": "t490", "state_hash": true, "frame_hash": true },
+    { "wait_gametic": 980 },
+    { "anchor": "t980", "state_hash": true, "frame_hash": true }
+  ]
+}

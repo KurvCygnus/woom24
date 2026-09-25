@@ -40,7 +40,7 @@ use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use room::doom::doomgeneric::{DOOMGENERIC_RESX, DOOMGENERIC_RESY};
+use room::doom::doomgeneric::dg_res;
 
 // ---------------------------------------------------------------------------
 // WGSL shaders (embedded)
@@ -105,6 +105,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 // ---------------------------------------------------------------------------
 
 /// All wgpu resources required to render the Doom frame buffer to a window.
+/// The frame-upload targets: intermediate texture + its bind group, and the
+/// dimensions they were last built for.
+struct FrameTargets {
+    texture: wgpu::Texture,
+    bind_group: wgpu::BindGroup,
+    size: (u32, u32),
+}
+
 pub struct GpuState {
     /// The wgpu surface tied to the OS window.
     surface: wgpu::Surface<'static>,
@@ -114,10 +122,16 @@ pub struct GpuState {
     queue: wgpu::Queue,
     /// Current swapchain configuration (updated on resize).
     config: wgpu::SurfaceConfiguration,
-    /// Intermediate texture that receives the Doom screen pixels each frame.
-    doom_texture: wgpu::Texture,
-    /// Bind group binding `doom_texture` and its sampler to the shader.
-    bind_group: wgpu::BindGroup,
+    /// Frame targets: the intermediate texture receiving the Doom screen
+    /// pixels each frame, plus the bind group binding it (and its sampler)
+    /// to the shader. Interior-mutable so `render(&self)` can rebuild both
+    /// when a F1 M2 `video_cfg` reconfiguration changes the present buffer
+    /// size mid-game.
+    frame: std::cell::RefCell<FrameTargets>,
+    /// Layout the frame bind group is built against (kept for rebuilds).
+    bind_group_layout: wgpu::BindGroupLayout,
+    /// Nearest-neighbour sampler shared by every frame bind group.
+    doom_sampler: wgpu::Sampler,
     /// The render pipeline executing the fullscreen-quad blit.
     render_pipeline: wgpu::RenderPipeline,
 }
@@ -188,11 +202,12 @@ impl GpuState {
         surface.configure(&device, &config);
         // Created with BGRA8Unorm to match the pixel format written by the
         // engine's I_FinishUpdate function.
+        let (boot_w, boot_h) = dg_res();
         let doom_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("doom_frame_texture"),
             size: wgpu::Extent3d {
-                width: DOOMGENERIC_RESX as u32,
-                height: DOOMGENERIC_RESY as u32,
+                width: boot_w as u32,
+                height: boot_h as u32,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -293,10 +308,58 @@ impl GpuState {
             device,
             queue,
             config,
-            doom_texture,
-            bind_group,
+            frame: std::cell::RefCell::new(FrameTargets {
+                texture: doom_texture,
+                bind_group,
+                size: (boot_w as u32, boot_h as u32),
+            }),
+            bind_group_layout,
+            doom_sampler,
             render_pipeline,
         })
+    }
+
+    /// (Re)create the frame texture and its bind group for `width x height`.
+    ///
+    /// F1 M2: the doomgeneric present buffer follows the live VideoConfig, so
+    /// its size can change mid-game; the texture is rebuilt to match on the
+    /// next `render`.
+    fn build_frame_targets(&self, width: u32, height: u32) -> FrameTargets {
+        let doom_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("doom_frame_texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            // BGRA8Unorm matches the byte layout produced by I_FinishUpdate.
+            format: wgpu::TextureFormat::Bgra8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let doom_texture_view = doom_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("doom_bind_group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&doom_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.doom_sampler),
+                },
+            ],
+        });
+        FrameTargets {
+            texture: doom_texture,
+            bind_group,
+            size: (width, height),
+        }
     }
 
     /// Reconfigure the surface after a window resize.
@@ -324,9 +387,18 @@ impl GpuState {
     /// Returns an error string if the swapchain texture cannot be acquired
     /// (e.g. the surface is lost or the window is minimised).
     pub fn render(&self, pixels: &[u8]) -> Result<(), String> {
+        // F1 M2: a mid-game video_cfg reconfiguration changes the present
+        // buffer size; rebuild the frame texture + bind group to match.
+        let (w, h) = dg_res();
+        let (w, h) = (w as u32, h as u32);
+        if (w, h) != self.frame.borrow().size
+        {
+            *self.frame.borrow_mut() = self.build_frame_targets(w, h);
+        }
+        let frame = self.frame.borrow();
         self.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.doom_texture,
+                texture: &frame.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -334,12 +406,12 @@ impl GpuState {
             pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some((DOOMGENERIC_RESX * 4) as u32),
-                rows_per_image: Some(DOOMGENERIC_RESY as u32),
+                bytes_per_row: Some(w * 4),
+                rows_per_image: Some(h),
             },
             wgpu::Extent3d {
-                width: DOOMGENERIC_RESX as u32,
-                height: DOOMGENERIC_RESY as u32,
+                width: w,
+                height: h,
                 depth_or_array_layers: 1,
             },
         );
@@ -392,7 +464,7 @@ impl GpuState {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.bind_group, &[]);
+            render_pass.set_bind_group(0, &frame.bind_group, &[]);
             // Draw 6 vertices (2 triangles) without a vertex buffer.
             render_pass.draw(0..6, 0..1);
         }

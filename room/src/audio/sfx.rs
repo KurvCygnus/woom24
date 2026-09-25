@@ -62,7 +62,8 @@ pub fn gains_from(vol: i32, sep: i32) -> (f32, f32) {
 ///
 /// Bits are stored as `AtomicU32` and reinterpreted as `f32` via
 /// `f32::from_bits`, which avoids any locking in the audio fast path.
-pub struct PanState {
+pub struct PanState
+{
     /// Left-channel gain, encoded as the bit pattern of an `f32`.
     pub l_gain: AtomicU32,
     /// Right-channel gain, encoded as the bit pattern of an `f32`.

@@ -75,6 +75,20 @@ pub extern "C" fn I_GetTimeMS() -> c_int {
     }
 }
 
+/// Convert a raw `DG_GetTicksMs`-domain millisecond value to engine-relative
+/// milliseconds — the same mapping `I_GetTimeMS` applies to its own clock
+/// read. Read-only: unlike `I_GetTime`/`I_GetTimeMS` this never latches
+/// `BASETIME` (the engine's boot path always latches it first) and never
+/// queries the clock itself, so the frame/pump split can derive the render
+/// fraction from the shell-supplied `now_ms` without a second time source.
+/// Returns 0 while `BASETIME` is unset.
+pub fn elapsed_ms_from(now_ms: u32) -> u32 {
+    unsafe {
+        let base = std::ptr::addr_of!(BASETIME).read();
+        if base == 0 { 0 } else { now_ms.wrapping_sub(base) }
+    }
+}
+
 /// Sleep for approximately `ms` milliseconds by delegating to the host
 /// `DG_SleepMs` hook. The actual resolution depends on the backend.
 #[no_mangle]

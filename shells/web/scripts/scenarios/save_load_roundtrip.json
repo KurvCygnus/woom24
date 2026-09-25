@@ -1,0 +1,81 @@
+{
+  "name": "save_load_roundtrip",
+  "iwad": "doom1.wad",
+  "sf2": null,
+  "pwads": [],
+  "boot": { "mode": "standard", "args": ["-warp", "1", "1"], "clock_armed": true, "boot_ms": 2000 },
+  "steps": [
+    { "wait_gametic": 140 },
+    { "anchor": "tic_a", "state_hash": true },
+
+    { "key": { "code": 27, "pressed": true } },
+    { "wait_gametic": 143 },
+    { "key": { "code": 27, "pressed": false } },
+
+    { "key": { "code": 115, "pressed": true } },
+    { "wait_gametic": 146 },
+    { "key": { "code": 115, "pressed": false } },
+
+    { "key": { "code": 13, "pressed": true } },
+    { "wait_gametic": 149 },
+    { "key": { "code": 13, "pressed": false } },
+
+    { "key": { "code": 13, "pressed": true } },
+    { "wait_gametic": 152 },
+    { "key": { "code": 13, "pressed": false } },
+
+    { "key": { "code": 97, "pressed": true } },
+    { "wait_gametic": 155 },
+    { "key": { "code": 97, "pressed": false } },
+
+    { "key": { "code": 13, "pressed": true } },
+    { "wait_gametic": 158 },
+    { "key": { "code": 13, "pressed": false } },
+
+    { "assert_gametic_gt": 155 },
+
+    { "wait_gametic": 170 },
+    { "anchor": "p170", "state_hash": true, "state_hash_load": true },
+    { "wait_gametic": 176 },
+    { "anchor": "p176", "state_hash": true, "state_hash_load": true },
+    { "wait_gametic": 182 },
+    { "anchor": "p182", "state_hash": true, "state_hash_load": true },
+    { "wait_gametic": 184 },
+    { "anchor": "saved_a", "state_hash": true, "state_hash_load": true },
+
+    { "key": { "code": 174, "pressed": true } },
+    { "wait_gametic": 214 },
+    { "key": { "code": 174, "pressed": false } },
+    { "wait_gametic": 218 },
+    { "anchor": "turned", "state_hash": true, "state_hash_load": true },
+
+    { "key": { "code": 27, "pressed": true } },
+    { "wait_gametic": 223 },
+    { "key": { "code": 27, "pressed": false } },
+
+    { "key": { "code": 108, "pressed": true } },
+    { "wait_gametic": 226 },
+    { "key": { "code": 108, "pressed": false } },
+
+    { "key": { "code": 13, "pressed": true } },
+    { "wait_gametic": 229 },
+    { "key": { "code": 13, "pressed": false } },
+
+    { "key": { "code": 13, "pressed": true } },
+    { "wait_gametic": 234 },
+    { "key": { "code": 13, "pressed": false } },
+
+    { "assert_gametic_gt": 229 },
+
+    { "wait_gametic": 240 },
+    { "anchor": "q240", "state_hash": true, "state_hash_load": true },
+    { "wait_gametic": 244 },
+    { "anchor": "q244", "state_hash": true, "state_hash_load": true },
+    { "wait_gametic": 252 },
+    { "anchor": "q252", "state_hash": true, "state_hash_load": true },
+    { "wait_gametic": 280 },
+    { "anchor": "q280", "state_hash": true, "state_hash_load": true },
+    { "expect_state_at_load": "saved_a" },
+    { "anchor": "loaded_a", "state_hash": true }
+  ]
+}

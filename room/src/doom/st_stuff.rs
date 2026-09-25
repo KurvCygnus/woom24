@@ -1170,6 +1170,21 @@ pub unsafe extern "C" fn ST_diffDraw() {
     ST_drawWidgets(0);
 }
 
+/// Force the next `ST_Drawer` to perform a full status-bar redraw.
+///
+/// The copied-in status-bar background lives in the primary framebuffer, and
+/// the `st_firsttime` one-shot latch fires exactly once; a runtime
+/// framebuffer swap (`video_cfg::apply`) therefore leaves the bar rendering
+/// widgets over uninitialized pixels until the next level start. A caller
+/// that re-creates the framebuffer re-arms the latch so the next `ST_Drawer`
+/// re-copies the background from `st_backing_screen`, which survives the
+/// swap (raster-independent `ST_WIDTH x ST_HEIGHT` allocation).
+pub fn force_full_redraw() {
+    unsafe {
+        st_firsttime = 1;
+    }
+}
+
 /// Draw the status bar for the current frame.
 ///
 /// `fullscreen` indicates that the view fills the entire screen (no bar),

@@ -286,9 +286,9 @@ pub struct node_t {
 // visplane_t — already exported from r_plane.rs, mirror locally for field access
 // ---------------------------------------------------------------------------
 
-/// Screen width constant used for the local `visplane_t` mirror.
-/// Must match the value in `r_plane.rs`.
-const SCREENWIDTH_RP: usize = 320;
+/// Compile-time array cap for the local `visplane_t` mirror (F1 M2).
+/// Must match the value in `r_plane.rs` (boom `MAX_SCREENWIDTH` shape).
+const SCREENWIDTH_RP: usize = crate::doom::video_cfg::MAX_SCREENWIDTH as usize;
 
 /// A horizontal floor/ceiling span to be drawn at a fixed height and texture.
 /// Mirrored locally from `r_plane.rs` so that `r_plane` pointer fields can
@@ -576,7 +576,9 @@ static CHECKCOORD: [[c_int; 4]; 12] = [
 // ---------------------------------------------------------------------------
 
 use crate::doom::p_setup::{nodes, segs, subsectors};
+use crate::doom::c_ffi;
 use crate::doom::r_draw::viewwidth;
+use crate::doom::r_interp;
 use crate::doom::r_main::{
     clipangle, sscount, viewangle, viewangletox, viewx, viewy, viewz, R_PointOnSide, R_PointToAngle,
 };
@@ -928,28 +930,30 @@ unsafe fn R_AddLine(line: *mut seg_t) {
     }
 
     // Closed door
-    if (*backsector).ceilingheight <= (*frontsector).floorheight
-        || (*backsector).floorheight >= (*frontsector).ceilingheight
+    // F1 M1: sector heights read through the interpolation board (sample
+    // falls back to the live heights when the board is off/uncovered).
+    let ffh = r_interp::sector_floor(frontsector as *mut c_ffi::sector_t);
+    let fch = r_interp::sector_ceiling(frontsector as *mut c_ffi::sector_t);
+    let bfh = r_interp::sector_floor(backsector as *mut c_ffi::sector_t);
+    let bch = r_interp::sector_ceiling(backsector as *mut c_ffi::sector_t);
+    if bch <= ffh || bfh >= fch
     {
         log::trace!(
             "R_AddLine classify: frame={} seg={} x1={} x2={} decision=SOLID(closed-door) back={:p} f.ch={} f.fh={} b.ch={} b.fh={}",
             { PROBE_FRAME }, seg_index(line), x1, x2, backsector as *const _,
-            (*frontsector).ceilingheight, (*frontsector).floorheight,
-            (*backsector).ceilingheight, (*backsector).floorheight
+            fch, ffh, bch, bfh
         );
         R_ClipSolidWallSegment(x1, x2 - 1);
         return;
     }
 
     // Window
-    if (*backsector).ceilingheight != (*frontsector).ceilingheight
-        || (*backsector).floorheight != (*frontsector).floorheight
+    if bch != fch || bfh != ffh
     {
         log::trace!(
             "R_AddLine classify: frame={} seg={} x1={} x2={} decision=PASS(window) back={:p} f.ch={} f.fh={} b.ch={} b.fh={}",
             { PROBE_FRAME }, seg_index(line), x1, x2, backsector as *const _,
-            (*frontsector).ceilingheight, (*frontsector).floorheight,
-            (*backsector).ceilingheight, (*backsector).floorheight
+            fch, ffh, bch, bfh
         );
         R_ClipPassWallSegment(x1, x2 - 1);
         return;
@@ -1129,9 +1133,15 @@ pub unsafe extern "C" fn R_Subsector(num: c_int) {
     let mut count = sub.numlines as c_int;
     let mut line = segs.add(sub.firstline as usize) as *mut seg_t;
 
-    if (*frontsector).floorheight < viewz {
+    // F1 M1: floor/ceiling visplanes register with the interpolation board's
+    // sampled heights (live heights when the board is off/uncovered), so
+    // flats, wall spans and sprite clipping all agree per frame.
+    let interp_floor = r_interp::sector_floor(frontsector as *mut c_ffi::sector_t);
+    let interp_ceiling = r_interp::sector_ceiling(frontsector as *mut c_ffi::sector_t);
+
+    if interp_floor < viewz {
         floorplane = R_FindPlane(
-            (*frontsector).floorheight,
+            interp_floor,
             (*frontsector).floorpic as c_int,
             (*frontsector).lightlevel as c_int,
         );
@@ -1139,9 +1149,9 @@ pub unsafe extern "C" fn R_Subsector(num: c_int) {
         floorplane = ptr::null_mut();
     }
 
-    if (*frontsector).ceilingheight > viewz || (*frontsector).ceilingpic as c_int == skyflatnum {
+    if interp_ceiling > viewz || (*frontsector).ceilingpic as c_int == skyflatnum {
         ceilingplane = R_FindPlane(
-            (*frontsector).ceilingheight,
+            interp_ceiling,
             (*frontsector).ceilingpic as c_int,
             (*frontsector).lightlevel as c_int,
         );

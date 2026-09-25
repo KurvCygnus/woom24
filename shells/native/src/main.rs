@@ -58,7 +58,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::PhysicalKey;
 use winit::window::{Window, WindowId};
 
-use room::doom::doomgeneric::{DOOMGENERIC_RESX, DOOMGENERIC_RESY};
+use room::doom::doomgeneric::dg_res;
 
 use gpu::GpuState;
 use platform::keys::to_doom_key;
@@ -134,17 +134,18 @@ impl ApplicationHandler for App {
     /// Creates the OS window, initialises wgpu, and stores both in the
     /// thread-local platform state so the `DG_*` callbacks can reach them.
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let (boot_w, boot_h) = dg_res();
         log::info!(
             "Creating window ({}×{})",
-            DOOMGENERIC_RESX,
-            DOOMGENERIC_RESY
+            boot_w,
+            boot_h
         );
 
         let window_attrs = Window::default_attributes()
             .with_title("room")
             .with_inner_size(LogicalSize::new(
-                DOOMGENERIC_RESX as u32,
-                DOOMGENERIC_RESY as u32,
+                boot_w as u32,
+                boot_h as u32,
             ))
             .with_resizable(false);
 
@@ -226,7 +227,8 @@ impl ApplicationHandler for App {
             return;
         }
 
-        if !self.doom_initialized {
+        if !self.doom_initialized
+        {
             // First tick: initialise the engine.
             // SAFETY:
             // - `self.args` is alive for the lifetime of the programme.
@@ -237,9 +239,16 @@ impl ApplicationHandler for App {
                 room::doom::doomgeneric::doomgeneric_Create(argc, self.argv.as_mut_ptr());
             }
             self.doom_initialized = true;
-        } else {
-            // Subsequent ticks: advance the game by one tick.
-            room::doom::d_main::doomgeneric_Tick();
+        }
+        else
+        {
+            // F1 M1 frame/pump split: pump 0..4 tics through the engine's own
+            // ticker, then present one interpolated frame at the event loop's
+            // rate. The clock is the same one DG_GetTicksMs feeds the engine,
+            // so the interpolation fraction derives from the engine's own
+            // heartbeat (no second time source). `doomgeneric_Tick` (one tic,
+            // no interpolation) remains available for tests/compat.
+            room::doom::d_main::doomgeneric_frame(platform::now_ms());
         }
 
         // Request a redraw so winit doesn't throttle to zero FPS while idle.
@@ -261,7 +270,8 @@ impl ApplicationHandler for App {
 /// event loop, configures continuous polling so the Doom tick can run as
 /// fast as possible, constructs the [`App`], and hands control to winit.  On
 /// event-loop failure the process exits with status `1`.
-fn main() {
+fn main()
+{
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
 
@@ -272,11 +282,14 @@ fn main() {
 
     // Install the native audio backend before the event loop (and therefore
     // the engine) starts; `doom::i_sound` builds it when audio is initialised.
-    room::audio::set_backend_factory(|| {
-        RodioBackend::new()
-            .map(|b| Box::new(b) as Box<dyn room::audio::AudioBackend>)
-            .map_err(|e| e.to_string())
-    });
+    room::audio::set_backend_factory(
+        | |
+        {
+            RodioBackend::new().
+                map(|b| Box::new(b) as Box<dyn room::audio::AudioBackend>).
+                map_err(|e| e.to_string())
+        }
+    );
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
 
@@ -284,7 +297,8 @@ fn main() {
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
 
     let mut app = App::new();
-    if let Err(e) = event_loop.run_app(&mut app) {
+    if let Err(e) = event_loop.run_app(&mut app)
+    {
         log::error!("Event loop error: {e}");
         std::process::exit(1);
     }

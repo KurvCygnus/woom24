@@ -1,0 +1,34 @@
+[package]
+name = "room-shell-web"
+version = "0.1.0"
+edition = "2021"
+description = "Wasm platform shell for the room engine (wasm-bindgen + Web Audio + Canvas2D/WebGL2)"
+repository = "https://github.com/KurvCygnus/woom24"
+license = "GPL-2.0"
+
+[lib]
+name = "room_shell_web"
+crate-type = ["cdylib"]
+
+# Node-runner-only diagnostics surface (F9): must stay out of production
+# builds so the generated JS glue carries zero `harness_` symbols.
+[features]
+harness = []
+
+[dependencies]
+room = { path = "../../room" }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement",
+    "HtmlInputElement", "HtmlButtonElement", "HtmlDivElement",
+    "CanvasRenderingContext2d", "ImageData", "KeyboardEvent", "Event",
+    "EventTarget", "Performance", "FileReader", "File", "Blob", "ProgressEvent",
+    "FileList", "Node", "console",
+    "WebGl2RenderingContext", "WebGlShader", "WebGlProgram", "WebGlTexture",
+    "WebGlBuffer", "WebGlUniformLocation",
+    "AudioContext", "AudioBuffer", "AudioBufferSourceNode", "GainNode",
+    "StereoPannerNode", "AudioParam", "AudioNode", "AudioDestinationNode",
+] }
+js-sys = "0.3"
+# log 0.4.30 ships no default features; set_boxed_logger needs "std".
+log = { version = "0.4", features = ["std"] }

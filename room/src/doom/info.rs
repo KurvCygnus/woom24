@@ -71,8 +71,8 @@
 //! [`crate::doom::statenum`] (re-exported via `pub use`) so that this file
 //! can write `nextstate: S_PUNCH2` exactly like the C source does. The
 //! values *must* match the C enums member-for-member because every entry
-//! in `mobjinfo`, `states`, and `sprnames` is initialised by integer index
-//! - any drift silently re-targets every cross-table reference. The tests
+//! in `mobjinfo`, `states`, and `sprnames` is initialised by integer index -
+//! any drift silently re-targets every cross-table reference. The tests
 //! at the bottom of the file (`mt_enum_matches_c_header`,
 //! `mf_flags_match_c_header`, `mobjinfo_spawnstate_sprite_cross_reference`,
 //! `mobjinfo_respawn_flags_consistent`) lock the indices and flag bits
@@ -907,7 +907,18 @@ pub struct MobjInfo {
 const _: () = assert!(std::mem::size_of::<MobjInfo>() == 92);
 const _: () = assert!(std::mem::offset_of!(MobjInfo, speed) == 60);
 
+// Layout guards for `state_t`. Field arithmetic, both models:
+// sprite(c_int) 4 + frame(c_int) 4 + tics(c_int) 4 + action(function
+// pointer) + nextstate(c_int) 4 + misc1(c_int) 4 + misc2(c_int) 4.
+// LP64: 6x4 + pad 4 (fn-pointer needs its 8-byte alignment after `tics`)
+// + fn-pointer 8 = 36, rounded up to the 8-byte struct alignment = 40.
+// ILP32 (wasm32): 6x4 + fn-pointer 4 (no padding) = 28, alignment 4 = 28.
+// Numbers verified against the real structs with a wasm32 const-assert
+// scratch check (c_tests/LP64 task 2).
+#[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::size_of::<State>() == 40);
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(std::mem::size_of::<State>() == 28);
 const _: () = assert!(std::mem::offset_of!(State, tics) == 8);
 
 // C-linkage declarations of every action function referenced from

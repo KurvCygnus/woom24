@@ -6,3 +6,15 @@
 session-*.md
 *.bak
 
+
+# Local read-only reference clones (AGENTS.md: never build/modify/commit inside)
+reference/
+
+# F9 scenario runner (Task 3): the *.json rule above would swallow the
+# scenario manifests and goldens - re-include them; the ledger output dir
+# (run artifacts) stays ignored.
+!shells/web/scripts/scenarios/**
+shells/web/scripts/scenarios/out/
+
+# working specs/plans are local-only (never committed; see AGENTS.md Documentation Standards)
+/docs/specs/

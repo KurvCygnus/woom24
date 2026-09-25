@@ -1,0 +1,21 @@
+{
+  "name": "sf2_music",
+  "iwad": "doom1.wad",
+  "sf2": "test.sf2",
+  "pwads": [],
+  "boot": { "mode": "standard", "args": [], "clock_armed": true, "boot_ms": 2000 },
+  "steps": [
+    { "wait_gametic": 140 },
+    { "console_contains": { "channel": "warn", "text": "No soundfont found" } },
+    { "assert_stats": { "music_active": false, "underruns": 0, "voices": 0, "scheduled_seconds": 0 } },
+    { "anchor": "t140", "state_hash": true },
+
+    { "wait_gametic": 490 },
+    { "anchor": "t490", "state_hash": true },
+    { "assert_stats": { "music_active": false } },
+
+    { "wait_gametic": 980 },
+    { "anchor": "t980", "state_hash": true, "frame_hash": true },
+    { "assert_stats": { "music_active": false } }
+  ]
+}

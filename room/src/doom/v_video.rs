@@ -485,6 +485,18 @@ pub extern "C" fn V_RestoreBuffer() {
     }
 }
 
+/// Retarget `dest_screen` after a `video_cfg` framebuffer swap: if the V_*
+/// layer was pointed at the freed primary framebuffer (its pre-swap pointer
+/// is `old_primary`), follow the new one; a `V_UseBuffer`-selected
+/// off-screen buffer survives untouched.
+pub(crate) unsafe fn retarget_after_framebuffer_swap(old_primary: *mut u8)
+{
+    if dest_screen == old_primary
+    {
+        dest_screen = I_VideoBuffer;
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn WritePCXfile(
     filename: *mut c_char,

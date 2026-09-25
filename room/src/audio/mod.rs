@@ -16,16 +16,19 @@
 
 pub(crate) mod music;
 pub mod sfx;
+pub mod synth;
 
 pub use music::{mus2midi, SAMPLE_RATE};
 pub use sfx::{decode_doom_sfx, gains_from, PanState};
+pub use synth::{SynthEngine, SynthFont, BLOCK_SIZE};
 
 use std::cell::Cell;
 use std::cell::RefCell;
 
 /// Control-plane seam between the engine (`doom::i_sound`) and a platform
 /// audio backend. The data plane (mixing graph) belongs to the backend.
-pub trait AudioBackend {
+pub trait AudioBackend
+{
     // SFX control operations.
     fn start_sound(&mut self, data: &[u8], vol: i32, sep: i32, channel: usize) -> bool;
     fn stop_sound(&mut self, channel: usize);
@@ -40,9 +43,21 @@ pub trait AudioBackend {
     fn pause_music(&self);
     fn resume_music(&self);
     fn is_music_playing(&self) -> bool;
+
+    /// Name of the SoundFont the host pre-selected, if any.
+    ///
+    /// On wasm there is no filesystem to probe; the shell registers the
+    /// launcher-selected SF2 under the VFS and the backend holds its name.
+    /// The engine asks here instead of probing `Path::exists()` (always
+    /// false on wasm32). Default `None` keeps native backends unchanged.
+    fn soundfont_hint(&self) -> Option<String>
+    {
+        None
+    }
 }
 
-thread_local! {
+thread_local!
+{
     /// Factory installed by the platform shell before the engine initialises
     /// audio. `None` in contexts without a shell (tests): audio stays silent.
     static BACKEND_FACTORY: Cell<Option<BackendFactory>> = const { Cell::new(None) };
@@ -54,49 +69,47 @@ pub type BackendFactory = fn() -> Result<Box<dyn AudioBackend>, String>;
 /// Install the platform's backend constructor. Called once from the shell
 /// (native: the shell's mixer-graph backend; wasm: Web Audio) before
 /// `doomgeneric_Create`.
-pub fn set_backend_factory(factory: BackendFactory) {
-    BACKEND_FACTORY.with(|f| f.set(Some(factory)));
-}
+pub fn set_backend_factory(factory: BackendFactory) { BACKEND_FACTORY.set(Some(factory)); }
 
 /// Invoke the installed factory. Returns `None` when no shell installed a
 /// factory (headless/test contexts) or when the factory itself reports
 /// failure (no audio device) — both mean "run silent", matching today's
 /// `AUDIO == None` behavior.
-pub(crate) fn create_backend() -> Option<Box<dyn AudioBackend>> {
-    BACKEND_FACTORY.with(|f| f.get()).and_then(|factory| {
-        let built = factory();
-        if let Err(e) = &built {
-            log::warn!("audio backend construction failed (running silent): {e}");
+pub(crate) fn create_backend() -> Option<Box<dyn AudioBackend>>
+{
+    BACKEND_FACTORY.get().and_then(
+        |factory|
+        {
+            let built = factory();
+            if let Err(e) = &built {
+                log::warn!("audio backend construction failed (running silent): {e}");
+            }
+            built.ok()
         }
-        built.ok()
-    })
+    )
 }
 
 /// The silent backend. Every control operation is a no-op and nothing ever
 /// reports as playing. Formalises the engine's "no audio device" path.
 pub struct NoopBackend;
 
-impl AudioBackend for NoopBackend {
-    fn start_sound(&mut self, _data: &[u8], _vol: i32, _sep: i32, _channel: usize) -> bool {
-        true
-    }
+impl AudioBackend for NoopBackend
+{
+    fn start_sound(&mut self, _data: &[u8], _vol: i32, _sep: i32, _channel: usize) -> bool { true }
     fn stop_sound(&mut self, _channel: usize) {}
     fn update_sound_params(&self, _channel: usize, _vol: i32, _sep: i32) {}
-    fn is_playing(&self, _channel: usize) -> bool {
-        false
-    }
+    fn is_playing(&self, _channel: usize) -> bool { false }
     fn load_sound_font(&mut self, _path: &std::path::Path) {}
     fn play_music(&mut self, _midi_bytes: &[u8], _looping: bool) {}
     fn stop_music(&mut self) {}
     fn set_music_volume(&self, _vol: i32) {}
     fn pause_music(&self) {}
     fn resume_music(&self) {}
-    fn is_music_playing(&self) -> bool {
-        false
-    }
+    fn is_music_playing(&self) -> bool { false }
 }
 
-thread_local! {
+thread_local!
+{
     /// Thread-local home for the platform's audio backend.
     ///
     /// Holds the `Box<dyn AudioBackend>` produced by the factory installed
@@ -110,11 +123,13 @@ thread_local! {
 }
 
 #[cfg(test)]
-mod noop_tests {
+mod noop_tests
+{
     use super::*;
 
     #[test]
-    fn noop_backend_reports_silence() {
+    fn noop_backend_reports_silence()
+    {
         let mut b = NoopBackend;
         assert!(
             b.start_sound(&[], 100, 128, 0),
@@ -133,9 +148,21 @@ mod noop_tests {
     }
 
     #[test]
-    fn no_factory_means_silent() {
+    fn no_factory_means_silent()
+    {
         // Backends are created only via a shell-installed factory; in tests
         // none is installed, mirroring headless runs.
         assert!(create_backend().is_none());
+    }
+
+    #[test]
+    fn soundfont_hint_defaults_to_none()
+    {
+        let b = NoopBackend;
+        assert_eq!(
+            b.soundfont_hint(),
+            None,
+            "native backends must not hint; default keeps them silent-free"
+        );
     }
 }

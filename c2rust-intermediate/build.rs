@@ -1,11 +1,13 @@
 #[cfg(all(unix, not(target_os = "macos")))]
-fn main() {
+fn main()
+{
     // add unix dependencies below
     // println!("cargo:rustc-flags=-l readline");
 }
 
 #[cfg(target_os = "macos")]
-fn main() {
+fn main()
+{
     // add macos dependencies below
     // println!("cargo:rustc-flags=-l edit");
 }
@@ -14,6 +16,4 @@ fn main() {
 // default workspace build, but the build script itself must compile on every
 // target (IntelliJ/RustRover loads the whole workspace, Windows included).
 #[cfg(windows)]
-fn main() {
-    // add Windows dependencies below
-}
+fn main() { /* add Windows dependencies below */ }

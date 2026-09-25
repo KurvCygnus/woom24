@@ -208,14 +208,13 @@ pub unsafe extern "C" fn P_BringUpWeapon(player: *mut PlayerT) {
 pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int {
     let ammo = weaponinfo[(*player).readyweapon as usize].ammo;
 
-    let count: c_int;
-    if (*player).readyweapon == wp_bfg {
-        count = DEH_DEFAULT_BFG_CELLS_PER_SHOT;
+    let count: c_int = if (*player).readyweapon == wp_bfg {
+        DEH_DEFAULT_BFG_CELLS_PER_SHOT
     } else if (*player).readyweapon == wp_supershotgun {
-        count = 2;
+        2
     } else {
-        count = 1;
-    }
+        1
+    };
 
     if ammo == am_noammo || (*player).ammo[ammo as usize] >= count {
         return 1;

@@ -369,8 +369,13 @@ pub const SBARHEIGHT: c_int = 32;
 
 /// Number of entries in the fuzz offset lookup table (FUZZTABLE in r_draw.c).
 pub const FUZZTABLE: usize = 50;
-/// Column offset used when rendering the fuzz/spectre effect (FUZZOFF = SCREENWIDTH).
-pub const FUZZOFF: c_int = SCREENWIDTH;
+/// Direction unit used when rendering the fuzz/spectre effect. Vanilla/boom
+/// bake `FUZZOFF = SCREENWIDTH` into the table at compile time; since F1 M2
+/// the raster width is runtime, so the table stores +/-1 direction units and
+/// the column renderers scale by the live `SCREENWIDTH` (crispy-doom
+/// `r_draw.c:325` defines FUZZOFF as 1 and scales at the use site,
+/// `r_draw.c:409`) — identical output at any width.
+pub const FUZZOFF: c_int = 1;
 
 // ---------------------------------------------------------------------------
 // Runtime renderer types (r_defs.h) — used by unported r_segs.c / r_things.c
@@ -761,7 +766,12 @@ pub const SP_STATSY: c_int = 50;
 /// X-position of the time display (SP_TIMEX = 16).
 pub const SP_TIMEX: c_int = 16;
 /// Y-position of the time display (SP_TIMEY = SCREENHEIGHT − 32).
-pub const SP_TIMEY: c_int = SCREENHEIGHT - 32;
+/// F1 M2: `SCREENHEIGHT` is the runtime raster height, so this is a function
+/// of the live configuration rather than a compile-time constant.
+pub fn SP_TIMEY() -> c_int {
+    let height = unsafe { SCREENHEIGHT };
+    height - 32
+}
 /// Delay in tics before showing the "next level" location (SHOWNEXTLOCDELAY = 4).
 pub const SHOWNEXTLOCDELAY: c_int = 4;
 /// X spacing between deathmatch matrix columns (DM_SPACINGX = 40).

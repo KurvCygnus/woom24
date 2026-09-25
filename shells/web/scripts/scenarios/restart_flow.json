@@ -1,0 +1,241 @@
+{
+  "name": "restart_flow",
+  "iwad": "doom1.wad",
+  "sf2": null,
+  "pwads": [],
+  "boot": {
+    "mode": "standard",
+    "args": [],
+    "clock_armed": true,
+    "boot_ms": 2000
+  },
+  "steps": [
+    {
+      "wait_gametic": 140
+    },
+    {
+      "anchor": "title",
+      "frame_hash": true
+    },
+    {
+      "key": {
+        "code": 27,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 143
+    },
+    {
+      "key": {
+        "code": 27,
+        "pressed": false
+      }
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 146
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": false
+      }
+    },
+    {
+      "assert_gametic_gt": 143
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 149
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": false
+      }
+    },
+    {
+      "assert_gametic_gt": 146
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 152
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": false
+      }
+    },
+    {
+      "assert_gametic_gt": 149
+    },
+    {
+      "wait_gametic": 350
+    },
+    {
+      "anchor": "game1",
+      "state_hash": true,
+      "frame_hash": true
+    },
+    {
+      "key": {
+        "code": 173,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 410
+    },
+    {
+      "key": {
+        "code": 173,
+        "pressed": false
+      }
+    },
+    {
+      "key": {
+        "code": 163,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 413
+    },
+    {
+      "key": {
+        "code": 163,
+        "pressed": false
+      }
+    },
+    {
+      "key": {
+        "code": 174,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 433
+    },
+    {
+      "key": {
+        "code": 174,
+        "pressed": false
+      }
+    },
+    {
+      "key": {
+        "code": 163,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 436
+    },
+    {
+      "key": {
+        "code": 163,
+        "pressed": false
+      }
+    },
+    {
+      "wait_gametic": 520
+    },
+    {
+      "assert_gametic_gt": 436
+    },
+    {
+      "key": {
+        "code": 27,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 523
+    },
+    {
+      "key": {
+        "code": 27,
+        "pressed": false
+      }
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 526
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": false
+      }
+    },
+    {
+      "assert_gametic_gt": 523
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 529
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": false
+      }
+    },
+    {
+      "assert_gametic_gt": 526
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": true
+      }
+    },
+    {
+      "wait_gametic": 532
+    },
+    {
+      "key": {
+        "code": 13,
+        "pressed": false
+      }
+    },
+    {
+      "assert_gametic_gt": 529
+    },
+    {
+      "wait_gametic": 700
+    },
+    {
+      "anchor": "game2",
+      "state_hash": true,
+      "frame_hash": true
+    }
+  ]
+}

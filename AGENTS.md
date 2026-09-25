@@ -7,11 +7,16 @@ compatibility target. The name is the mission statement, deadpan on purpose:
 
 | Fragment | Meaning |
 |---|---|
-| **W** | **WASM** — the only shipping target is a browser, via `wasm32-unknown-unknown`. |
+| **W** | **WASM** — the primary shipping target is a browser, via `wasm32-unknown-unknown`; it is the current core goal and the technical-validation bed. Native desktop (Windows/macOS/Linux) shells already exist for development. |
 | **oom** | **(D)oom** — engine work: demo-exact simulation, Boom/MBF-family compatibility. |
 | **24** | **ID24** — the compatibility ceiling the project is named after; the roadmap ends there. |
 
-Status: **spec ① implemented** — platform layer lives in `shells/native`; `room` lib carries no windowing/GPU/audio deps; audio goes through the `AudioBackend` control plane. Wasm gap (CRT externs + LP64 guards) enumerated in the spec and handed to specs ②/③. GitHub-side fork: KurvCygnus/woom24 (origin); upstream: sunsided/room.
+Platform roadmap (decided 2026-09-19): **WASM first** (core goal + technical validation). After the web
+target stabilizes, the shell architecture extends to the three desktop platforms (native shells evolve
+into shipping targets) and **Android** — Android is a *control wrapper + WebView* embedding the WASM
+build, not a separate engine port. All non-web shells stay thin platform layers over the same core.
+
+Status: **spec ①+②+③ implemented (branch `feat/spec2-3`)** — platform layer lives in `shells/native`; audio goes through the `AudioBackend` control plane with native (rodio) and web (Web Audio) backends; `shells/web` ships the wasm shell (CRT/VFS shim, DG_* + rAF loop, Canvas2D/WebGL2 presenters, two-entry contract per "Web Entry Contract"; wasm artifact ≈925 KiB self-contained). c_tests/LP64 policy landed (spec ③): differential suite stays LP64-unix-gated (oracle = compiled C side, see docs/audit-c-long.md), struct-size guards are model-aware. Browser human-pass pending on the user. GitHub-side fork: KurvCygnus/woom24 (origin); upstream: sunsided/room.
 This file is the binding contract for any agent working in this
 repository. When analyzing, reviewing, or generating code, strictly align with the constraints below.
 
@@ -26,6 +31,9 @@ repository. When analyzing, reviewing, or generating code, strictly align with t
 | Audio stack | **DECIDED (2026-09-17)** — MIDI-first SF2 synthesis with layered fallback: rustysynth + user-supplied SF2 (rustysynth is room's existing pure-Rust synth — it fills the FluidSynth role; the C FluidSynth library conflicts with the no-C-dependencies constraint) → built-in OPL2 emulation (asset-free) → silence. SF2 is loaded via the config UI; nothing is fetched at runtime. |
 | Entry API | **DECIDED (2026-09-17)** — two explicitly separated wasm exports; see "Web Entry Contract". |
 | Multiplayer | OPTIONAL — deferred; must never shape the core loop (see constraint 5) |
+| E2E Infra (F9) | **DECIDED (2026-09-25)** — framebuffer goldens + cross-target gate + CI landed; playwright approved early (M4); Freedoom 0.13.0 vendored via LFS for the CI-only soak (M5). |
+| Architecture reform (F10) | **DECIDED (2026-09-25)** — freeze-zone + graduation strategy; upstream policy downgraded to cherry-pick; dtmc admission = "observable behavior belongs to the demo synchronization surface" (extract the qualifying parts, never wholesale moves); dtmc scales file->folder by content. Pilot: m_fixed + w_wad (landed on feat/f10-dtmc-refactor). |
+| Working specs policy | **DECIDED (2026-09-26)** — design specs and implementation plans are local-only working documents, git-ignored under `docs/specs/`; the repository carries only distilled, reader-facing docs (DESIGN.md, catalogs, README). AGENTS Documentation Standards reflects this. |
 
 ## Non-Negotiable Product Constraints
 
@@ -74,7 +82,7 @@ Notes:
   dsda-doom.
 - ID24 is a pre-1.0 draft and **not** fully Boom/MBF21-compatible (demos, weapon behavior differ). Implement it
   **last**, as an additive layer; keep the DeHacked layer DSDHacked-ready so ID24 slots in without rework.
-- Full research with URLs and the port×complevel matrix lives in `docs/research/references-and-specs.md`.
+- Reference research notes (URLs, the port×complevel matrix) are local working material, like all specs; the distilled tier/reference table above is the public record.
 
 ## Architecture
 
@@ -88,6 +96,9 @@ Notes:
   When vanilla relied on accidental behavior, replicate that behavior explicitly and mark it with `//!`.
 - One `Complevel` enum drives every compat switch. Per-tier behavior gets its own table in `core`, reviewed
   against that tier's primary reference.
+- Wasm FFI rule: variadic `extern "C"` calls must never be declared directly in `room/src/doom/` — wasm-lld
+  replaces arity-mismatched calls with trapping `signature_mismatch` stubs; they route through the per-arity
+  `crt.rs` wrappers (decision record: `docs/decision-wasm-per-arity-crt.md`).
 
 ### Fork Discipline (`sunsided/room`)
 
@@ -133,15 +144,22 @@ mid-game asset swaps are out of scope until explicitly designed (they are determ
 
 ## Code Formatting & Style Guidelines
 
-- `rustfmt` is authoritative; run `cargo fmt` on touched files. **Zero `cargo clippy` warnings is the goal.**
-  For unavoidable findings, suppress with an inline reason (`#![allow(...)] // ! Reason…`). Deprecated APIs are
-  never used.
+- **No rustfmt** (decided 2026-09-19: the codebase is hand-formatted; `cargo fmt`/`cargo fmt --check`
+  must not be run on this tree). Style is **Allman** (braces on their own line). Upstream room code
+  keeps its existing style untouched; when we modify a piece of code, re-format that piece to Allman
+  by hand. **Zero `cargo clippy` warnings is the goal.** For unavoidable findings, suppress with an
+  inline reason (`#![allow(...)] // ! Reason…`). Deprecated APIs are never used.
 - Comment prefix system:
   - `//*` — explains something important.
   - `//!` — explains something edgy, counterintuitive, or footgunny.
   - `//?` — confusion, TODO, FIX.
-- Comments explain **why, not what**; no doc block on the self-evident. Comments default to **Chinese**, always
-  half-width ASCII punctuation; follow file-local convention when a file already uses another language.
+- The `//*` / `//!` / `//?` markers live **only in `//` comments**. Doc comments (`///`, `//!`) are
+  rendered by rustdoc — these markers have no effect there and render literally (decided
+  2026-09-18: never prefix doc comments with them). Doc comments use standard Markdown and
+  Rustdoc conventions instead (headings, backticks, `# Panics` / `# Safety` sections).
+- Comments explain **why, not what**; no doc block on the self-evident. Comments are written in
+  **English** (decided 2026-09-18: the project is global-facing); ASCII punctuation only; follow
+  file-local convention when a file already uses another language.
 - Always use guard clauses; prefer expression bodies for one-liners. Self-descriptive names; readability over
   brevity — long but meaningful names are acceptable.
 - Temporary mess is acceptable inside module boundaries; anything crossing a declared boundary must be clean.
@@ -176,6 +194,8 @@ mid-game asset swaps are out of scope until explicitly designed (they are determ
 
 - Tests never hit the network and never require commercial IWADs. Use tiny synthetic WAD fixtures built
   in-test or committed fixtures we generate ourselves.
+- Offline rule scope: unit and golden tests never touch the network and never require commercial IWADs; the
+  CI soak job alone (F9 §7, not yet landed) may fetch public corpus files pinned in its manifest.
 - **Golden demo tests are mandatory:** a fixed demo input must produce byte-identical simulation state hashes
   across runs **and across host/wasm targets**. This is the project's core regression mechanism — demo-exact
   determinism is both a product requirement (constraint 5) and the test oracle.
@@ -187,8 +207,19 @@ mid-game asset swaps are out of scope until explicitly designed (they are determ
 ## Documentation Standards
 
 - After a task changes design or usage, synchronize `docs/DESIGN.md` and `README.md`.
-- Compatibility decisions are recorded per complevel in a decision log under `docs/`, each entry citing the
+- **Working specs and implementation plans are local-only** (decided 2026-09-26): they live
+  git-ignored under `docs/specs/` and never enter the repository or its history. The repository
+  carries only distilled, reader-facing documents (`docs/DESIGN.md`, `README.md`, the
+  `docs/vanilla-workarounds.md` catalog, decision records); any spec content worth keeping must
+  be distilled into those before landing.
+- Compatibility decisions are recorded per complevel in this file's Decision Log, each entry citing the
   spec section or reference-port file it was derived from. No uncited compat behavior.
+- **Vanilla workarounds are documented in `docs/vanilla-workarounds.md`** (decided 2026-09-19): every
+  emulation of a vanilla DOOM bug/memory-violation/legacy behavior (spechit/tmbbox overruns, demo-window
+  quirks, …) — its DOS-era root cause, what the trample observably affected, where we emulate it (file:line),
+  semantics, status (complete/partial/gap) and the reference-port lines it was derived from — must be
+  cataloged there. Adding or changing a workaround REQUIRES updating this document in the same change; the
+  doc is also the intake checklist for new findings from reference-source audits.
 - Changelogs (once shipping) are user-facing: no implementation details, no `[Unreleased]` header churn;
   feature → minor bump, fix → patch bump.
 

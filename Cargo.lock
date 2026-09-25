@@ -1995,6 +1995,7 @@ dependencies = [
  "libc",
  "log",
  "rustysynth",
+ "woom24-libc",
 ]
 
 [[package]]
@@ -2007,9 +2008,19 @@ dependencies = [
  "pollster",
  "rodio",
  "room",
- "rustysynth",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "room-shell-web"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "log",
+ "room",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -3428,6 +3439,10 @@ dependencies = [
  "unicode-xid",
  "wasmparser",
 ]
+
+[[package]]
+name = "woom24-libc"
+version = "0.1.0"
 
 [[package]]
 name = "x11-dl"

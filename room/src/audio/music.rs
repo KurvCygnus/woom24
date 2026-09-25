@@ -20,7 +20,8 @@ pub const SAMPLE_RATE: i32 = 44100;
 /// Wrapped in a struct so that callers (`i_sound`) treat it as an opaque
 /// handle that is passed back to the audio backend rather than as a raw
 /// `Vec<u8>` of unspecified format.
-pub(crate) struct MusicHandle {
+pub(crate) struct MusicHandle
+{
     /// Standard MIDI File bytes ready to be played by the platform's
     /// audio backend.
     pub(crate) midi_bytes: Vec<u8>,
@@ -49,7 +50,8 @@ const MIDI_PPQ: u16 = 70; // ticks per beat; 1 tick = 1 MUS tick (1/140 s)
 /// (the General MIDI drum channel).  MUS channels 9..=14 shift up by one so
 /// MIDI channel 9 is left exclusively for percussion.  Channels 0..=8 are
 /// unchanged.
-fn mus_to_midi_channel(mus_ch: u8) -> u8 {
+fn mus_to_midi_channel(mus_ch: u8) -> u8
+{
     if mus_ch == 15 {
         // percussion
         9

@@ -1,0 +1,30 @@
+{
+  "scenario": "e1m1_combat",
+  "provenance": {
+    "commit": "30377c80f95dac33f37afe9fa21c81f05c71961e",
+    "rationale": "Initial blessing: E1M1 combat via boot args -warp 1 1 (skill = default sk_medium); anchors fight_a (t140), fight_b (t420), fight_c (t700) under scripted fire/forward/turn/strafe input; hashes are harness 64-bit digests normalized to 0x + 16 hex digits."
+  },
+  "anchors": [
+    {
+      "scenario": "e1m1_combat",
+      "anchor": "fight_a",
+      "gametic": 140,
+      "state_hash": "0xa7bad37207530c4a",
+      "frame_hash": "0x9d6f5f96b1d7ffed"
+    },
+    {
+      "scenario": "e1m1_combat",
+      "anchor": "fight_b",
+      "gametic": 420,
+      "state_hash": "0xe71d4e4de51f1163",
+      "frame_hash": "0x75d994affc873a2d"
+    },
+    {
+      "scenario": "e1m1_combat",
+      "anchor": "fight_c",
+      "gametic": 700,
+      "state_hash": "0xb41370cb51e221e4",
+      "frame_hash": "0xe94056f6d6cb679d"
+    }
+  ]
+}

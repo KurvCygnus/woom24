@@ -1,0 +1,62 @@
+{
+  "name": "e1m1_combat",
+  "iwad": "doom1.wad",
+  "sf2": null,
+  "pwads": [],
+  "boot": { "mode": "standard", "args": ["-warp", "1", "1"], "clock_armed": true, "boot_ms": 2000 },
+  "steps": [
+    { "wait_gametic": 140 },
+    { "anchor": "fight_a", "state_hash": true, "frame_hash": true },
+
+    { "key": { "code": 173, "pressed": true } },
+    { "wait_gametic": 260 },
+    { "key": { "code": 173, "pressed": false } },
+    { "wait_gametic": 263 },
+
+    { "key": { "code": 163, "pressed": true } },
+    { "wait_gametic": 266 },
+    { "key": { "code": 163, "pressed": false } },
+    { "wait_gametic": 269 },
+
+    { "key": { "code": 174, "pressed": true } },
+    { "wait_gametic": 289 },
+    { "key": { "code": 174, "pressed": false } },
+    { "wait_gametic": 292 },
+
+    { "key": { "code": 163, "pressed": true } },
+    { "wait_gametic": 295 },
+    { "key": { "code": 163, "pressed": false } },
+    { "wait_gametic": 298 },
+
+    { "wait_gametic": 420 },
+    { "anchor": "fight_b", "state_hash": true, "frame_hash": true },
+
+    { "key": { "code": 160, "pressed": true } },
+    { "wait_gametic": 440 },
+    { "key": { "code": 160, "pressed": false } },
+    { "wait_gametic": 443 },
+
+    { "key": { "code": 163, "pressed": true } },
+    { "wait_gametic": 446 },
+    { "key": { "code": 163, "pressed": false } },
+    { "wait_gametic": 449 },
+
+    { "key": { "code": 172, "pressed": true } },
+    { "wait_gametic": 469 },
+    { "key": { "code": 172, "pressed": false } },
+    { "wait_gametic": 472 },
+
+    { "key": { "code": 173, "pressed": true } },
+    { "wait_gametic": 540 },
+    { "key": { "code": 173, "pressed": false } },
+    { "wait_gametic": 543 },
+
+    { "key": { "code": 163, "pressed": true } },
+    { "wait_gametic": 546 },
+    { "key": { "code": 163, "pressed": false } },
+    { "wait_gametic": 549 },
+
+    { "wait_gametic": 700 },
+    { "anchor": "fight_c", "state_hash": true, "frame_hash": true }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "scenario": "restart_flow",
+  "provenance": {
+    "commit": "30377c80f95dac33f37afe9fa21c81f05c71961e",
+    "rationale": "Initial blessing: title (t140), then menu-scripted new game x2 (ESC/ENTER x3, skill = Hurt Me Plenty); game1 (t350) after the first start, game2 (t700) after the second restart crossed the melt wipe on a loaded zone (zone held under harness pacing); hashes are harness 64-bit digests normalized to 0x + 16 hex digits."
+  },
+  "anchors": [
+    {
+      "scenario": "restart_flow",
+      "anchor": "title",
+      "gametic": 140,
+      "state_hash": null,
+      "frame_hash": "0x7a1cfa395596e375"
+    },
+    {
+      "scenario": "restart_flow",
+      "anchor": "game1",
+      "gametic": 350,
+      "state_hash": "0x4ae2dd119e697564",
+      "frame_hash": "0xdc4c47676bb9d78d"
+    },
+    {
+      "scenario": "restart_flow",
+      "anchor": "game2",
+      "gametic": 700,
+      "state_hash": "0x1091795cd8475911",
+      "frame_hash": "0x9d6f5f96b1d7ffed"
+    }
+  ]
+}

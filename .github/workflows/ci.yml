@@ -1,10 +1,31 @@
-name: CI
+# F9 three-job CI (M3): host suite, wasm goldens, cross-target gate.
+#
+# Upstream (room) carried a single `cargo test` job plus a main-only SBOM
+# submission job; both dispositions are recorded in the adopting commit
+# (the SBOM job was dropped - see commit body). The three jobs below are
+# Task 7 of the F9 e2e-infra plan:
+# - host: workspace build + clippy + tests (default members; the nightly-only
+#   c2rust-intermediate crate is not a default member, so plain commands
+#   never touch it).
+# - wasm: harness pkg for wasm32 + all five committed scenario flows against
+#   their wasm-blessed goldens; wasm ledgers uploaded as an artifact.
+# - cross-target: host twin writes the host ledgers, then every flow's wasm
+#   vs host ledger must agree (diff-ledgers gate 2). KNOWN_FRAME_DIVERGENCE
+#   mirrors the twin's committed const (room/tests/scenario_harness/mod.rs):
+#   state hashes stay strictly enforced everywhere, the documented defect-C
+#   frame divergence (native sprite clipping vs wasm) is warn-only on the
+#   four listed flows, and save_load_roundtrip is strict state-parity with
+#   no frame anchors yet (frame anchors deferred - see F9 M4).
+#
+# M5 soak job placeholder (lands with M5, not now):
+#   soak:
+#     Target IWADs: freedoom1.wad / freedoom2.wad (vendored via LFS,
+#     provenance in docs/e2e/fixtures.md) as target_iwad over long-horizon
+#     runs; see docs/F9-e2e-infra.md M5 for the planned shape.
 
-on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main", "feature/*"]
+name: ci
+
+on: [push, pull_request]
 
 permissions:
   contents: read
@@ -13,78 +34,127 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: cargo test
+  host:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30
     steps:
       - name: Checkout repository (with LFS)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@v4
         with:
           lfs: true
 
       - name: Install Rust toolchain
-        id: rust-toolchain
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-
-      - name: Cache Cargo registry and build artifacts
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ steps.rust-toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-${{ steps.rust-toolchain.outputs.cachekey }}-
-
-      - name: Install C build dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            libc6-dev \
-            pkg-config \
-            libasound2-dev
-
-      - name: Build (includes C compilation via FFI)
-        run: cargo build --workspace --locked --exclude c2rust-intermediate
-
-      - name: Run tests
-        run: cargo test --workspace --locked --exclude c2rust-intermediate
-        env:
-          RUST_LOG: info
-
-
-  dependencies:
-    name: Dependency Submission
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo artifacts
+      - name: Cache Cargo registry and build artifacts
         uses: Swatinem/rust-cache@v2
 
-      - name: Install cargo-sbom
-        uses: psastras/sbom-rs/actions/install-cargo-sbom@cargo-sbom-v0.10.0
+      # libasound2-dev is required: shells/native (default member) pulls
+      # rodio -> cpal -> alsa-sys, whose build script needs ALSA headers.
+      - name: Install C build dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends build-essential libc6-dev pkg-config libasound2-dev
 
-      - name: Generate SBOM
-        run: cargo-sbom --output-format=spdx_json_2_3 > sbom.json
+      - name: Build + clippy
+        run: set -o pipefail && cargo build --locked && cargo clippy --locked 2>&1 | tail -5
 
-      - name: Upload SBOM as artifact
-        uses: actions/upload-artifact@v7
+      - name: Test
+        run: cargo test --locked
+
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository (with LFS)
+        uses: actions/checkout@v4
         with:
-          name: sbom
-          path: sbom.json
+          lfs: true
 
-      - name: Submit dependencies to GitHub
-        uses: advanced-security/spdx-dependency-submission-action@v0.2.0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          filePath: sbom.json
+          targets: wasm32-unknown-unknown
+
+      # Cache keeps the wasm-bindgen-cli install below (keyed on the
+      # toolchain + Cargo.lock), so the version-pinned CLI persists.
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      # Must stay in lockstep with the wasm-bindgen crate pinned in
+      # Cargo.lock (0.2.121, enforced by shells/web/scripts/build-www.sh).
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli --version 0.2.121 --locked
+
+      # Harness pkg, NOT the production www/pkg (F9 contract: the harness
+      # build must never overwrite the shipping artifact).
+      - name: Build harness pkg
+        run: cargo build -p room-shell-web --target wasm32-unknown-unknown --release --features harness
+
+      - name: Bindgen
+        run: wasm-bindgen --target web --out-dir target/pkg-harness --no-typescript target/wasm32-unknown-unknown/release/room_shell_web.wasm
+
+      # All five committed flows, each gated against its wasm-blessed
+      # golden (no SCENARIO_ALLOW_FAIL: every flow passes clean).
+      - name: Scenario title_attract
+        run: node shells/web/scripts/run-scenarios.mjs shells/web/scripts/scenarios/title_attract.json
+
+      - name: Scenario e1m1_combat
+        run: node shells/web/scripts/run-scenarios.mjs shells/web/scripts/scenarios/e1m1_combat.json
+
+      - name: Scenario restart_flow
+        run: node shells/web/scripts/run-scenarios.mjs shells/web/scripts/scenarios/restart_flow.json
+
+      - name: Scenario save_load_roundtrip
+        run: node shells/web/scripts/run-scenarios.mjs shells/web/scripts/scenarios/save_load_roundtrip.json
+
+      - name: Scenario sf2_music
+        run: node shells/web/scripts/run-scenarios.mjs shells/web/scripts/scenarios/sf2_music.json
+
+      - name: Upload wasm ledgers
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-ledgers
+          path: shells/web/scripts/scenarios/out/wasm-*.jsonl
+          if-no-files-found: error
+
+  cross-target:
+    needs: [host, wasm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # LFS checkout: the host twin boots doom1.wad from the repo root.
+      - name: Checkout repository (with LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Download wasm ledgers
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-ledgers
+          path: out/wasm
+
+      # The twin's parent test enumerates the committed manifests and runs
+      # all five scenarios host-side, writing out/host-<name>.jsonl.
+      - name: Host twin (writes host ledgers)
+        run: cargo test -p room --test scenario_harness --locked
+
+      # Gate 2: wasm vs host ledgers must agree byte-exactly on gametic +
+      # state_hash + state_hash_load + frame_hash for every flow. The env
+      # mirrors the twin's KNOWN_FRAME_DIVERGENCE const (keep the two in
+      # lockstep): frame_hash mismatches on those four flows warn (both
+      # hashes printed, never silent) - the open defect-C render
+      # divergence - while state hashes fail hard everywhere and
+      # save_load_roundtrip is strict state-parity with no frame anchors
+      # yet (frame anchors deferred - see F9 M4).
+      - name: Cross-target ledger diff
+        run: |
+          export KNOWN_FRAME_DIVERGENCE=title_attract,e1m1_combat,restart_flow,sf2_music
+          for f in title_attract e1m1_combat restart_flow save_load_roundtrip sf2_music; do
+            node shells/web/scripts/diff-ledgers.mjs "out/wasm/wasm-$f.jsonl" "shells/web/scripts/scenarios/out/host-$f.jsonl"
+          done

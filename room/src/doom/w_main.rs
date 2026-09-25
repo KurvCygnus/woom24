@@ -12,7 +12,7 @@
 
 use std::ffi::c_char;
 
-use libc::printf;
+use crate::doom::crt::c_printf1;
 
 use crate::types::Boolean;
 
@@ -46,7 +46,7 @@ pub extern "C" fn W_ParseCommandLine() -> Boolean {
             modifiedgame = Boolean::TRUE;
             while idx < myargc && **myargv.offset(idx as isize) != b'-' as c_char {
                 let filename = D_TryFindWADByName(*myargv.offset(idx as isize));
-                printf(c" adding %s\n".as_ptr(), filename);
+                c_printf1(c" adding %s\n".as_ptr(), filename);
                 W_AddFile(filename);
                 idx += 1;
             }

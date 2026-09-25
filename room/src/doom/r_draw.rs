@@ -21,17 +21,20 @@ use crate::doom::v_video::{patch_t, V_DrawPatch, V_MarkRect, V_RestoreBuffer, V_
 // ---------------------------------------------------------------------------
 
 /// Maximum framebuffer width supported by the lookup tables.
-const MAXWIDTH: usize = 1120;
+///
+/// Sized to the `video_cfg` validation cap (the Boom `MAX_SCREENWIDTH`
+/// shape): every per-column array here and in `r_main`/`r_plane`/`r_things`
+/// is statically capped, and `VideoConfig::validated` rejects anything past
+/// it, so all indexing through these LUTs is provably in-bounds.
+const MAXWIDTH: usize = crate::doom::video_cfg::MAX_SCREENWIDTH as usize;
 /// Maximum framebuffer height supported by the lookup tables.
-const MAXHEIGHT: usize = 832;
+const MAXHEIGHT: usize = crate::doom::video_cfg::MAX_SCREENHEIGHT as usize;
 
 // ---------------------------------------------------------------------------
 // External symbols
 // ---------------------------------------------------------------------------
 
 extern "C" {
-    /// Prints a formatted error message and terminates the program.
-    fn I_Error(format: *const c_char, ...);
     /// Returns a pointer to the cached lump with the given name, using the given zone tag.
     fn W_CacheLumpName(name: *const c_char, tag: c_int) -> *mut c_void;
     /// Allocates `size` bytes from the zone heap with the given tag; returns a pointer to the block.
@@ -98,6 +101,19 @@ pub static mut translations: [[u8; 256]; 3] = [[0; 256]; 3];
 /// the full screen. Allocated on demand; freed when switching to full-screen mode.
 static mut background_buffer: *mut u8 = ptr::null_mut();
 
+/// Byte size [`background_buffer`] is currently allocated for.
+///
+/// Fix round 1 (Critical 1): the lazy allocation used to keep its boot-time
+/// size forever, so an up-switch under a windowed view made the next
+/// `R_FillBackScreen` tile `SCREENWIDTH*(SCREENHEIGHT-SBARHEIGHT)` bytes
+/// into the stale block. Crispy avoids the size check by allocating
+/// `MAXWIDTH*(MAXHEIGHT-SBARHEIGHT)` once from malloc
+/// (`doom/r_draw.c:1125`); that is infeasible here (4096x4064 is ~16 MiB
+/// against the 6 MiB zone), so the buffer is size-checked and re-allocated
+/// instead. `Z_Malloc` aborts via `I_Error` on exhaustion (the established
+/// allocation-failure contract), so there is no null fallthrough.
+static mut background_buffer_size: c_int = 0;
+
 // ---------------------------------------------------------------------------
 // Column-drawing globals
 // ---------------------------------------------------------------------------
@@ -141,9 +157,11 @@ pub static mut dccount: c_int = 0;
 // Fuzz / spectre effect
 // ---------------------------------------------------------------------------
 
-/// Pre-computed table of per-pixel row offsets (in bytes) used by the fuzz/spectre effect.
-/// Each entry is either `+FUZZOFF` (one row down) or `-FUZZOFF` (one row up), giving the
-/// smeared, semi-transparent look of partial-invisibility.
+/// Pre-computed table of per-row direction units used by the fuzz/spectre effect.
+/// Each entry is `+FUZZOFF` (+1, one row down) or `-FUZZOFF` (-1, one row up); the
+/// column renderers multiply by the runtime `SCREENWIDTH` stride (crispy keeps the
+/// same +/-1 table and scales at the use site, `r_draw.c:409`), giving the
+/// smeared, semi-transparent look of partial-invisibility at any raster width.
 #[no_mangle]
 pub static mut fuzzoffset: [c_int; FUZZTABLE] = [
     FUZZOFF, -FUZZOFF, FUZZOFF, -FUZZOFF, FUZZOFF, FUZZOFF, -FUZZOFF, FUZZOFF, FUZZOFF, -FUZZOFF,
@@ -237,6 +255,9 @@ pub extern "C" fn R_DrawColumn() {
             return;
         }
 
+        // Runtime raster stride (F1 M2): hoisted out of the inner loop.
+        let stride = SCREENWIDTH as usize;
+
         debug_assert!(
             (dc_x as u32) < (SCREENWIDTH as u32) && dc_yl >= 0 && dc_yh < SCREENHEIGHT,
             "R_DrawColumn: {} to {} at {}",
@@ -256,7 +277,7 @@ pub extern "C" fn R_DrawColumn() {
         let mut count = count;
         loop {
             *dest = *dc_colormap.add(*dc_source.add(((frac >> FRACBITS) & 127) as usize) as usize);
-            dest = dest.add(SCREENWIDTH as usize);
+            dest = dest.add(stride);
             frac += fracstep;
             if count == 0 {
                 break;
@@ -290,6 +311,9 @@ pub extern "C" fn R_DrawColumnLow() {
         // Blocky mode, need to multiply by 2.
         let x = dc_x << 1;
 
+        // Runtime raster stride (F1 M2): hoisted out of the inner loop.
+        let stride = SCREENWIDTH as usize;
+
         debug_assert!(
             (dc_x as u32) < (SCREENWIDTH as u32) && dc_yl >= 0 && dc_yh < SCREENHEIGHT,
             "R_DrawColumnLow: {} to {} at {}",
@@ -310,8 +334,8 @@ pub extern "C" fn R_DrawColumnLow() {
                 *dc_colormap.add(*dc_source.add(((frac >> FRACBITS) & 127) as usize) as usize);
             *dest = pix;
             *dest2 = pix;
-            dest = dest.add(SCREENWIDTH as usize);
-            dest2 = dest2.add(SCREENWIDTH as usize);
+            dest = dest.add(stride);
+            dest2 = dest2.add(stride);
             frac += fracstep;
             if count == 0 {
                 break;
@@ -355,6 +379,10 @@ pub extern "C" fn R_DrawFuzzColumn() {
             return;
         }
 
+        // Runtime raster stride (F1 M2): fuzzoffset entries are +/-1
+        // direction units (crispy r_draw.c:409 scales by SCREENWIDTH here).
+        let stride = SCREENWIDTH as isize;
+
         debug_assert!(
             (dc_x as u32) < (SCREENWIDTH as u32) && dc_yl >= 0 && dc_yh < SCREENHEIGHT,
             "R_DrawFuzzColumn: {} to {} at {}",
@@ -370,8 +398,8 @@ pub extern "C" fn R_DrawFuzzColumn() {
             // Lookup framebuffer, and retrieve a pixel that is either one
             // column left or right of the current one.  Add index from
             // colormap to index.
-            let offset = fuzzoffset[fuzzpos as usize];
-            let src_pix = *dest.offset(offset as isize);
+            let offset = stride * fuzzoffset[fuzzpos as usize] as isize;
+            let src_pix = *dest.offset(offset);
             *dest = *colormaps.add(6 * 256 + src_pix as usize);
 
             // Clamp table lookup index.
@@ -380,7 +408,7 @@ pub extern "C" fn R_DrawFuzzColumn() {
                 fuzzpos = 0;
             }
 
-            dest = dest.add(SCREENWIDTH as usize);
+            dest = dest.offset(stride);
             if count == 0 {
                 break;
             }
@@ -422,6 +450,10 @@ pub extern "C" fn R_DrawFuzzColumnLow() {
         // low detail mode, need to multiply by 2
         let x = dc_x << 1;
 
+        // Runtime raster stride (F1 M2): fuzzoffset entries are +/-1
+        // direction units (crispy r_draw.c:409 scales by SCREENWIDTH here).
+        let stride = SCREENWIDTH as isize;
+
         debug_assert!(
             (x as u32) < (SCREENWIDTH as u32) && dc_yl >= 0 && dc_yh < SCREENHEIGHT,
             "R_DrawFuzzColumnLow: {} to {} at {}",
@@ -435,8 +467,8 @@ pub extern "C" fn R_DrawFuzzColumnLow() {
 
         let mut count = count;
         loop {
-            let offset = fuzzoffset[fuzzpos as usize];
-            let src_pix = *dest.offset(offset as isize);
+            let offset = stride * fuzzoffset[fuzzpos as usize] as isize;
+            let src_pix = *dest.offset(offset);
             let pix = *colormaps.add(6 * 256 + src_pix as usize);
             *dest = pix;
             *dest2 = pix;
@@ -447,8 +479,8 @@ pub extern "C" fn R_DrawFuzzColumnLow() {
                 fuzzpos = 0;
             }
 
-            dest = dest.offset(SCREENWIDTH as isize);
-            dest2 = dest2.offset(SCREENWIDTH as isize);
+            dest = dest.offset(stride);
+            dest2 = dest2.offset(stride);
             if count == 0 {
                 break;
             }
@@ -476,6 +508,9 @@ pub extern "C" fn R_DrawTranslatedColumn() {
             return;
         }
 
+        // Runtime raster stride (F1 M2): hoisted out of the inner loop.
+        let stride = SCREENWIDTH as usize;
+
         debug_assert!(
             (dc_x as u32) < (SCREENWIDTH as u32) && dc_yl >= 0 && dc_yh < SCREENHEIGHT,
             "R_DrawTranslatedColumn: {} to {} at {}",
@@ -494,7 +529,7 @@ pub extern "C" fn R_DrawTranslatedColumn() {
             let src_idx = *dc_source.add((frac >> FRACBITS) as usize) as usize;
             let trans_idx = *dc_translation.add(src_idx) as usize;
             *dest = *dc_colormap.add(trans_idx);
-            dest = dest.add(SCREENWIDTH as usize);
+            dest = dest.add(stride);
             frac += fracstep;
             if count == 0 {
                 break;
@@ -524,6 +559,9 @@ pub extern "C" fn R_DrawTranslatedColumnLow() {
         // low detail, need to scale by 2
         let x = dc_x << 1;
 
+        // Runtime raster stride (F1 M2): hoisted out of the inner loop.
+        let stride = SCREENWIDTH as usize;
+
         debug_assert!(
             (x as u32) < (SCREENWIDTH as u32) && dc_yl >= 0 && dc_yh < SCREENHEIGHT,
             "R_DrawTranslatedColumnLow: {} to {} at {}",
@@ -545,8 +583,8 @@ pub extern "C" fn R_DrawTranslatedColumnLow() {
             let pix = *dc_colormap.add(trans_idx);
             *dest = pix;
             *dest2 = pix;
-            dest = dest.add(SCREENWIDTH as usize);
-            dest2 = dest2.add(SCREENWIDTH as usize);
+            dest = dest.add(stride);
+            dest2 = dest2.add(stride);
             frac += fracstep;
             if count == 0 {
                 break;
@@ -792,17 +830,30 @@ pub extern "C" fn R_FillBackScreen() {
             if !background_buffer.is_null() {
                 Z_Free(background_buffer as *mut c_void);
                 background_buffer = ptr::null_mut();
+                background_buffer_size = 0;
             }
             return;
         }
 
-        // Allocate the background buffer if necessary
+        // Allocate the background buffer if necessary - or re-allocate it at
+        // the live raster size after a video_cfg reconfiguration (fix round
+        // 1, Critical 1).
+        let needed = SCREENWIDTH * (SCREENHEIGHT - SBARHEIGHT);
         if background_buffer.is_null() {
             background_buffer = Z_Malloc(
-                SCREENWIDTH * (SCREENHEIGHT - SBARHEIGHT),
+                needed,
                 1, // PU_STATIC
                 ptr::null_mut(),
             ) as *mut u8;
+            background_buffer_size = needed;
+        } else if background_buffer_size != needed {
+            Z_Free(background_buffer as *mut c_void);
+            background_buffer = Z_Malloc(
+                needed,
+                1, // PU_STATIC
+                ptr::null_mut(),
+            ) as *mut u8;
+            background_buffer_size = needed;
         }
 
         let name = if gamemode == commercial {
@@ -879,6 +930,12 @@ pub extern "C" fn R_FillBackScreen() {
 // ---------------------------------------------------------------------------
 // R_VideoErase
 // ---------------------------------------------------------------------------
+
+/// Byte size the background buffer is currently allocated for (test /
+/// verification accessor for the fix-round-1 size check).
+pub fn background_buffer_bytes() -> c_int {
+    unsafe { background_buffer_size }
+}
 
 /// Copies `count` bytes from the background buffer to the video buffer at byte offset `ofs`.
 ///
@@ -962,21 +1019,22 @@ mod tests {
         let _g = LOCK.lock().unwrap();
         unsafe {
             // Allocate a fake video buffer so ylookup doesn't deref null.
-            let mut fake_buf = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
+            let (sw, sh) = (SCREENWIDTH, SCREENHEIGHT);
+            let mut fake_buf = vec![0u8; (sw * sh) as usize];
             let orig_buf = I_VideoBuffer;
             I_VideoBuffer = fake_buf.as_mut_ptr();
 
-            R_InitBuffer(SCREENWIDTH, 168);
+            R_InitBuffer(sw, 168);
 
             assert_eq!(viewwindowx, 0);
             assert_eq!(viewwindowy, 0);
-            for i in 0..SCREENWIDTH {
+            for i in 0..sw {
                 assert_eq!(columnofs[i as usize], i, "columnofs[{i}] mismatch");
             }
             for i in 0..168 {
                 assert_eq!(
                     ylookup[i as usize],
-                    I_VideoBuffer.add((i * SCREENWIDTH) as usize),
+                    I_VideoBuffer.add((i * sw) as usize),
                     "ylookup[{i}] mismatch"
                 );
             }
@@ -990,14 +1048,15 @@ mod tests {
     fn init_buffer_windowed_256x168() {
         let _g = LOCK.lock().unwrap();
         unsafe {
-            let mut fake_buf = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
+            let (sw, sh) = (SCREENWIDTH, SCREENHEIGHT);
+            let mut fake_buf = vec![0u8; (sw * sh) as usize];
             let orig_buf = I_VideoBuffer;
             I_VideoBuffer = fake_buf.as_mut_ptr();
 
             R_InitBuffer(256, 168);
 
-            assert_eq!(viewwindowx, (SCREENWIDTH - 256) >> 1); // 32
-            assert_eq!(viewwindowy, (SCREENHEIGHT - SBARHEIGHT - 168) >> 1); // 0
+            assert_eq!(viewwindowx, (sw - 256) >> 1); // 32
+            assert_eq!(viewwindowy, (sh - SBARHEIGHT - 168) >> 1); // 0
             for i in 0..256 {
                 assert_eq!(columnofs[i as usize], viewwindowx + i);
             }
@@ -1011,14 +1070,15 @@ mod tests {
     fn init_buffer_windowed_200x100() {
         let _g = LOCK.lock().unwrap();
         unsafe {
-            let mut fake_buf = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
+            let (sw, sh) = (SCREENWIDTH, SCREENHEIGHT);
+            let mut fake_buf = vec![0u8; (sw * sh) as usize];
             let orig_buf = I_VideoBuffer;
             I_VideoBuffer = fake_buf.as_mut_ptr();
 
             R_InitBuffer(200, 100);
 
-            assert_eq!(viewwindowx, (SCREENWIDTH - 200) >> 1); // 60
-            assert_eq!(viewwindowy, (SCREENHEIGHT - SBARHEIGHT - 100) >> 1); // 34
+            assert_eq!(viewwindowx, (sw - 200) >> 1); // 60
+            assert_eq!(viewwindowy, (sh - SBARHEIGHT - 100) >> 1); // 34
             for i in 0..200 {
                 assert_eq!(columnofs[i as usize], viewwindowx + i);
             }

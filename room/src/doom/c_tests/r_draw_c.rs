@@ -17,16 +17,19 @@ use crate::doom::i_video::{SCREENHEIGHT, SCREENWIDTH};
 // Screen / renderer constants
 // ---------------------------------------------------------------------------
 
-/// `SCREENWIDTH` is the vanilla Doom horizontal resolution (320 pixels).
+/// `SCREENWIDTH` defaults to the vanilla Doom horizontal resolution
+/// (320 pixels). F1 M2: it is a runtime value owned by `video_cfg`; the
+/// default is what these pins assert.
 #[test]
-fn screenwidth_is_320() {
-    assert_eq!(SCREENWIDTH, 320);
+fn screenwidth_default_is_320() {
+    assert_eq!(unsafe { SCREENWIDTH }, 320);
 }
 
-/// `SCREENHEIGHT` is the vanilla Doom vertical resolution (200 pixels).
+/// `SCREENHEIGHT` defaults to the vanilla Doom vertical resolution (200
+/// pixels); see `screenwidth_default_is_320`.
 #[test]
-fn screenheight_is_200() {
-    assert_eq!(SCREENHEIGHT, 200);
+fn screenheight_default_is_200() {
+    assert_eq!(unsafe { SCREENHEIGHT }, 200);
 }
 
 /// `SBARHEIGHT` is the status-bar pixel height (32 rows reserved at the bottom).
@@ -45,25 +48,32 @@ fn fuzztable_size() {
     assert_eq!(c_ffi::FUZZTABLE, 50);
 }
 
-/// `FUZZOFF` equals `SCREENWIDTH`: one screen row's worth of column stride.
+/// `FUZZOFF` is the +/-1 direction unit of the fuzz table. Vanilla/boom bake
+/// `FUZZOFF = SCREENWIDTH` (320) into the table; F1 M2 keeps the direction
+/// pattern and scales by the runtime `SCREENWIDTH` at the use site (crispy
+/// `r_draw.c:325` defines FUZZOFF as 1, `r_draw.c:409` scales) — identical
+/// output at any raster width.
 #[test]
-fn fuzzoff_equals_screenwidth() {
-    assert_eq!(c_ffi::FUZZOFF, SCREENWIDTH);
+fn fuzzoff_is_the_direction_unit() {
+    assert_eq!(c_ffi::FUZZOFF, 1);
 }
 
 // ---------------------------------------------------------------------------
 // fuzzoffset table — exact values from r_draw.c
 //
 // The 50-entry table determines which adjacent column is sampled for each
-// fuzzy pixel row.  Positive means one column to the right, negative one
-// to the left.  Every value must be either +SCREENWIDTH or −SCREENWIDTH.
+// fuzzy pixel row.  Positive means one column down (the draw site scales the
+// unit by the runtime SCREENWIDTH stride), negative one up.  Every value must
+// be either +FUZZOFF (+1) or −FUZZOFF (−1) — the sign pattern is vanilla,
+// verbatim from `r_draw.c`.
 // ---------------------------------------------------------------------------
 
-/// Expected `fuzzoffset` values, verbatim from `r_draw.c`.
+/// Expected `fuzzoffset` sign pattern, verbatim from `r_draw.c` (in
+/// direction-unit form: +1 = one row down, -1 = one row up).
 const EXPECTED_FUZZ: [c_int; 50] = [
-    320, -320, 320, -320, 320, 320, -320, 320, 320, -320, 320, 320, 320, -320, 320, 320, 320, -320,
-    -320, -320, -320, 320, -320, -320, 320, 320, 320, 320, -320, 320, -320, 320, 320, -320, -320,
-    320, 320, -320, -320, -320, -320, 320, 320, 320, 320, -320, 320, 320, -320, 320,
+    1, -1, 1, -1, 1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1, 1, -1,
+    -1, -1, -1, 1, -1, -1, 1, 1, 1, 1, -1, 1, -1, 1, 1, -1, -1,
+    1, 1, -1, -1, -1, -1, 1, 1, 1, 1, -1, 1, 1, -1, 1,
 ];
 
 /// `fuzzoffset[]` must contain exactly `FUZZTABLE` (50) entries.
@@ -89,7 +99,8 @@ fn fuzzoffset_all_values_are_plus_or_minus_fuzzoff() {
     }
 }
 
-/// Each `fuzzoffset` entry matches the verbatim value from r_draw.c, in order.
+/// Each `fuzzoffset` entry matches the verbatim sign pattern from r_draw.c,
+/// in order (direction-unit form; see `fuzzoff_is_the_direction_unit`).
 #[test]
 fn fuzzoffset_exact_values() {
     unsafe {
@@ -106,11 +117,11 @@ fn fuzzoffset_exact_values() {
     }
 }
 
-/// The fuzz table has exactly 29 positive (+SCREENWIDTH) and 21 negative
-/// (-SCREENWIDTH) entries; this asymmetry is part of the vanilla effect.
+/// The fuzz table has exactly 29 positive and 21 negative entries; this
+/// asymmetry is part of the vanilla effect.
 #[test]
 fn fuzzoffset_positive_count() {
-    // There are exactly 29 positive (+320) entries and 21 negative (−320).
+    // There are exactly 29 positive entries and 21 negative ones.
     unsafe {
         let pos = c_ffi::fuzzoffset.iter().filter(|&&v| v > 0).count();
         let neg = c_ffi::fuzzoffset.iter().filter(|&&v| v < 0).count();

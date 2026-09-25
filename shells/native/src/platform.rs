@@ -74,6 +74,18 @@ pub fn init_start_time() {
     START_TIME.with(|t| t.set(Some(Instant::now())));
 }
 
+/// The engine clock value for this instant — the same domain
+/// [`DG_GetTicksMs`] feeds to the engine, exposed for the shell's frame loop
+/// so `doomgeneric_frame` and the engine heartbeat share one clock (F1 M1
+/// frame/pump split; no second time source).
+pub fn now_ms() -> u32 {
+    START_TIME.with(|t| {
+        t.get()
+            .map(|start| start.elapsed().as_millis() as u32)
+            .unwrap_or(0)
+    })
+}
+
 // ---------------------------------------------------------------------------
 // DG_* callbacks (C-callable)
 // ---------------------------------------------------------------------------
@@ -105,14 +117,15 @@ pub extern "C" fn DG_Init() {
 #[no_mangle]
 pub extern "C" fn DG_DrawFrame() {
     // SAFETY: DG_ScreenBuffer is allocated by doomgeneric_Create and is
-    // valid for DOOMGENERIC_PIXELS * 4 bytes.
+    // valid for dg_pixels() * 4 bytes (F1 M2: the size follows the live
+    // VideoConfig, so it is read per frame).
     let pixel_bytes = unsafe {
         let ptr = room::doom::doomgeneric::DG_ScreenBuffer as *const u8;
         if ptr.is_null() {
             log::warn!("DG_DrawFrame: DG_ScreenBuffer is null, skipping frame");
             return;
         }
-        std::slice::from_raw_parts(ptr, room::doom::doomgeneric::DOOMGENERIC_PIXELS * 4)
+        std::slice::from_raw_parts(ptr, room::doom::doomgeneric::dg_pixels() * 4)
     };
 
     GPU.with_borrow(|opt| {
@@ -128,8 +141,10 @@ pub extern "C" fn DG_DrawFrame() {
 
 /// Sleep the calling thread for `ms` milliseconds.
 ///
-/// Used by the engine to throttle the game loop when running ahead of
-/// the target tick rate.
+/// Since the F1 M1 frame/pump split, frame pacing belongs to the shell's
+/// `doomgeneric_frame` accumulator, not to this hook; the engine only reaches
+/// it from `TryRunTics`'s network-stall path (a no-op in single-player
+/// practice). Kept as a real sleep so that path still yields if it ever runs.
 #[no_mangle]
 pub extern "C" fn DG_SleepMs(ms: u32) {
     std::thread::sleep(std::time::Duration::from_millis(u64::from(ms)));

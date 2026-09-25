@@ -76,6 +76,7 @@ use crate::doom::p_setup::{deathmatch_p, deathmatchstarts, playerstarts};
 use crate::doom::p_tick::leveltime;
 use crate::doom::r_sky::skyflatnum;
 use crate::doom::st_stuff::ST_Start;
+use crate::doom::violations::{self, VanillaViolation};
 use crate::doom::z_zone::Z_Malloc;
 
 /// Type alias used for cross-module pointer casts where both sides are
@@ -651,6 +652,11 @@ pub unsafe extern "C" fn P_RespawnSpecials() {
 /// Reborns the player if necessary, initialises all HUD state, and sets up
 /// weapon psprites.  Skips the slot if the player is not in the current game.
 ///
+/// A type-0 mapthing (an empty `playerstarts` slot reached through the
+/// respawn/fallback paths) models vanilla's `playeringame[-1]` overrun: it
+/// records `VanillaViolation::PlayeringameOverrun` and spawns nothing
+/// (`docs/vanilla-workarounds.md`, entry 10).
+///
 /// # Safety
 ///
 /// `mthing` must be a valid, non-null pointer to a `mapthing_t` whose `type`
@@ -660,6 +666,26 @@ pub unsafe extern "C" fn P_RespawnSpecials() {
 pub unsafe extern "C" fn P_SpawnPlayer(mthing: *mut mapthing_t) {
     let mthing = &mut *mthing;
     if mthing.r#type as c_int == 0 {
+        // Vanilla read `playeringame[mthing->type - 1]` at this exact point,
+        // so a type-0 mapthing read `playeringame[-1]` -- which aliases
+        // `players[3].didsecret` in the DOS `.bss` (last byte of `players[]`
+        // sitting directly before `playeringame[]`). When that byte was set
+        // (a co-op partner found a secret in an earlier level of the
+        // vex6d "running body" demo family), vanilla spawned a player
+        // through `p = &players[-1]` (per the e6y/dsda account; we did not
+        // independently disassemble doom2.exe); reproducing that
+        // write-through of a
+        // fabricated player slot is not modelable without emulating the
+        // whole `.bss` trample. dsda-doom bounds the defect at this same
+        // control-flow point (`PlayeringameOverrun`,
+        // reference/dsda-doom/prboom2/src/g_overflow.c:203-216, call site
+        // `p_mobj.c:2074`): surface the aliased byte as a diagnostic, then
+        // return without spawning. The condition shape is `type == 0`
+        // alone -- the aliased byte is diagnosed, never branched on -- so
+        // the skip is total: a type-0 arrival spawns nothing whether the
+        // byte is set or clear, exactly like the model. Census counts every
+        // arrival.
+        violations::record(VanillaViolation::PlayeringameOverrun);
         return;
     }
     if playeringame[(mthing.r#type - 1) as usize] == 0 {
@@ -1005,6 +1031,7 @@ pub unsafe extern "C" fn P_SpawnPlayerMissile(source: *mut mobj_t, type_: c_int)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
     #[test]
     fn stopspeed_is_0x1000() {
@@ -1076,6 +1103,83 @@ mod tests {
         unsafe {
             let _: c_int = iquehead;
             let _: c_int = iquetail;
+        }
+    }
+
+    // --- P_SpawnPlayer type-0 mapthing (playeringame[-1] overrun model) ---
+
+    /// A type-0 mapthing reaching `P_SpawnPlayer` is vanilla's
+    /// `playeringame[-1]` read (`players[3].didsecret` alias in the DOS
+    /// `.bss`). dsda's `PlayeringameOverrun` model
+    /// (`reference/dsda-doom/prboom2/src/g_overflow.c:203-216`, call site
+    /// `p_mobj.c:2074`) surfaces the aliased byte as a diagnostic and
+    /// returns without spawning, regardless of its value: every arrival
+    /// records a census hit and no player mobj may appear. Safe to drive
+    /// without a booted engine precisely because the modeled path returns
+    /// before any spawn machinery.
+    #[test]
+    fn type0_mapthing_records_playeringame_overrun_and_spawns_nothing() {
+        // `players[]` and the violation counters are process-global statics;
+        // serialize against sibling tests like the p_map.rs convention. The
+        // crate-wide census lock additionally guards the census windows
+        // below against sibling census tests' reset_all() (see violations.rs).
+        static LOCK: Mutex<()> = Mutex::new(());
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _census = violations::CENSUS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        // The players[i].mo.is_null() asserts below race harness_hash's
+        // state tests, which transiently set players[0].mo non-null.
+        let _engine = violations::ENGINE_STATICS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
+        unsafe {
+            let before = violations::hits(VanillaViolation::PlayeringameOverrun);
+
+            // Preset the aliased byte the way the vex6d co-op family does
+            // (player 4 found a secret in an earlier level, so the byte
+            // persists into the next level load).
+            players[MAXPLAYERS - 1].didsecret = 1;
+
+            let mut mt = mapthing_t {
+                x: 1234,
+                y: 567,
+                angle: 90,
+                r#type: 0,
+                options: 7,
+            };
+            P_SpawnPlayer(&mut mt);
+
+            // dsda's condition shape is `mthing->type == 0` alone; the
+            // aliased byte is diagnosed, never branched on.
+            assert_eq!(
+                violations::hits(VanillaViolation::PlayeringameOverrun),
+                before + 1,
+                "flag-set arrival must record PlayeringameOverrun"
+            );
+            for i in 0..MAXPLAYERS {
+                assert!(
+                    players[i].mo.is_null(),
+                    "no player mobj may spawn for player {i}"
+                );
+            }
+
+            // Companion: aliased byte clear - same condition shape, same
+            // early return, same census (current skip preserved).
+            players[MAXPLAYERS - 1].didsecret = 0;
+            P_SpawnPlayer(&mut mt);
+            assert_eq!(
+                violations::hits(VanillaViolation::PlayeringameOverrun),
+                before + 2,
+                "flag-clear arrival must record PlayeringameOverrun too"
+            );
+            for i in 0..MAXPLAYERS {
+                assert!(
+                    players[i].mo.is_null(),
+                    "no player mobj may spawn for player {i}"
+                );
+            }
         }
     }
 }

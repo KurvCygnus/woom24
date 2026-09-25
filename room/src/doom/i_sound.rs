@@ -271,14 +271,30 @@ pub extern "C" fn I_PrecacheSounds(_sounds: *mut c_void, _num_sounds: c_int) {}
 /// Locate a `.sf2` SoundFont file for music playback.
 ///
 /// Resolution order:
-///  1. `-sf2 <path>` command-line argument (printed warning if missing).
-///  2. Bundled SC-55 SoundFont under `soundfonts/...` relative to CWD.
-///  3. Same path relative to the directory holding the executable.
+///  1. wasm only: the audio backend's SoundFont hint -- the
+///     launcher-selected SF2 name registered under the VFS (there is no
+///     filesystem to probe; see `AudioBackend::soundfont_hint`).
+///  2. `-sf2 <path>` command-line argument (printed warning if missing).
+///  3. Bundled SC-55 SoundFont under `soundfonts/...` relative to CWD.
+///  4. Same path relative to the directory holding the executable.
 ///
 /// Returns `None` and logs a warning if no font is found - music will
 /// then play silently. Not present in the C source: chocolate-doom
 /// uses an external timidity config instead.
 fn find_soundfont_path() -> Option<std::path::PathBuf> {
+    //* wasm: no filesystem exists to probe; the backend holds the
+    //* launcher-selected font's VFS name (spec 4 defect B - the old probe
+    //* always failed and music went silent with a selected SF2).
+    #[cfg(target_arch = "wasm32")]
+    {
+        let hinted = crate::audio::AUDIO.with_borrow(|audio| {
+            audio.as_ref().and_then(|a| a.soundfont_hint())
+        });
+        if let Some(name) = hinted {
+            return Some(std::path::PathBuf::from(name));
+        }
+    }
+
     unsafe {
         let p = M_CheckParmWithArgs(c"-sf2".as_ptr().cast_mut(), 1);
         if p != 0 {

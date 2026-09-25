@@ -96,6 +96,12 @@ static mut LOCALPLAYER: c_int = 0;
 /// `d_loop.c`.
 static mut SKIPTICS: c_int = 0;
 
+/// Maximum tics [`TryRunTics`] waits in its stall loop for new input before
+/// giving up and letting the caller render anyway. Mirrors
+/// `MAX_NETGAME_STALL_TICS` from chocolate `d_loop.c` (vanilla used 20; the
+/// smaller value keeps the menu responsive while stalled).
+const MAX_NETGAME_STALL_TICS: c_int = 5;
+
 /// Tic duplication factor: every `ticdup`-th input sample is sent over the
 /// network, reducing bandwidth at the cost of input resolution.
 ///
@@ -111,6 +117,18 @@ pub static mut ticdup: c_int = 0;
 /// `#[no_mangle]` for C access. Corresponds to `offsetms` in `d_loop.c`.
 #[no_mangle]
 pub static mut offsetms: c_int = 0; // fixed_t
+
+/// woom24 frame/pump policy (F1 M1): when non-zero, [`TryRunTics`] never runs
+/// more than this many tics per call. The browser shell's `doomgeneric_frame`
+/// sets this to the catch-up cap so a suspended tab cannot trigger a
+/// multi-second tic burst; the cap is a RENDERING policy, never a simulation
+/// policy. `0` (the default) keeps vanilla unbounded behavior, which the
+/// legacy `doomgeneric_Tick` path and the demo tests rely on.
+///
+//* Not from any reference: Woof! simply runs all available tics
+//* (`woof/src/d_loop.c:777-785`), which is safe for a native event loop but
+//* unbounded after a suspend — the cap is our own browser-shell policy.
+pub static mut pump_tic_cap: c_int = 0;
 
 /// Whether to use the new client synchronisation algorithm.
 ///
@@ -384,8 +402,26 @@ pub extern "C" fn D_StartNetGame(settings: *mut NetGameSettingsT, _callback: *co
         (*settings).extratics = 1;
         (*settings).ticdup = 1;
 
+        // Set the local player and playeringame[] values (chocolate
+        // d_loop.c D_StartNetGame parity; both stay constant in this
+        // single-player build but keep the upstream data flow).
+        LOCALPLAYER = (*settings).consoleplayer;
+        for i in 0..NET_MAXPLAYERS {
+            LOCAL_PLAYERINGAME[i] = (i < (*settings).num_players as usize) as c_int;
+        }
+
         ticdup = (*settings).ticdup;
         NEW_SYNC = (*settings).new_sync;
+
+        // Chocolate rejects non-positive ticdup outright (d_loop.c
+        // "D_StartNetGame: invalid ticdup value") instead of letting the
+        // tic loop divide by zero later.
+        if ticdup < 1 {
+            i_error!(
+            "D_StartNetGame: invalid ticdup value {}",
+            std::ptr::addr_of!(ticdup).read()
+        );
+        }
     }
 }
 
@@ -575,9 +611,8 @@ pub extern "C" fn TryRunTics() {
         let mut lowtic = get_low_tic();
         let availabletics = lowtic - gametic / ticdup;
 
-        let counts: c_int;
-        if NEW_SYNC != 0 {
-            counts = availabletics;
+        let counts: c_int = if NEW_SYNC != 0 {
+            availabletics
         } else {
             let mut c: c_int;
             if realtics < availabletics - 1 {
@@ -596,10 +631,17 @@ pub extern "C" fn TryRunTics() {
                 old_net_sync();
             }
 
-            counts = c;
-        }
+            c
+        };
 
         let mut counts = if counts < 1 { 1 } else { counts };
+
+        // Frame/pump cap (woom24 F1 M1 policy — see `pump_tic_cap`). The
+        // vanilla path leaves the cap at 0 and is untouched.
+        if pump_tic_cap > 0 && counts > pump_tic_cap
+        {
+            counts = pump_tic_cap;
+        }
 
         while !players_in_game() || lowtic < gametic / ticdup + counts {
             NetUpdate();
@@ -609,11 +651,21 @@ pub extern "C" fn TryRunTics() {
                 i_error!("TryRunTics: lowtic < gametic");
             }
 
-            if I_GetTime() / ticdup - entertic > 0 {
-                return;
-            }
+            // Still no tics to run? Sleep until some are available. The give
+            // up is gated on still being short AND on MAX_NETGAME_STALL_TICS
+            // stall tics having passed, exactly as in chocolate d_loop.c; the
+            // previous port build returned after a single tic boundary even
+            // when NetUpdate had just delivered the missing tic, which let
+            // TryRunTics return having run ZERO tics and made the renderer
+            // draw unsimulated state (//! the browser title-screen freeze
+            // window - see task-8-report.md).
+            if lowtic < gametic / ticdup + counts {
+                if I_GetTime() / ticdup - entertic >= MAX_NETGAME_STALL_TICS {
+                    return;
+                }
 
-            I_Sleep(1);
+                I_Sleep(1);
+            }
         }
 
         while counts > 0 {
@@ -638,9 +690,18 @@ pub extern "C" fn TryRunTics() {
                     LOCAL_PLAYERINGAME[i] = (*set).ingame[i];
                 }
 
+                // Render-side interpolation latch (F1 M1): the oldleveltime
+                // mirror + board aging happen BEFORE the tic's movement, the
+                // capture walker right AFTER it (dsda-style centralized
+                // once-per-tic capture, `r_fps.c:331-340`). Single call site;
+                // the board is a render-side copy and never writes sim state.
+                super::r_interp::begin_tic();
+
                 let iface = &*LOOP_INTERFACE;
                 iface.RunTic.unwrap()((*set).cmds.as_mut_ptr(), (*set).ingame.as_mut_ptr());
                 gametic += 1;
+
+                super::r_interp::end_tic_and_capture();
 
                 ticdup_squash(set);
             }
@@ -664,5 +725,39 @@ pub extern "C" fn TryRunTics() {
 pub extern "C" fn D_RegisterLoopCallbacks(i: *mut LoopInterfaceT) {
     unsafe {
         LOOP_INTERFACE = i;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Pins the chocolate d_loop.c D_StartNetGame single-player parity: the
+    /// stub always reports ticdup=1 (never 0 - the tic loop divides by it),
+    /// console player 0, and a filled local_playeringame[] matching
+    /// num_players.
+    #[test]
+    fn d_start_net_game_sets_single_player_parity() {
+        unsafe {
+            let mut settings: NetGameSettingsT = std::mem::zeroed();
+            D_StartNetGame(&mut settings, std::ptr::null());
+
+            assert_eq!(settings.ticdup, 1, "stub must force ticdup=1");
+            assert_eq!(settings.num_players, 1);
+            assert_eq!(settings.consoleplayer, 0);
+            assert_eq!(settings.new_sync, 0);
+            assert_eq!(settings.extratics, 1);
+
+            assert_eq!(
+                std::ptr::addr_of!(ticdup).read(),
+                1,
+                "ticdup must never be left at 0"
+            );
+            assert_eq!(LOCALPLAYER, 0);
+            assert_eq!(LOCAL_PLAYERINGAME[0], 1, "console player must be in game");
+            for i in 1..NET_MAXPLAYERS {
+                assert_eq!(LOCAL_PLAYERINGAME[i], 0, "slot {} must be empty", i);
+            }
+        }
     }
 }

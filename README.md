@@ -1,236 +1,117 @@
-# room
+# woom24
 
-<div align="center">
-  <img src=".readme/room.png" alt="room screenshot" />
-</div>
+**woom24 = W(ASM)oom(ID)24** — a WebAssembly port of DOOM (1993) written in Rust, with the
+ID24 specification as its long-range compatibility target.
 
-A complete Rust port of [doomgeneric](https://github.com/ozkl/doomgeneric). The engine ships as
-the `room` library crate; the platform layer is provided by the `shells/native` crate, built on
-[winit](https://github.com/rust-windowing/winit) and [wgpu](https://github.com/gfx-rs/wgpu).
+| Fragment | Meaning |
+|---|---|
+| **W** | **WASM** — the primary shipping target is a browser, via `wasm32-unknown-unknown`. |
+| **oom** | **(D)oom** — engine work: demo-exact simulation, Boom/MBF-family compatibility. |
+| **24** | **ID24** — the compatibility ceiling the project is named after; the roadmap ends there. |
 
-## What is this?
+woom24 is a fork of [sunsided/room](https://github.com/sunsided/room) — a complete, bit-exact
+Rust port of [doomgeneric](https://github.com/ozkl/doomgeneric) — restructured for multi-platform
+deployment: the engine is a pure library crate and every platform is a thin shell over it.
 
-`room` is a **complete Rust port** of the classic DOOM engine based on
-[doomgeneric](https://github.com/ozkl/doomgeneric). Every engine module has
-been rewritten in native Rust; no C engine code remains linked. However, it is not
-idiomatic Rust yet, and contributions are welcome.
+## Status
 
-The port was done **module-by-module**:
+- **Engine**: full Vanilla DOOM simulation in Rust (demo playback included), with the original
+  C-vs-Rust differential-test culture intact.
+- **Shells**: native desktop (winit + wgpu + rodio) and web (`wasm32-unknown-unknown` +
+  wasm-bindgen, WebGL2/Canvas2D presenters, Web Audio, self-contained static deployment).
+- **Modern rendering** (in progress): uncapped FPS with full visible-motion interpolation,
+  arbitrary internal raster resolution, widescreen frustum.
+- **Compatibility roadmap**: Vanilla → Limit-Removing → Boom → MBF → MBF21 → ID24
+  (spec-first; see `docs/DESIGN.md`).
 
-1. Each module was rewritten in Rust inside `room/src/doom/` and exported
-   with `#[no_mangle] extern "C"` so the linker picked the Rust symbol
-   instead of the C one.
-2. Once replaced, the corresponding `.c` file was removed from
-   `doomgeneric-sys/build.rs`.
-3. The platform layer (window creation, GPU rendering, keyboard input) is
-   pure Rust, built on [winit](https://github.com/rust-windowing/winit)
-   and [wgpu](https://github.com/gfx-rs/wgpu).
+The deterministic simulation is load-bearing: demo playback must be bit-exact, and render-side
+features (interpolation, resolution, widescreen) are structurally forbidden from touching
+simulation state.
 
-The `lib_sources` list in `doomgeneric-sys/build.rs` is now empty — all engine
-subsystems (`r_draw`, `p_setup`, `z_zone`, `g_game`, `d_main`, and every other
-module) are native Rust.
-
-A regression-test harness (`room/src/doom/c_tests/`) runs the original C
-functions alongside their Rust replacements to verify bit-for-bit behavioural
-compatibility before a module is declared ported.
-
-Sound effects and music are implemented via [rodio](https://github.com/RustAudio/rodio). SFX uses stereo panning; music uses the [Roland SC-55 SoundFont](https://github.com/GuihongWang/SC55Soundfont) via [rustysynth](https://github.com/sinshu/rustysynth). A custom soundfont can be specified with `-sf2 <path>`.
-
-## Project layout
+## Repository layout
 
 ```
-woom24/                     Workspace manifest (Cargo.toml)
-├── vendor/
-│   └── doomgeneric/         Vendored C source from ozkl/doomgeneric
-├── doomgeneric-sys/         FFI + C compilation crate
-│   ├── build.rs             Compiles remaining C modules via the `cc` crate
-│   └── src/lib.rs           Declarations for C entry points (doomgeneric_Create, etc.)
-├── c2rust-intermediate/     Nightly-only c2rust reference translation (excluded from default builds)
-├── room/                    Engine library crate (no windowing/GPU/audio dependencies)
-│   └── src/
-│       ├── audio/           Audio backend control plane + pure SFX/music decoding
-│       ├── doom/            Rust reimplementations of ported engine modules
-│       │   ├── c_ffi.rs     FFI declarations for still-C modules (used by tests)
-│       │   ├── c_tests/     Regression tests comparing C vs Rust behaviour
-│       │   └── …            One `.rs` module per original `.c` file
-│       ├── headless.rs      Thread-local frame/tick counters for windowless test harnesses
-│       ├── types/           Cross-cutting FFI-safe type aliases
-│       └── bin/
-│           └── struct_sizes.rs  Diagnostic: struct sizes and field offsets
-└── shells/
-    └── native/              Native platform shell (package `room-shell-native`, bin `room`)
-        └── src/
-            ├── main.rs      winit ApplicationHandler and entry point
-            ├── gpu.rs       wgpu presenter (texture upload + fullscreen blit)
-            ├── platform.rs  DG_* C-callable platform callbacks
-            ├── platform/
-            │   └── keys.rs  winit KeyCode → Doom key byte mapping
-            └── rodio_backend.rs  rodio mixer-graph audio backend
+woom24/
+├── room/               Engine library: the ported DOOM modules (game, render, audio core),
+│                       the CRT compatibility seam, and the differential-test suites.
+├── shells/
+│   ├── native/         Native platform shell: winit window, wgpu presenter,
+│   │                   rodio audio backend, DG_* callbacks.
+│   └── web/            WASM shell: wasm-bindgen exports, CRT/VFS shim, WebGL2/Canvas2D
+│                       presenters, Web Audio backend, static deployment in www/.
+├── doomgeneric-sys/    Build glue for the vendored C reference (test oracle only).
+├── c2rust-intermediate/ c2rust transpilation reference (nightly-only, not built by default).
+├── docs/               Architecture (DESIGN.md), design specs, audit artifacts, plans.
+├── reference/          Local read-only clones of reference source ports (never committed).
+└── AGENTS.md           The binding contract for humans and AI agents working on this repo.
 ```
 
-## Prerequisites
+## Getting started
 
-- A Rust toolchain (stable, ≥ 1.75).
-- A C compiler (`gcc` or `clang`).
-- A Doom WAD file (`doom1.wad`, `doom.wad`, `doom2.wad`, `freedoom1.wad`, …).
-  The shareware episode is freely available from many sources.
+Prerequisites: a recent stable Rust toolchain.
 
-## Building
+### Native (development shell)
 
-The workspace splits the project in two: the `room` crate is the engine
-library (no windowing/GPU/audio dependencies), and `shells/native` (package
-`room-shell-native`) is the native platform shell (winit/wgpu/rodio).
-Build the shell with:
-
-```bash
-cargo build -p room-shell-native --release
-```
-
-## Running
-
-```bash
+```sh
 cargo run -p room-shell-native --bin room -- -iwad doom1.wad
 ```
 
-Any arguments after `--` are forwarded to the Doom engine unchanged.
+A `doom1.wad` (shareware) or commercial IWAD must be supplied by you — WAD files are
+copyrighted and never distributed with this repository.
 
-## How it works
+### Web (WASM)
 
-The engine runs inside the winit event loop:
+```sh
+# Build the self-contained static artifact (PowerShell; a bash twin exists).
+powershell -NoProfile -ExecutionPolicy Bypass -File shells/web/scripts/build-www.ps1
 
-1. `ApplicationHandler::resumed` creates the window and initialises the wgpu
-   renderer, storing both in thread-local statics accessible to the `DG_*`
-   callbacks.
-2. `ApplicationHandler::about_to_wait` calls `doomgeneric_Create` on the first
-   invocation (which initialises all Doom subsystems and runs the first tick),
-   then `doomgeneric_Tick` on every subsequent invocation.
-3. `DG_DrawFrame` (called from inside `doomgeneric_Tick`) uploads the 640 × 400
-   BGRA pixel buffer produced by `I_FinishUpdate` to a wgpu texture and blits
-   it to the swapchain surface via a fullscreen-quad render pass.
-4. Keyboard events collected by `ApplicationHandler::window_event` are placed
-   into a `VecDeque`; `DG_GetKey` pops them one at a time per tick.
+# Serve locally (any static file server works).
+python -m http.server 8000 --directory shells/web/www
+```
 
-## Known limitations
+Then open <http://localhost:8000/>, pick your IWAD (and optionally PWADs / a SoundFont) in the
+launcher, and start. The browser smoke checklist lives in `shells/web/README.md`.
 
-- **No mouse support.**  Mouse aiming / strafing are not yet implemented.
-- **No joystick support.**
-- **Single player only.**  Networking (`FEATURE_MULTIPLAYER`) is not compiled in.
-- The renderer performs a nearest-neighbour upscale from the native 640 × 400
-  resolution to the window size; the window is currently fixed at 640 × 400.
+Toolchain notes: the wasm target (`rustup target add wasm32-unknown-unknown`) and the
+wasm-bindgen CLI (version-locked to the `wasm-bindgen` crate; the build script verifies and
+prints the exact install command on mismatch).
 
-## Ported modules
+## Testing
 
-All vendored `.c` modules have been removed from `doomgeneric-sys/build.rs` and
-fully replaced by Rust code in the `room` crate. Port complete.
+```sh
+cargo test                                                        # host suites
+cargo test -p room --test demo_playthrough                        # golden demo determinism
+cargo check -p room -p woom24-libc -p room-shell-web --target wasm32-unknown-unknown
+```
 
-### Engine core / game loop
+- **Golden demo tests** are the project's core regression mechanism: recorded inputs must
+  produce bit-identical simulation state, and render-side features must never perturb them.
+- A jittered-clock determinism harness drives the frame/pump split at deliberately irregular
+  cadences and compares full simulation state against the exact-cadence run.
+- `c_tests/` contains the differential C-vs-Rust suites (LP64 platforms; see
+  `docs/audit-c-long.md`).
 
-- [x] `d_event.c`
-- [x] `d_items.c`
-- [x] `d_iwad.c`
-- [x] `d_loop.c`
-- [x] `d_main.c`
-- [x] `d_mode.c`
-- [x] `d_net.c`
-- [x] `doomdef.c`
-- [x] `doomstat.c`
-- [x] `dstrings.c`
-- [x] `dummy.c`
-- [x] `doomgeneric.c`
+## Documentation
 
-### Game logic (`g_*`, `p_*`)
+- `AGENTS.md` — the binding engineering contract (constraints, style, workflows).
+- `docs/DESIGN.md` — the architecture umbrella: layer map, roadmap, and design decisions.
+- `docs/vanilla-workarounds.md` — the binding catalog of emulated vanilla DOOM bugs and
+  memory violations (root cause, emulation site, semantics, reference derivation).
+- `docs/e2e/` — the end-to-end verification story: golden-flow fixtures provenance and the
+  mutation-demo gate evidence.
+- Working design specs and implementation plans are **local-only** (git-ignored under
+  `docs/specs/`); the repository carries only the distilled, reader-facing documents above.
 
-- [x] `g_game.c`
-- [x] `p_ceilng.c`
-- [x] `p_doors.c`
-- [x] `p_enemy.c`
-- [x] `p_floor.c`
-- [x] `p_inter.c`
-- [x] `p_lights.c`
-- [x] `p_map.c`
-- [x] `p_maputl.c`
-- [x] `p_mobj.c`
-- [x] `p_plats.c`
-- [x] `p_pspr.c`
-- [x] `p_saveg.c`
-- [x] `p_setup.c`
-- [x] `p_sight.c`
-- [x] `p_spec.c`
-- [x] `p_switch.c`
-- [x] `p_telept.c`
-- [x] `p_tick.c`
-- [x] `p_user.c`
+## License & provenance
 
-### Renderer (`r_*`)
+The Doom engine sources are GPL-2.0; woom24 inherits **GPL-2.0** (see `LICENSE-GPL-2.0`).
+Credits and gratitude to:
 
-- [x] `r_bsp.c`
-- [x] `r_data.c`
-- [x] `r_draw.c`
-- [x] `r_main.c`
-- [x] `r_plane.c`
-- [x] `r_segs.c`
-- [x] `r_sky.c`
-- [x] `r_things.c`
+- [id Software](https://github.com/id-Software/DOOM) for DOOM and the original sources;
+- [sunsided/room](https://github.com/sunsided/room) — the Rust port this project forks;
+- [doomgeneric](https://github.com/ozkl/doomgeneric) — the portability seam woom24's
+  platform boundary is modeled on;
+- the Chocolate Doom, Crispy Doom, PrBoom+/dsda-doom, MBF and Woof! communities —
+  the compatibility references documented in `docs/`.
 
-### Automap / HUD / status bar / finale / intermission
-
-- [x] `am_map.c`
-- [x] `hu_lib.c`
-- [x] `hu_stuff.c`
-- [x] `st_lib.c`
-- [x] `st_stuff.c`
-- [x] `f_finale.c`
-- [x] `f_wipe.c`
-- [x] `wi_stuff.c`
-- [x] `statdump.c`
-
-### Menu / misc / math
-
-- [x] `m_argv.c`
-- [x] `m_bbox.c`
-- [x] `m_cheat.c`
-- [x] `m_config.c`
-- [x] `m_controls.c`
-- [x] `m_fixed.c`
-- [x] `m_menu.c`
-- [x] `m_misc.c`
-- [x] `m_random.c`
-- [x] `tables.c`
-- [x] `info.c`
-
-### Platform / system (doomgeneric side, not the Rust host)
-
-- [x] `i_cdmus.c`
-- [x] `i_endoom.c`
-- [x] `i_input.c`
-- [x] `i_joystick.c`
-- [x] `i_scale.c`
-- [x] `i_sound.c`
-- [x] `i_system.c`
-- [x] `i_timer.c`
-- [x] `i_video.c`
-
-### Sound effects and music subsystem
-
-- [x] `s_sound.c` - sound and music state machine fully ported
-- [x] `sounds.c` - SFX and music tables fully ported
-- [x] `i_sound.c` - SFX playback via rodio (stereo pan); music via rustysynth + SC-55 soundfont
-
-### Video / WAD / memory / utilities
-
-- [x] `v_video.c`
-- [x] `w_checksum.c`
-- [x] `w_file.c`
-- [x] `w_file_stdc.c`
-- [x] `w_main.c`
-- [x] `w_wad.c`
-- [x] `memio.c`
-- [x] `sha1.c`
-- [x] `z_zone.c`
-
-## License
-
-This repository includes the unmodified Doom shareware IWAD, `doom1.wad`,
-copyright id Software. It is included under the Doom shareware distribution
-terms. The full registered/commercial Doom IWADs are not included and are
-not redistributable.
+WAD files (IWADs and PWADs) are copyrighted works: never commit, bundle, or redistribute them.

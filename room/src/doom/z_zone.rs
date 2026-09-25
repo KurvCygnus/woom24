@@ -13,6 +13,7 @@
 use std::ffi::{c_char, c_int, c_void};
 use std::ptr;
 
+use crate::doom::crt::{c_printf, c_printf2, c_printf4};
 use crate::i_error;
 
 /// Pinned allocation; lives for the lifetime of the program unless
@@ -346,16 +347,16 @@ pub unsafe extern "C" fn Z_DumpHeap(lowtag: c_int, hightag: c_int) {
     let sentinel = std::ptr::addr_of_mut!((*zone).blocklist);
 
     let msg = b"zone size: %i  location: %p\n\0";
-    libc::printf(msg.as_ptr() as *const c_char, (*zone).size, zone);
+    c_printf2(msg.as_ptr() as *const c_char, (*zone).size, zone);
 
     let msg2 = b"tag range: %i to %i\n\0";
-    libc::printf(msg2.as_ptr() as *const c_char, lowtag, hightag);
+    c_printf2(msg2.as_ptr() as *const c_char, lowtag, hightag);
 
     let mut block = (*zone).blocklist.next;
     loop {
         if (*block).tag >= lowtag && (*block).tag <= hightag {
             let msg3 = b"block:%p    size:%7i    user:%p    tag:%3i\n\0";
-            libc::printf(
+            c_printf4(
                 msg3.as_ptr() as *const c_char,
                 block,
                 (*block).size,
@@ -370,17 +371,17 @@ pub unsafe extern "C" fn Z_DumpHeap(lowtag: c_int, hightag: c_int) {
 
         if (block as *mut u8).add((*block).size as usize) != (*block).next as *mut u8 {
             let msg4 = b"ERROR: block size does not touch the next block\n\0";
-            libc::printf(msg4.as_ptr() as *const c_char);
+            c_printf(msg4.as_ptr() as *const c_char);
         }
 
         if (*(*block).next).prev != block {
             let msg5 = b"ERROR: next block doesn't have proper back link\n\0";
-            libc::printf(msg5.as_ptr() as *const c_char);
+            c_printf(msg5.as_ptr() as *const c_char);
         }
 
         if (*block).tag == PU_FREE && (*(*block).next).tag == PU_FREE {
             let msg6 = b"ERROR: two consecutive free blocks\n\0";
-            libc::printf(msg6.as_ptr() as *const c_char);
+            c_printf(msg6.as_ptr() as *const c_char);
         }
 
         block = (*block).next;

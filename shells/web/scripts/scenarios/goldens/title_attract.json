@@ -1,0 +1,30 @@
+{
+  "scenario": "title_attract",
+  "provenance": {
+    "commit": "a04e05247dfaaf133c9fdbcf43af70986da9ee5f",
+    "rationale": "Initial blessing: title screen (t140) and shareware demo1 mid-play (t490, t980); hashes are harness 64-bit digests normalized to 0x + 16 hex digits."
+  },
+  "anchors": [
+    {
+      "scenario": "title_attract",
+      "anchor": "t140",
+      "gametic": 140,
+      "state_hash": null,
+      "frame_hash": "0x7a1cfa395596e375"
+    },
+    {
+      "scenario": "title_attract",
+      "anchor": "t490",
+      "gametic": 490,
+      "state_hash": "0xee1b43713c3387dd",
+      "frame_hash": "0xc9a969af2f4647e5"
+    },
+    {
+      "scenario": "title_attract",
+      "anchor": "t980",
+      "gametic": 980,
+      "state_hash": "0x876bbed570809f3c",
+      "frame_hash": "0x59b5d1a98f8f73cd"
+    }
+  ]
+}
