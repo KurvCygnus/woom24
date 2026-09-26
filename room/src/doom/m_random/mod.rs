@@ -21,9 +21,9 @@
 //! consumer path valid (`crate::doom::m_random::*` across the freeze
 //! zone, `tables.rs`' vendor cross-check, and the
 //! `room::doom::m_random::*` test-crate imports); no content lives
-//! here. `dtmc` reaches the table through `super::table`, and the
-//! `random.rs` wrappers marshal the `state.rs` statics through
-//! `dtmc::random_advance`.
+//! here. `dtmc` reaches the table through the root re-export
+//! (`super::RNDTABLE`), and the `random.rs` wrappers marshal the
+//! `state.rs` statics through `dtmc::random_advance`.
 //!
 //! ## Original Fn Name Mapping
 //!

@@ -87,12 +87,11 @@ use state::lumphash;
 
 pub mod anchor;
 pub mod cache;
+mod ffi;
 pub mod file;
 pub mod iwad;
 pub mod lookup;
 pub mod state;
-
-mod ffi;
 
 //* path-stability wiring: the `use` bindings above keep the
 //* subfiles' `use super::{...}` imports (and `cache.rs`'s test-crate
