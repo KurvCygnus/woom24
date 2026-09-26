@@ -185,7 +185,20 @@ fn capture() -> FinalState
 }
 
 /// Boot the engine headlessly (same shape as the demo_playthrough harness).
+//* Idempotent on purpose: [`doomgeneric_Create`] must run exactly once per
+//* process (a second run re-enters `D_DoomMain` on a live engine, pumping a
+//* few tics and leaving a hybrid state), yet each test in a binary calls
+//* `boot`. Which test wins that race is thread-scheduling luck, and the
+//* loser's re-boot silently shifted the demo golden's pre-level tic count
+//* (video_raster anchor, ~1-in-8 runs). The guard pins first-boot wins.
 pub fn boot()
+{
+    use std::sync::Once;
+    static BOOT: Once = Once::new();
+    BOOT.call_once(boot_once);
+}
+
+fn boot_once()
 {
     let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .try_init();
@@ -211,6 +224,11 @@ pub fn boot()
     let mut c_argv: Vec<*mut c_char> = argv.iter().map(|s| s.as_ptr() as *mut c_char).collect();
     c_argv.push(std::ptr::null_mut());
 
+    // SAFETY: exactly-once by the BOOT guard above. The argv backing store
+    // is leaked because `doomgeneric_Create` keeps `myargv` pointing into it
+    // for the lifetime of the process.
+    let c_argv = Box::leak(c_argv.into_boxed_slice());
+    std::mem::forget(argv);
     unsafe
     {
         doomgeneric_sys::doomgeneric_Create((c_argv.len() - 1) as c_int, c_argv.as_mut_ptr());

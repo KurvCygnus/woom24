@@ -1,107 +1,24 @@
-//! F1 M2 — `video_cfg` regression anchor and raster invariants.
+//! F1 M2 — raster invariants and reconfiguration smoke.
 //!
-//! Two host-testable contracts from the F1 spec (Testing item 3):
+//! Host-testable contract from the F1 spec (Testing item 3): for a set of
+//! raster sizes (320x200, 640x400, 1366x768) the column/span/fuzz renderers
+//! write only within the raster bounds after a live `VideoConfig::apply`
+//! reconfiguration (the mid-game resolution-switch smoke item).
 //!
-//! 1. **Regression anchor:** the default `VideoConfig` (320x200 raster,
-//!    VanillaStretch) must present a 640x400 doomgeneric frame that is
-//!    byte-identical to the pre-M2 engine. The golden hash below was captured
-//!    on the pre-M2 tree (commit efd622c) by driving the same deterministic
-//!    cadence the frame/pump-split binaries use; the parameterization refactor
-//!    is provably inert at the default configuration when this hash holds.
-//! 2. **Raster invariants:** for a set of raster sizes (320x200, 640x400,
-//!    1366x768) the column/span/fuzz renderers write only within the raster
-//!    bounds after a live `VideoConfig::apply` reconfiguration (the mid-game
-//!    resolution-switch smoke item).
-//!
-//! Both tests drive the full engine through the shared frame/pump harness, so
-//! they run one at a time (process-global renderer state).
+//* The regression anchor that used to share this file now lives in its own
+//* binary (`video_anchor.rs`): one engine per process is the only shape where
+//* its golden is a function of the tree alone, and this test's process-global
+//* renderer churn is exactly what the anchor must not inherit.
 
 #![allow(non_snake_case, non_upper_case_globals)]
 
-use std::sync::{Mutex, MutexGuard};
-
+// This binary only drives `boot` from the shared harness; the drive/compare
+// half belongs to the frame/pump-split binaries, so its items are unused here
+// by design.
+#[allow(dead_code)]
 mod frame_split_common;
 
 use frame_split_common::boot;
-
-//* The engine's renderer state is a pile of process-global `static mut`s; the
-//* two tests below each reconfigure it, so they must never interleave.
-static SERIAL: Mutex<()> = Mutex::new(());
-
-fn take_serial() -> MutexGuard<'static, ()>
-{
-    SERIAL.lock().unwrap_or_else(|e| e.into_inner())
-}
-
-/// FNV-1a 64-bit over the presented BGRA bytes. Hand-rolled (instead of
-/// `std::hash::DefaultHasher`) so the golden stays stable across std versions.
-fn hash_frame(bytes: &[u8]) -> u64
-{
-    let mut hash: u64 = 0xcbf29ce484222325;
-    for &b in bytes
-    {
-        hash ^= b as u64;
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
-}
-
-// ---------------------------------------------------------------------------
-// Regression anchor (Testing item 3)
-// ---------------------------------------------------------------------------
-
-/// Byte hash (FNV-1a 64) of the 640x400x4 BGRA frame the pre-M2 engine
-/// presented at gametic 1200 on the exact-cadence drive. Captured on commit
-/// efd622c before any M2 edit (superseded hash `0xe1afbd39ea64da95`,
-/// asserted verbatim until the re-bless below). Re-blessed once after the
-/// 54c9f45 strip introduced the DG_CREATED frame-entry latch: boot stopped
-/// pumping frames through the engine, shifting the drive's final
-/// interpolation sample fraction (2949 -> 4259 of 65536) while the
-/// simulation state stayed bit-identical. With sampling disabled the pre-
-/// and post-latch trees render the byte-identical frame `0xf3f8bc0c69cf6ca5`
-/// (fraction-independent, cross-validated at HEAD and at dc6b336; the
-/// `0x25b8a31010313575` addendum value cited earlier is a stale artifact of
-/// a stripped temporary harness -- see `sprite_interp_probe.rs` for the
-/// measured matrix).
-const GOLDEN_DEFAULT_640X400: u64 = 0x841405eea75ee285;
-
-#[test]
-fn anchor_default_config_present_is_pixel_identical()
-{
-    let _g = take_serial();
-    boot();
-
-    // Same deterministic drive the frame/pump determinism binaries use; the
-    // simulation red line must hold inside this binary too.
-    let got = frame_split_common::run(false);
-    frame_split_common::assert_matches_expected(&got);
-
-    // The last presented frame lives in the doomgeneric buffer. At the
-    // default config the present buffer is 640x400 (the classic 2x doubling);
-    // the test fails loudly if that ever changes.
-    let (dg_w, dg_h) = room::doom::doomgeneric::dg_res();
-    assert_eq!(
-        (dg_w, dg_h),
-        (640, 400),
-        "default config must keep the 640x400 doomgeneric present"
-    );
-    let bytes = unsafe
-    {
-        let ptr = room::doom::doomgeneric::DG_ScreenBuffer as *const u8;
-        assert!(!ptr.is_null(), "DG_ScreenBuffer must be allocated after boot");
-        std::slice::from_raw_parts(ptr, dg_w * dg_h * 4)
-    };
-
-    let got_hash = hash_frame(bytes);
-    assert_eq!(
-        got_hash, GOLDEN_DEFAULT_640X400,
-        "default-config 640x400 present diverged from the pre-M2 engine (FNV-1a {got_hash:#018x})"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Raster invariants (Testing item 3) + reconfiguration smoke
-// ---------------------------------------------------------------------------
 
 /// Canaries past the raster end: any write beyond `w*h` bytes shows up here.
 const CANARY_BYTES: usize = 4096;
@@ -115,7 +32,6 @@ const CANARY_BYTE: u8 = 0x5A;
 #[test]
 fn raster_invariants_and_reconfiguration_smoke()
 {
-    let _g = take_serial();
     boot();
 
     for (w, h) in [(320u32, 200u32), (640u32, 400u32), (1366u32, 768u32)]
@@ -212,12 +128,15 @@ fn apply_and_exercise(w_in: u32, h_in: u32)
     // raster-stride row table.
     for x in 0..w as usize
     {
-        assert_eq!(unsafe { columnofs[x] } as usize, x, "columnofs[{x}]");
+        let ofs =
+            unsafe { *(std::ptr::addr_of!(columnofs) as *const i32).add(x) } as usize;
+        assert_eq!(ofs, x, "columnofs[{x}]");
     }
     for y in 0..h as usize
     {
+        let row = unsafe { *(std::ptr::addr_of!(ylookup) as *const *mut u8).add(y) };
         assert_eq!(
-            unsafe { ylookup[y] },
+            row,
             unsafe { I_VideoBuffer.add(y * w as usize) },
             "ylookup[{y}]"
         );
@@ -364,9 +283,8 @@ fn apply_and_exercise(w_in: u32, h_in: u32)
         I_VideoBuffer = orig_video;
     }
 
-    // Restore the engine's own view size/detail so this test's state churn
-    // cannot leak into a sibling test running later in the same process
-    // (both tests in this binary boot and drive the same engine globals).
+    // Restore the engine's own view size/detail so the churn above cannot
+    // leak past this function.
     unsafe
     {
         room::doom::r_main::R_SetViewSize(
@@ -374,5 +292,40 @@ fn apply_and_exercise(w_in: u32, h_in: u32)
             room::doom::m_menu::detailLevel,
         );
         room::doom::r_main::R_ExecuteSetViewSize();
+    }
+
+    park_render_pointers();
+}
+
+//* The sweep Vecs above are function-local, but the global render state they
+//* were loaded into (`dc_colormap`/`dc_source`/`dc_translation`/`ds_colormap`
+//* /`ds_source`) outlives this function. Leaving those pointers dangling into
+//* freed heap is UB, so park them on process-lifetime buffers before
+//* returning.
+fn park_render_pointers()
+{
+    use std::sync::OnceLock;
+
+    /// Colormap, texture column, flat and translation tables, in park order.
+    type ParkBuffers = (Box<[u8; 256]>, Box<[u8; 128]>, Box<[u8; 64 * 64]>, Box<[u8; 256]>);
+
+    static PARK: OnceLock<ParkBuffers> = OnceLock::new();
+    let (colormap, texture, flat, translation) = PARK.get_or_init(|| {
+        (
+            Box::new([0u8; 256]),
+            Box::new([0u8; 128]),
+            Box::new([0u8; 64 * 64]),
+            Box::new([0u8; 256]),
+        )
+    });
+
+    use room::doom::r_draw::{dc_colormap, dc_source, dc_translation, ds_colormap, ds_source};
+    unsafe
+    {
+        dc_colormap = colormap.as_ptr() as *mut u8;
+        dc_source = texture.as_ptr() as *mut u8;
+        dc_translation = translation.as_ptr() as *mut u8;
+        ds_colormap = colormap.as_ptr() as *mut u8;
+        ds_source = flat.as_ptr() as *mut u8;
     }
 }
