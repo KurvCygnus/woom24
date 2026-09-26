@@ -1,22 +1,14 @@
-//! Thinker management and the main per-tic game loop.
-//!
-//! Rust port of `vendor/doomgeneric/p_tick.c`.  Every game object that needs
-//! to update once per tic (monsters, moving platforms, ceilings, …) embeds a
-//! [`thinker_t`] as its first field and is linked into the global doubly-linked
-//! list headed by [`thinkercap`].  [`P_RunThinkers`] walks that list every tic
-//! and drives each object's logic.
+//! The thinker list: the `repr(C)` vocabulary every per-tic game
+//! object embeds (`actionf_t`, `thinker_t`), the circular list head
+//! (`thinkercap`), and the five C-linkage list operations (init,
+//! tail-append, lazy-remove, the upstream no-op allocate stub, and
+//! the per-tic dispatcher `P_RunThinkers`), plus their test module.
 
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 use std::ffi::c_void;
-use std::os::raw::c_int;
 
-use crate::doom::d_player::{consoleplayer, players, MAXPLAYERS};
-use crate::doom::g_game::{demoplayback, netgame, paused, playeringame};
-use crate::doom::m_menu::menuactive;
-use crate::doom::p_mobj::P_RespawnSpecials;
-use crate::doom::p_spec::P_UpdateSpecials;
-use crate::doom::p_user::P_PlayerThink;
+use super::dtmc::{is_sentinel, sentinel_ac};
 use crate::doom::z_zone::Z_Free;
 
 /// Union of the three C function-pointer variants stored in every thinker.
@@ -31,7 +23,8 @@ use crate::doom::z_zone::Z_Free;
 /// [`P_RemoveThinker`] to store the sentinel.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union actionf_t {
+pub union actionf_t
+{
     /// No-argument action; also used to carry the removal sentinel (`-1`).
     pub acv: Option<unsafe extern "C" fn()>,
     /// Single-argument action — the common thinker callback form.
@@ -48,7 +41,8 @@ pub union actionf_t {
 /// between `*mut thinker_t` and the owning type.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct thinker_t {
+pub struct thinker_t
+{
     /// Pointer to the previous node in the circular thinker list.
     pub prev: *mut thinker_t,
     /// Pointer to the next node in the circular thinker list.
@@ -58,26 +52,6 @@ pub struct thinker_t {
     pub function: actionf_t,
 }
 
-/// Produce the sentinel value `(actionf_v)(-1)` that C uses to mark
-/// thinkers for removal.  We build it at runtime so the compiler doesn't
-/// try to validate the bit pattern as a real function pointer.
-fn sentinel_ac() -> Option<unsafe extern "C" fn()> {
-    // -1 as pointer-sized integer, reinterpreted as a function pointer.
-    Some(unsafe { core::mem::transmute::<usize, unsafe extern "C" fn()>(usize::MAX) })
-}
-
-/// Return `true` if `f` holds the removal-sentinel value (`(actionf_v)(-1)`).
-fn is_sentinel(f: actionf_t) -> bool {
-    unsafe { f.acv == sentinel_ac() }
-}
-
-/// Current level time in tics, incremented once per [`P_Ticker`] call.
-///
-/// Exported as `leveltime` for C linkage.  Used throughout the engine to
-/// throttle periodic events (e.g. crushing-ceiling sound plays every 8 tics).
-#[no_mangle]
-pub static mut leveltime: c_int = 0;
-
 /// Sentinel head/tail node of the doubly-linked thinker list.
 ///
 /// The list is circular: `thinkercap.next` is the first real thinker and
@@ -86,7 +60,8 @@ pub static mut leveltime: c_int = 0;
 ///
 /// Exported as `thinkercap` for C linkage.
 #[no_mangle]
-pub static mut thinkercap: thinker_t = thinker_t {
+pub static mut thinkercap: thinker_t = thinker_t
+{
     prev: std::ptr::null_mut::<thinker_t>(),
     next: std::ptr::null_mut::<thinker_t>(),
     function: actionf_t { acv: None },
@@ -97,8 +72,10 @@ pub static mut thinkercap: thinker_t = thinker_t {
 /// Must be called at the start of each level before any thinker is added.
 /// Corresponds to `P_InitThinkers` in `p_tick.c`.
 #[no_mangle]
-pub extern "C" fn P_InitThinkers() {
-    unsafe {
+pub extern "C" fn P_InitThinkers()
+{
+    unsafe
+    {
         thinkercap.prev = &raw mut thinkercap;
         thinkercap.next = &raw mut thinkercap;
     }
@@ -116,8 +93,10 @@ pub extern "C" fn P_InitThinkers() {
 /// transfers to the thinker list, which frees it in [`P_RunThinkers`] once
 /// the removal sentinel is detected.
 #[no_mangle]
-pub extern "C" fn P_AddThinker(thinker: *mut thinker_t) {
-    unsafe {
+pub extern "C" fn P_AddThinker(thinker: *mut thinker_t)
+{
+    unsafe
+    {
         let cap = &raw mut thinkercap;
         (*(*cap).prev).next = thinker;
         (*thinker).next = cap;
@@ -138,8 +117,10 @@ pub extern "C" fn P_AddThinker(thinker: *mut thinker_t) {
 /// `thinker` must be a valid, non-null pointer to a thinker that is currently
 /// linked into the global thinker list.
 #[no_mangle]
-pub extern "C" fn P_RemoveThinker(thinker: *mut thinker_t) {
-    unsafe {
+pub extern "C" fn P_RemoveThinker(thinker: *mut thinker_t)
+{
+    unsafe
+    {
         (*thinker).function.acv = sentinel_ac();
     }
 }
@@ -166,21 +147,28 @@ pub extern "C" fn P_AllocateThinker(_thinker: *mut thinker_t) {}
 ///
 /// Corresponds to `P_RunThinkers` in `p_tick.c`.
 #[no_mangle]
-pub extern "C" fn P_RunThinkers() {
-    unsafe {
+pub extern "C" fn P_RunThinkers()
+{
+    unsafe
+    {
         let cap = &raw mut thinkercap;
         let mut current = (*cap).next;
 
-        while current != cap {
-            if is_sentinel((*current).function) {
+        while current != cap
+        {
+            if is_sentinel((*current).function)
+            {
                 let prev = (*current).prev;
                 let next = (*current).next;
                 (*prev).next = next;
                 (*next).prev = prev;
                 Z_Free(current as *mut c_void);
                 current = next;
-            } else {
-                if let Some(fn_ptr) = (*current).function.acp1 {
+            }
+            else
+            {
+                if let Some(fn_ptr) = (*current).function.acp1
+                {
                     fn_ptr(current as *mut c_void);
                 }
                 current = (*current).next;
@@ -189,56 +177,21 @@ pub extern "C" fn P_RunThinkers() {
     }
 }
 
-/// Run one game tic: advance all players, thinkers, specials, and the level
-/// timer.
-///
-/// Returns early if the game is paused, or if in single-player mode with the
-/// menu open and the view already initialised (i.e. at least one tic has run).
-/// The `viewz == 1` sentinel is the initial value set before any tic; once the
-/// player has been processed once the check is false and menus pause the game.
-///
-/// Corresponds to `P_Ticker` in `p_tick.c`.
-#[no_mangle]
-pub extern "C" fn P_Ticker() {
-    unsafe {
-        if paused != 0 {
-            return;
-        }
-
-        if netgame == 0
-            && menuactive != 0
-            && demoplayback == 0
-            && (*std::ptr::addr_of!(players[0]).offset(consoleplayer as isize)).viewz != 1
-        {
-            return;
-        }
-
-        for i in 0..MAXPLAYERS {
-            if playeringame[i] != 0 {
-                P_PlayerThink(&mut players[i]);
-            }
-        }
-
-        P_RunThinkers();
-        P_UpdateSpecials();
-        P_RespawnSpecials();
-
-        leveltime += 1;
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Mutex;
-
-    static LOCK: Mutex<()> = Mutex::new(());
+mod tests
+{
+    use crate::doom::p_tick::{P_InitThinkers, thinkercap, thinker_t};
+    use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
 
     const THINKER_T_SIZEOF: usize = 24;
 
+    /// `thinker_t` must stay a 24-byte (LP64) struct: it prefixes every
+    /// thinker-based game object (`mobj_t` == 224 bytes = 24-byte
+    /// prefix plus body), and `c_tests/struct_layouts.rs` pins the
+    /// C-side offsets against exactly this layout.
     #[test]
-    fn thinker_t_size_matches_c() {
-        let _g = LOCK.lock().unwrap();
+    fn thinker_t_size_matches_c()
+    {
         assert_eq!(
             std::mem::size_of::<thinker_t>(),
             THINKER_T_SIZEOF,
@@ -248,29 +201,22 @@ mod tests {
         );
     }
 
+    /// `P_InitThinkers` resets the cap to point at itself in both
+    /// directions -- the empty-list state every level's thinker
+    /// sequence starts from. Serialized on the shared engine-statics
+    /// lock (this test writes the process-global `thinkercap`).
     #[test]
-    fn globals_default() {
-        let _g = LOCK.lock().unwrap();
-        unsafe {
-            assert_eq!(leveltime, 0);
-        }
-    }
-
-    #[test]
-    fn sentinel_is_all_ones() {
-        let s = sentinel_ac();
-        assert_eq!(usize::MAX, s.map(|f| f as usize).unwrap_or(0));
-    }
-
-    #[test]
-    fn init_sets_self_pointers() {
-        let _g = LOCK.lock().unwrap();
-        unsafe {
-            thinkercap.prev = 0 as *mut thinker_t;
-            thinkercap.next = 0 as *mut thinker_t;
+    fn init_sets_self_pointers()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe
+        {
+            thinkercap.prev = std::ptr::null_mut::<thinker_t>();
+            thinkercap.next = std::ptr::null_mut::<thinker_t>();
             P_InitThinkers();
-            assert_eq!(thinkercap.prev, &raw mut thinkercap as *mut thinker_t);
-            assert_eq!(thinkercap.next, &raw mut thinkercap as *mut thinker_t);
+            let cap = std::ptr::addr_of_mut!(thinkercap);
+            assert_eq!(std::ptr::addr_of!(thinkercap.prev).read(), cap);
+            assert_eq!(std::ptr::addr_of!(thinkercap.next).read(), cap);
         }
     }
 }
