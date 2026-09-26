@@ -96,6 +96,7 @@ pub extern "C" fn D_PopEvent() -> *mut event_t
 mod tests
 {
     use super::*;
+    use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
     use std::ffi::c_int;
 
     unsafe fn reset_queue()
@@ -108,6 +109,11 @@ mod tests
     #[test]
     fn post_then_pop_returns_same_values()
     {
+        // The three queue tests share one process-global ring; libtest runs
+        // them on parallel threads, so they serialize on the engine statics
+        // lock like every other static-mutating suite (a 1-in-N post/pop
+        // race was observed mid-wave-B1).
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe
         {
             reset_queue();
@@ -132,6 +138,7 @@ mod tests
     #[test]
     fn pop_on_empty_returns_null()
     {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe
         {
             reset_queue();
@@ -142,6 +149,7 @@ mod tests
     #[test]
     fn wrap_around_at_maxevents()
     {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe
         {
             reset_queue();

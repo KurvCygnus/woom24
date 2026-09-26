@@ -195,13 +195,29 @@ mod tests
             P_CalcHeight(&mut p);
             assert_eq!(p.viewz, 10 * FRACUNIT + 6 * FRACUNIT);
 
-            // Even when the FIRST write hits the ceiling clamp, the
-            // second write still wins: the clamp never survives in the
-            // final value (that is the quirk).
-            (*mp).ceilingz = 20 * FRACUNIT;
+            // Ground branch (cheats = 0, onground = 1): SINGLE write plus
+            // a clamp that SURVIVES -- the double write is branch-A only.
+            // With viewheight pushed up inside P_CalcHeight, the clamped
+            // viewz lands exactly on ceilingz - 4F here; a mutant that
+            // dropped the clamp (or applied the branch-A overwrite) would
+            // fail this assert.
+            (*mp).ceilingz = 30 * FRACUNIT;
+            onground = 1;
+            P_CalcHeight(&mut p);
+            assert_eq!(p.viewz, 30 * FRACUNIT - 4 * FRACUNIT);
+
+            // Branch A under a low ceiling (CF_NOMOMENTUM forces the
+            // double-write path): even when the FIRST write's clamp would
+            // bite (clamp value 26F differs from the final write 16F),
+            // the final `z + viewheight` write still wins. A mutant that
+            // keeps the clamp (drops the overwrite) fails this assert.
+            p.cheats = CF_NOMOMENTUM;
+            p.viewheight = 6 * FRACUNIT;
+            p.deltaviewheight = 0;
             onground = 1;
             P_CalcHeight(&mut p);
             assert_eq!(p.viewz, 10 * FRACUNIT + 6 * FRACUNIT);
+            assert_ne!(p.viewz, 30 * FRACUNIT - 4 * FRACUNIT);
 
             // Leave no trace (see baseline_bob_amplitude_vectors).
             onground = 0;

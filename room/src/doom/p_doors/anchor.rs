@@ -11,8 +11,11 @@ use super::{
 /// link-time dead-code elimination.
 ///
 /// Referenced from `doomgeneric_Create` during engine initialisation.
+/// Signature parity with the pre-graduation anchor (`pub unsafe extern "C"`
+/// in the flat `p_doors.rs`) is kept verbatim -- the graduation moves, it
+/// does not improve.
 #[no_mangle]
-pub extern "C" fn P_Doors_Link_Anchor()
+pub unsafe extern "C" fn P_Doors_Link_Anchor()
 {
     let _ = T_VerticalDoor as *const () as usize;
     let _ = EV_DoLockedDoor as *const () as usize;
