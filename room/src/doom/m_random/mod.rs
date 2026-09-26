@@ -1,0 +1,270 @@
+//! The DOOM random number generator: the canonical 256-byte random
+//! sequence and the two cursors that walk it -- `prndindex` for the
+//! play simulation (the demo-synchronized generator) and `rndindex`
+//! for presentation-layer randomness -- plus the reset that zeroes
+//! both.
+//!
+//! ## Submodule Responsibility
+//!
+//! None yet -- `dtmc` only: the module's single qualifying
+//! computation (the pre-increment + table-lookup sequence primitive)
+//! is extracted into `dtmc.rs`, and no non-dtmc responsibility split
+//! exists. `RNDTABLE` and the two cursors below are shared
+//! module-root state; `dtmc` reaches the table through `super::`,
+//! and the root wrappers marshal their statics through
+//! `dtmc::random_advance`.
+//!
+//! ## Original Fn Name Mapping
+//!
+//! | Original (C) | New location | Surface | Notes |
+//! |--------------|--------------|---------|-------|
+//! | `P_Random` | this file (root wrapper) | dtmc | THE demo generator: 69 simulation call sites (AI, weapons, movement, damage, specials, plus the demo-visible map-setup deathmatch spot burn); the body re-routes through `dtmc::random_advance` while name, `#[no_mangle]` and `extern "C"` kind stay unchanged -- no rename, so no shim and no wasm export churn; upstream `vendor/doomgeneric/m_random.c:50-54` |
+//! | `M_Random` | this file (root wrapper) | glue | explicitly non-simulation by upstream design (`m_random.h:32` reserves `P_Random` for the play simulation only): screen wipe, status-bar face, and intermission pacing consume `rndindex` precisely so they never perturb the demo sequence; same re-route through `dtmc::random_advance`; upstream `vendor/doomgeneric/m_random.c:56-60` |
+//! | `M_ClearRandom` | this file (root wrapper) | dtmc | the sequence-reproduction reset at new-game/demo start (`G_InitNew` analog); its whole observable behavior is the atomic zeroing of both demo-visible cursors, so the verdict is dtmc, but no pure computation exists to separate -- the function stays whole at root as the statics' marshalling glue; upstream `vendor/doomgeneric/m_random.c:62-65` |
+//! | `rndtable` | `RNDTABLE` (this file) | data | the canonical 256-byte sequence, byte-for-byte identical to upstream (enforced by the vendor cross-check in `tables.rs`); name, path and `pub(crate)` visibility unchanged; upstream `vendor/doomgeneric/m_random.c:24-44` |
+//! | `rndindex` | this file (static) | data | game-thinker cursor, demo-visible shared state: the net-consistency cookie (`g_game.c:957` analog), state-hash word 2, and the golden snapshots; `#[no_mangle]` retained; upstream `vendor/doomgeneric/m_random.c:46`, `doomstat.h:276` |
+//! | `prndindex` | this file (static) | data | play-simulation cursor, demo-visible shared state: the demo-playthrough and frame-split golden snapshots read it through two test-crate `extern "C"` blocks, plus state-hash word 3; `#[no_mangle]` retained so those exact symbols keep linking; upstream `vendor/doomgeneric/m_random.c:47` |
+//!
+//! No symbol was renamed, so there are no boundary shims and no link
+//! anchor, and nothing qualified for a `#[no_mangle]` drop or an
+//! `#[export_name]` pin. The pre-graduation module doc's C-linkage
+//! rationale is corrected here: no compiled C translation unit
+//! references any of these symbols (`doomgeneric-sys/build.rs`
+//! excludes the engine sources), so the `doomstat.h:276` /
+//! `g_game.c:957` citations above are upstream provenance only --
+//! retention keeps the wasm export surface byte-identical and
+//! satisfies the two test-crate `extern "C"` declarers of
+//! `prndindex` (`demo_playthrough.rs`, `frame_split_common/mod.rs`).
+//!
+//! ## Deterministic Aspects
+//!
+//! The two-cursor design IS the determinism mechanism: `prndindex`
+//! (advanced by `P_Random`) feeds the demo synchronization surface --
+//! every draw perturbs the exact simulation sequence that demos and
+//! the state hash pin -- while `rndindex` (advanced by `M_Random`)
+//! is deliberately isolated so presentation-layer randomness never
+//! reaches the demo sequence. `M_ClearRandom` zeroes both cursors
+//! atomically at every sequence-reproduction point (new game, demo
+//! start); the save/load digest layout assumes that atomicity
+//! (savegames carry neither cursor). The extracted
+//! `dtmc::random_advance` must stay LSB-exact: the pre-increment
+//! order (index 0 unused until the wrap), the 256-wrap mask, and the
+//! table bytes themselves are the demo-visible sequence -- pinned by
+//! the baseline vectors in `dtmc`'s test module, written and run
+//! against the original wrapper bodies before extraction (F10
+//! graduate #3).
+
+#![allow(non_upper_case_globals, non_snake_case)]
+
+use std::ffi::c_int;
+
+pub mod dtmc;
+
+/// 256-entry lookup table backing both `P_Random` and `M_Random`.
+/// Byte-for-byte identical to `rndtable` in `m_random.c`; the values
+/// are the original Doom random sequence and must not be changed.
+pub(crate) static RNDTABLE: [u8; 256] = [
+    0, 8, 109, 220, 222, 241, 149, 107, 75, 248, 254, 140, 16, 66, 74, 21, 211, 47, 80, 242, 154,
+    27, 205, 128, 161, 89, 77, 36, 95, 110, 85, 48, 212, 140, 211, 249, 22, 79, 200, 50, 28, 188,
+    52, 140, 202, 120, 68, 145, 62, 70, 184, 190, 91, 197, 152, 224, 149, 104, 25, 178, 252, 182,
+    202, 182, 141, 197, 4, 81, 181, 242, 145, 42, 39, 227, 156, 198, 225, 193, 219, 93, 122, 175,
+    249, 0, 175, 143, 70, 239, 46, 246, 163, 53, 163, 109, 168, 135, 2, 235, 25, 92, 20, 145, 138,
+    77, 69, 166, 78, 176, 173, 212, 166, 113, 94, 161, 41, 50, 239, 49, 111, 164, 70, 60, 2, 37,
+    171, 75, 136, 156, 11, 56, 42, 146, 138, 229, 73, 146, 77, 61, 98, 196, 135, 106, 63, 197, 195,
+    86, 96, 203, 113, 101, 170, 247, 181, 113, 80, 250, 108, 7, 255, 237, 129, 226, 79, 107, 112,
+    166, 103, 241, 24, 223, 239, 120, 198, 58, 60, 82, 128, 3, 184, 66, 143, 224, 145, 224, 81,
+    206, 163, 45, 63, 90, 168, 114, 59, 33, 159, 95, 28, 139, 123, 98, 125, 196, 15, 70, 194, 253,
+    54, 14, 109, 226, 71, 17, 161, 93, 186, 87, 244, 138, 20, 52, 123, 251, 26, 36, 17, 46, 52,
+    231, 232, 76, 31, 221, 84, 37, 216, 165, 212, 106, 197, 242, 98, 43, 39, 175, 254, 145, 190,
+    84, 118, 222, 187, 136, 120, 163, 236, 249,
+];
+
+/// `extern int rndindex` -- the game-thinker random cursor
+/// (upstream `m_random.c:46`, declared `extern` in `doomstat.h:276`).
+/// Read into the net-play consistency cookie and the simulation state
+/// digest; kept as shared module-root state with its C symbol
+/// unchanged.
+#[no_mangle]
+pub static mut rndindex: c_int = 0;
+
+/// `int prndindex` -- the play-simulation random cursor
+/// (upstream `m_random.c:47`). Exported with C linkage so the
+/// demo-playthrough and frame-split test crates can read it via
+/// `extern "C"` for golden snapshots.
+#[no_mangle]
+pub static mut prndindex: c_int = 0;
+
+/// `int P_Random(void)` -- advance and read the play-simulation
+/// random cursor. Returns the next byte from `RNDTABLE` masked to
+/// `0..=255`. This is the deterministic generator used by game logic;
+/// demos and net-play depend on its exact sequence.
+#[no_mangle]
+pub extern "C" fn P_Random() -> c_int
+{
+    let (idx, val) = dtmc::random_advance(unsafe { prndindex });
+    unsafe
+    {
+        prndindex = idx;
+    }
+    val
+}
+
+/// `int M_Random(void)` -- advance and read the game-thinker random
+/// cursor. Returns the next byte from `RNDTABLE` masked to `0..=255`.
+/// Used for non-simulation effects (e.g. menu animation) so its use
+/// does not perturb demo determinism.
+#[no_mangle]
+pub extern "C" fn M_Random() -> c_int
+{
+    let (idx, val) = dtmc::random_advance(unsafe { rndindex });
+    unsafe
+    {
+        rndindex = idx;
+    }
+    val
+}
+
+/// `void M_ClearRandom(void)` -- reset both `rndindex` and
+/// `prndindex` to 0 atomically. Called at the start of a new
+/// game/demo so the random sequence reproduces.
+#[no_mangle]
+pub extern "C" fn M_ClearRandom()
+{
+    unsafe
+    {
+        rndindex = 0;
+        prndindex = 0;
+    }
+}
+
+#[cfg(test)]
+mod tests
+{
+    use crate::doom::m_random::{M_ClearRandom, M_Random, P_Random, RNDTABLE, prndindex, rndindex};
+    use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
+    use std::ffi::c_int;
+
+    /// Spot-check that `RNDTABLE` still contains the canonical Doom
+    /// values at a few known positions.
+    #[test]
+    fn table_sentinels()
+    {
+        assert_eq!(RNDTABLE[0], 0);
+        assert_eq!(RNDTABLE[1], 8);
+        assert_eq!(RNDTABLE[255], 249);
+        assert_eq!(RNDTABLE.len(), 256);
+    }
+
+    /// Three consecutive `M_Random` calls should return entries 1, 2, 3
+    /// of `RNDTABLE` in order (the pre-increment makes index 0 unused).
+    #[test]
+    fn m_random_walks_the_table()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        M_ClearRandom();
+        assert_eq!(M_Random(), RNDTABLE[1] as c_int);
+        assert_eq!(M_Random(), RNDTABLE[2] as c_int);
+        assert_eq!(M_Random(), RNDTABLE[3] as c_int);
+    }
+
+    /// `M_Random` and `P_Random` each advance their own cursor; the
+    /// first call to either after `M_ClearRandom` returns `RNDTABLE[1]`.
+    #[test]
+    fn p_and_m_independent()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        M_ClearRandom();
+        let a = M_Random();
+        let b = P_Random();
+        assert_eq!(a, b);
+        unsafe
+        {
+            assert_eq!(rndindex, 1);
+            assert_eq!(prndindex, 1);
+        }
+    }
+
+    /// `M_ClearRandom` must zero `rndindex` even if both cursors have
+    /// been advanced by prior calls.
+    #[test]
+    fn clear_resets_both()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        M_Random();
+        M_Random();
+        P_Random();
+        M_ClearRandom();
+        unsafe
+        {
+            assert_eq!(rndindex, 0);
+        }
+    }
+
+    /// Two `P_Random` calls should leave `prndindex` at 2 and return
+    /// `RNDTABLE[1]` then `RNDTABLE[2]`.
+    #[test]
+    fn p_random_increments_prndindex()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        M_ClearRandom();
+        assert_eq!(P_Random(), RNDTABLE[1] as c_int);
+        assert_eq!(P_Random(), RNDTABLE[2] as c_int);
+        unsafe
+        {
+            assert_eq!(prndindex, 2);
+        }
+    }
+
+    /// `M_ClearRandom` must zero `prndindex` (in addition to `rndindex`,
+    /// covered by `clear_resets_both`).
+    #[test]
+    fn clear_also_resets_prndindex()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        P_Random();
+        P_Random();
+        M_ClearRandom();
+        unsafe
+        {
+            assert_eq!(prndindex, 0);
+        }
+    }
+
+    /// After exactly 256 calls to M_Random the index wraps back to 0,
+    /// so the 257th call returns RNDTABLE[1] -- identical to the first
+    /// call.
+    #[test]
+    fn m_random_wraps_at_256()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        M_ClearRandom();
+        let first = M_Random();
+        for _ in 1..256
+        {
+            M_Random();
+        }
+        // 256 calls done; rndindex = (0 + 256) & 0xFF = 0
+        unsafe
+        {
+            assert_eq!(rndindex, 0);
+        }
+        // 257th call should match the first (RNDTABLE[1])
+        assert_eq!(M_Random(), first);
+    }
+
+    /// P_Random and M_Random share the same RNDTABLE but use
+    /// independent cursors.
+    #[test]
+    fn p_and_m_cursors_are_independent()
+    {
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        M_ClearRandom();
+        // advance M five steps
+        for _ in 0..5
+        {
+            M_Random();
+        }
+        // P cursor is still at 0; first P_Random returns RNDTABLE[1]
+        assert_eq!(P_Random(), RNDTABLE[1] as c_int);
+    }
+}
