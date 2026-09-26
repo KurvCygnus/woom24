@@ -1,15 +1,6 @@
-//! Rust port of vendor/doomgeneric/dummy.c.
-//!
-//! Stub globals and no-op functions that satisfy link-time references from
-//! modules that are not yet ported or whose optional features are disabled.
-//!
-//! In the original Chocolate Doom / doomgeneric source, `dummy.c` is compiled
-//! only when certain features (`FEATURE_SOUND`, networking) are absent.  It
-//! unconditionally provides `net_client_connected = false`, `drone = false`,
-//! and (when `FEATURE_SOUND` is not defined) an empty
-//! `I_InitTimidityConfig`.  This Rust port mirrors those three definitions
-//! directly, using `c_uint` for the two booleans because `doomtype.h` defines
-//! `boolean` as `unsigned int`.
+//! The stub definitions: the two constant-zero networking booleans
+//! and the empty Timidity-config initializer, moved wholesale from
+//! the pre-graduation `dummy.rs` (F10 wave A3).
 
 #![allow(non_upper_case_globals, non_snake_case)]
 
@@ -46,28 +37,34 @@ pub static mut drone: c_uint = 0; // false
 /// # Note
 /// The original C stub is also empty; no `// FIXME` is needed here.
 #[no_mangle]
-pub extern "C" fn I_InitTimidityConfig() {}
+pub extern "C" fn I_InitTimidityConfig()
+{}
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use std::sync::Mutex;
 
     static LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
-    fn globals_default_to_zero() {
+    fn globals_default_to_zero()
+    {
         let _g = LOCK.lock().unwrap();
-        unsafe {
+        unsafe
+        {
             assert_eq!(net_client_connected, 0);
             assert_eq!(drone, 0);
         }
     }
 
     #[test]
-    fn globals_store_unsigned_values() {
+    fn globals_store_unsigned_values()
+    {
         let _g = LOCK.lock().unwrap();
-        unsafe {
+        unsafe
+        {
             net_client_connected = c_uint::MAX;
             drone = c_uint::MAX;
             assert_eq!(net_client_connected, c_uint::MAX);
@@ -78,7 +75,8 @@ mod tests {
     }
 
     #[test]
-    fn timidity_stub_does_not_panic() {
+    fn timidity_stub_does_not_panic()
+    {
         I_InitTimidityConfig();
     }
 }
