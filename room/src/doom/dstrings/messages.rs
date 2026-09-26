@@ -1,22 +1,6 @@
-//! Rust port of vendor/doomgeneric/dstrings.c.
-//!
-//! Globally defined quit messages, one table for Doom 1 and one for Doom 2.
-//!
-//! In C, `doom1_endmsg` and `doom2_endmsg` are `char *[]` arrays of mutable
-//! pointers to string literals.  In Rust, string literals are `'static`
-//! read-only data, so the array element type cannot be `*mut c_char`.
-//! Instead, a thin `repr(transparent)` wrapper [`Ptr`] around `*const c_char`
-//! is used; `unsafe impl Sync` is required because raw pointers are not
-//! `Sync` by default, even though the pointers here only ever point at
-//! immutable `'static` data.
-//!
-//! C string literals (`c"..."`) provide static NUL-terminated pointers without
-//! heap allocation.
-//!
-//! The engine selects a message from these tables at random when the player
-//! attempts to quit, using `gamemission` to pick the correct table
-//! (`doom1_endmsg` for Doom 1 / Chex Quest, `doom2_endmsg` for Doom 2 /
-//! TNT / Plutonia).
+//! The quit-message data: the `Ptr` C-string newtype and the two
+//! eight-entry quit-message tables, moved wholesale from the
+//! pre-graduation `dstrings.rs` (F10 wave A3).
 
 #![allow(non_upper_case_globals, non_snake_case)]
 
@@ -32,21 +16,28 @@ use std::ffi::c_char;
 // `repr(transparent)` guarantees ABI compatibility with `*const c_char` for C interop.
 #[repr(transparent)]
 pub struct Ptr(pub *const c_char);
+
 unsafe impl Sync for Ptr {}
 
-impl Ptr {
+impl Ptr
+{
     /// Returns the inner raw pointer as `*const c_char`.
-    pub fn as_ptr(&self) -> *const c_char {
+    pub fn as_ptr(&self) -> *const c_char
+    {
         self.0
     }
 }
 
-/// Eight randomised quit messages shown when a Doom 1 player tries to exit.
+/// Eight quit messages shown when a Doom 1 player tries to exit.
 ///
-/// Corresponds to `char *doom1_endmsg[]` in `dstrings.c`.  The game picks
-/// one at random (via `M_Random`) when the quit dialog is opened in a Doom 1
-/// game session.  The `#[no_mangle]` export allows C code in `m_misc.c` (or
-/// equivalent) to access the table by its original symbol name.
+/// Corresponds to `char *doom1_endmsg[]` in `dstrings.c`.  The quit
+/// dialog picks one keyed by the tic counter -- `(gametic as usize) & 7`
+/// in `M_SelectEndMessage` (`m_menu.rs:1273-1281`) -- not by an RNG
+/// draw (the pre-graduation doc's "via `M_Random`" claim was stale and
+/// is corrected here).  The `#[no_mangle]` export keeps the original
+/// symbol name on the wasm export surface byte-identical; no compiled
+/// C translation unit references it (`doomgeneric-sys/build.rs`
+/// excludes dstrings.c).
 #[no_mangle]
 pub static doom1_endmsg: [Ptr; 8] = [
     Ptr(c"are you sure you want to\nquit this great game?".as_ptr()),
@@ -59,7 +50,7 @@ pub static doom1_endmsg: [Ptr; 8] = [
     Ptr(c"go ahead and leave. see if i care.".as_ptr()),
 ];
 
-/// Eight randomised quit messages shown when a Doom 2 player tries to exit.
+/// Eight quit messages shown when a Doom 2 player tries to exit.
 ///
 /// Corresponds to `char *doom2_endmsg[]` in `dstrings.c`.  Functionally
 /// identical to [`doom1_endmsg`] but with Doom-II-themed text.  Used when
@@ -77,21 +68,25 @@ pub static doom2_endmsg: [Ptr; 8] = [
 ];
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
 
     #[test]
-    fn doom1_table_length() {
+    fn doom1_table_length()
+    {
         assert_eq!(doom1_endmsg.len(), 8);
     }
 
     #[test]
-    fn doom2_table_length() {
+    fn doom2_table_length()
+    {
         assert_eq!(doom2_endmsg.len(), 8);
     }
 
     #[test]
-    fn doom1_first_entry_roundtrips() {
+    fn doom1_first_entry_roundtrips()
+    {
         use std::ffi::CStr;
         let s = unsafe { CStr::from_ptr(doom1_endmsg[0].0) };
         assert_eq!(
@@ -101,7 +96,8 @@ mod tests {
     }
 
     #[test]
-    fn doom2_first_entry_roundtrips() {
+    fn doom2_first_entry_roundtrips()
+    {
         use std::ffi::CStr;
         let s = unsafe { CStr::from_ptr(doom2_endmsg[0].0) };
         assert_eq!(
@@ -112,9 +108,11 @@ mod tests {
 
     /// Every entry in both tables must be NUL-terminated and non-empty.
     #[test]
-    fn all_doom1_entries_are_valid_c_strings() {
+    fn all_doom1_entries_are_valid_c_strings()
+    {
         use std::ffi::CStr;
-        for entry in doom1_endmsg.iter() {
+        for entry in doom1_endmsg.iter()
+        {
             let s = unsafe { CStr::from_ptr(entry.0) };
             let text = s.to_str().expect("doom1_endmsg entry is invalid UTF-8");
             assert!(!text.is_empty(), "doom1_endmsg entry must not be empty");
@@ -122,9 +120,11 @@ mod tests {
     }
 
     #[test]
-    fn all_doom2_entries_are_valid_c_strings() {
+    fn all_doom2_entries_are_valid_c_strings()
+    {
         use std::ffi::CStr;
-        for entry in doom2_endmsg.iter() {
+        for entry in doom2_endmsg.iter()
+        {
             let s = unsafe { CStr::from_ptr(entry.0) };
             let text = s.to_str().expect("doom2_endmsg entry is invalid UTF-8");
             assert!(!text.is_empty(), "doom2_endmsg entry must not be empty");
@@ -133,7 +133,8 @@ mod tests {
 
     /// The two tables are independent: same index may differ between them.
     #[test]
-    fn doom1_and_doom2_differ_at_index_1() {
+    fn doom1_and_doom2_differ_at_index_1()
+    {
         use std::ffi::CStr;
         let s1 = unsafe { CStr::from_ptr(doom1_endmsg[1].0) }
             .to_str()
@@ -149,7 +150,8 @@ mod tests {
 
     /// The last entry in each table is accessible.
     #[test]
-    fn last_entries_are_accessible() {
+    fn last_entries_are_accessible()
+    {
         use std::ffi::CStr;
         let s1 = unsafe { CStr::from_ptr(doom1_endmsg[7].0) };
         let s2 = unsafe { CStr::from_ptr(doom2_endmsg[7].0) };
