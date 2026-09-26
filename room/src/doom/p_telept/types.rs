@@ -1,19 +1,23 @@
-//! Teleportation action special.
+//! Shared C-mirror vocabulary of the teleporter module: the canonical
+//! freeze-zone `mobj_t` mirror plus `line_t`, `sector_t`, `subsector_t`,
+//! the packed `mapthing_t`, the opaque `state_t` / `mobjinfo_t` /
+//! `player_s` aliases, and the `EXE_FINAL` version constant -- the
+//! struct half of `vendor/doomgeneric/p_telept.c` plus the `p_local.h` /
+//! `doomdata.h` records it needs.
 //!
-//! Rust port of `vendor/doomgeneric/p_telept.c`.  Handles the `EV_Teleport`
-//! linedef special: locating the destination `MT_TELEPORTMAN` marker, moving
-//! the triggering thing to that position, and spawning teleport fog at both
-//! the source and destination.
+//! These mirrors are load-bearing far beyond this module: the
+//! `mobj_t` here is THE canonical mobj of the freeze zone, read by a
+//! dozen other files (including the F9 state hash and the `p_sight`
+//! re-export) through the module root, so the layout-pinning tests
+//! below move with the types and are the guard against silent
+//! state-hash corruption.
 
-#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
+#![allow(non_camel_case_types)]
 
 use std::ffi::c_void;
 use std::os::raw::c_int;
 
-use crate::doom::d_player::PlayerT;
-use crate::doom::info::*;
 use crate::doom::p_tick::thinker_t;
-use crate::doom::tables::ANGLETOFINESHIFT;
 
 /// A sub-sector: the smallest convex region of the BSP tree.
 ///
@@ -25,7 +29,8 @@ use crate::doom::tables::ANGLETOFINESHIFT;
 /// across modules.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct subsector_t {
+pub struct subsector_t
+{
     /// The sector this sub-sector belongs to.
     pub sector: *mut sector_t,
     /// Number of segs in this sub-sector.
@@ -41,7 +46,8 @@ pub struct subsector_t {
 /// for C-internal slots.  Field offsets are verified by the test suite.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct sector_t {
+pub struct sector_t
+{
     /// Floor height in fixed-point units.
     pub floorheight: c_int,
     /// Ceiling height in fixed-point units.
@@ -84,7 +90,8 @@ pub struct sector_t {
 /// Uses `#[repr(C, packed)]` to match the 10-byte on-disk layout.
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
-pub struct mapthing_t {
+pub struct mapthing_t
+{
     /// Spawn X position in map units.
     pub x: i16,
     /// Spawn Y position in map units.
@@ -114,7 +121,8 @@ pub enum mobjinfo_t {}
 /// alignment; they have no semantic meaning in this port.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct mobj_t {
+pub struct mobj_t
+{
     /// Thinker header — must be the very first field (offset 0).
     pub thinker: thinker_t,
     /// Map X position in fixed-point units.
@@ -198,7 +206,8 @@ pub struct mobj_t {
 /// the layout matches the C `line_t` struct and is shared with `p_lights.rs`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct line_t {
+pub struct line_t
+{
     /// First vertex of the line (opaque pointer).
     pub v1: *mut c_void,
     /// Second vertex of the line (opaque pointer).
@@ -233,163 +242,22 @@ pub struct line_t {
 ///
 /// `EV_Teleport` uses this to preserve a known quirk: the original Final Doom
 /// binary does not set `thing->z` to `floorz` after teleporting.
-const EXE_FINAL: c_int = 7;
-
-use crate::doom::doomstat::gameversion;
-use crate::doom::p_map::P_TeleportMove;
-use crate::doom::p_mobj::{P_MobjThinker, P_SpawnMobj};
-use crate::doom::p_setup::{numsectors, sectors};
-use crate::doom::p_tick::thinkercap;
-use crate::doom::s_sound::S_StartSound;
-use crate::doom::sounds::Sfx;
-use crate::doom::tables::{finecosine, finesine};
-
-// Type alias for cross-module pointer cast (#[repr(C)] identical layout).
-type CffiMobj = crate::doom::c_ffi::mobj_t;
-type CffiSector = crate::doom::c_ffi::sector_t;
-// We already have PlayerT in d_player.rs but can't use it here
-// because the C player_s is different. Use pointer casts.
-
-/// Teleport `thing` across the linedef special `line` if all conditions are met.
-///
-/// Searches all sectors whose tag matches `line->tag` for an `MT_TELEPORTMAN`
-/// marker.  When one is found:
-///
-/// 1. Calls `P_TeleportMove` to clip-move `thing` to the marker's position,
-///    telefragging any blocking enemies.
-/// 2. Sets `thing->z` to floor height (skipped for the first Final Doom
-///    executable — `gameversion == EXE_FINAL` (7); see `doomstat.h`).
-/// 3. Adjusts the player's `viewz` if `thing` is a player.
-/// 4. Spawns `MT_TFOG` at both the source and destination, playing
-///    `sfx_telept` at each.
-/// 5. Sets `reactiontime = 18` to freeze player movement briefly.
-/// 6. Zeros `thing`'s momentum and copies the marker's angle.
-///
-/// Returns `1` on a successful teleport, `0` if no suitable destination was
-/// found or if `P_TeleportMove` failed.  Missiles (`MF_MISSILE`) and things
-/// that hit the back of the line (`side == 1`) are rejected immediately.
-///
-/// Corresponds to `EV_Teleport` in `p_telept.c`.
-///
-/// # Safety
-///
-/// `line` and `thing` must be valid, non-null pointers for the duration of
-/// the call.  The global arrays `sectors` and `thinkercap` must be initialised
-/// (i.e. a level must be loaded).
-#[no_mangle]
-pub extern "C" fn EV_Teleport(line: *mut line_t, side: c_int, thing: *mut mobj_t) -> c_int {
-    unsafe {
-        // Don't teleport missiles
-        if (*thing).flags & MF_MISSILE != 0 {
-            return 0;
-        }
-
-        // Don't teleport if hit back of line
-        if side == 1 {
-            return 0;
-        }
-
-        let tag = (*line).tag;
-
-        for i in 0..numsectors as usize {
-            if (*sectors.add(i)).tag != tag {
-                continue;
-            }
-
-            let mut thinker = thinkercap.next;
-            while !std::ptr::eq(thinker, &raw const thinkercap) {
-                // Not a mobj
-                if (*thinker).function.acp1
-                    != Some(core::mem::transmute::<
-                        unsafe extern "C" fn(*mut mobj_t),
-                        unsafe extern "C" fn(*mut c_void),
-                    >(P_MobjThinker))
-                {
-                    thinker = (*thinker).next;
-                    continue;
-                }
-
-                let m = thinker as *mut mobj_t;
-
-                // Not a teleportman
-                if (*m).mobjtype != MT_TELEPORTMAN {
-                    thinker = (*thinker).next;
-                    continue;
-                }
-
-                let sector = (*(*m).subsector).sector;
-                // Wrong sector
-                if sector.offset_from(sectors as *mut sector_t) != i as isize {
-                    thinker = (*thinker).next;
-                    continue;
-                }
-
-                let oldx = (*thing).x;
-                let oldy = (*thing).y;
-                let oldz = (*thing).z;
-
-                if P_TeleportMove(thing as *mut CffiMobj, (*m).x, (*m).y) == 0 {
-                    return 0;
-                }
-
-                // Final Doom quirk: don't set z
-                if gameversion != EXE_FINAL {
-                    (*thing).z = (*thing).floorz;
-                }
-
-                if !(*thing).player.is_null() {
-                    let player = (*thing).player as *mut PlayerT;
-                    (*player).viewz = (*thing).z + (*player).viewheight;
-                }
-
-                // Spawn teleport fog at source
-                let fog = P_SpawnMobj(oldx, oldy, oldz, MT_TFOG);
-                S_StartSound(fog as *mut c_void, Sfx::Telept as c_int);
-
-                // Spawn teleport fog at destination
-                let an = ((*m).angle >> ANGLETOFINESHIFT) as usize;
-                let fog = P_SpawnMobj(
-                    (*m).x + 20 * *finecosine.0.add(an),
-                    (*m).y + 20 * finesine[an],
-                    (*thing).z,
-                    MT_TFOG,
-                );
-                S_StartSound(fog as *mut c_void, Sfx::Telept as c_int);
-
-                // Don't move for a bit
-                if !(*thing).player.is_null() {
-                    (*thing).reactiontime = 18;
-                }
-
-                (*thing).angle = (*m).angle;
-                (*thing).momx = 0;
-                (*thing).momy = 0;
-                (*thing).momz = 0;
-                return 1;
-            }
-        }
-    }
-    0
-}
-
-/// Anchor function referenced from `doomgeneric_Create` to ensure
-/// `EV_Teleport` survives link-time dead-code elimination.
-#[no_mangle]
-pub extern "C" fn P_Telept_Link_Anchor() {
-    let _ = EV_Teleport as *const () as usize;
-}
+pub(super) const EXE_FINAL: c_int = 7;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod tests
+{
+    use crate::doom::p_telept::{mobj_t, sector_t, subsector_t};
 
     #[test]
-    fn mobj_t_size_is_224() {
+    fn mobj_t_size_is_224()
+    {
         assert_eq!(std::mem::size_of::<mobj_t>(), 224);
     }
 
     #[test]
-    fn mobj_t_field_offsets() {
+    fn mobj_t_field_offsets()
+    {
         assert_eq!(std::mem::offset_of!(mobj_t, thinker), 0);
         assert_eq!(std::mem::offset_of!(mobj_t, x), 24);
         assert_eq!(std::mem::offset_of!(mobj_t, subsector), 88);
@@ -402,12 +270,14 @@ mod tests {
     }
 
     #[test]
-    fn subsector_t_size() {
+    fn subsector_t_size()
+    {
         assert_eq!(std::mem::size_of::<subsector_t>(), 16);
     }
 
     #[test]
-    fn sector_t_layout() {
+    fn sector_t_layout()
+    {
         assert_eq!(std::mem::size_of::<sector_t>(), 128);
         assert_eq!(std::mem::offset_of!(sector_t, floorheight), 0);
         assert_eq!(std::mem::offset_of!(sector_t, ceilingheight), 4);
