@@ -32,6 +32,10 @@ use std::ffi::c_int;
 /// into the caller's static, and never skip or reorder the tuple --
 /// it is `(new_cursor, table_byte)`, and reading the byte at the old
 /// cursor or dropping the store inverts the whole generator sequence.
+/// Domain precondition: the cursor is always a masked byte in
+/// `0..=255` -- the cursor statics initialize to 0, `M_ClearRandom`
+/// stores 0, and `random_advance` itself returns masked values --
+/// which is what makes `wrapping_add` equivalent to the C add.
 /// The function is pure with no threading assumptions of its own;
 /// upstream advances the cursors only on the single-threaded game
 /// tick, and the root wrappers here preserve exactly that.
