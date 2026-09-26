@@ -43,6 +43,7 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | 8 | Archvile fire spawn coordinates | `A_VileTarget` passes `target->x` for both X and Y of `P_SpawnMobj` (vanilla typo) | complete | `room/src/doom/p_enemy.rs:A_VileTarget` |
 | 9 | commercial map33 par-time read | `G_DoCompleted` reads one `int` past `cpars[31]` for a map 33 exit; the read lands in the first four bytes of the adjacent `GAMMALVL0` rodata string | complete | `room/src/doom/g_game.rs:G_DoCompleted` / `ParTimeOverrun` |
 | 10 | playeringame[-1] overrun | `P_SpawnPlayer` gates the spawn on `playeringame[mthing->type - 1]`; a type-0 mapthing makes the index `-1`, which aliases `players[3].didsecret` in the DOS `.bss` | complete | `room/src/doom/p_mobj.rs:P_SpawnPlayer` / `PlayeringameOverrun` |
+| 11 | door/plat `specialdata` aliasing | `EV_VerticalDoor` discriminates the thinker in an aliased `sector->specialdata` slot by `acp1` function-pointer compare and, for a plat, writes `plat->wait` through a `vldoor_t*` cast (the "When is a door not a door?" quirk) | complete | `room/src/doom/p_doors/events.rs:EV_VerticalDoor` |
 | G1 | tmbbox overrun family | `PIT_CheckLine`'s spechit-overrun emulated writes land in `tmbbox[0..3]`; every later collision check in the same move then consumes the trampled bbox -- the emulated writes are the complete trample model | complete | `room/src/doom/p_map.rs:SpechitOverrun` (writes) + `PIT_CheckLine`/`P_CheckPosition` (consumers) |
 | G2 | demo-window / ticdup=0 clobber | a browser-only OOB write zeroed `ticdup` mid-run (`panic_const_div_by_zero`); audit found the spechit store was the sole trampler | resolved (pending human browser re-test) | audit notes below; fix = entry 1 |
 
@@ -884,6 +885,83 @@ call site `reference/dsda-doom/prboom2/src/p_mobj.c:2074` (prologue return
 before the `!playeringame[n]` gate at `:2079`); dsda's own type-0 skip in
 `P_SpawnMapThing` at `p_mobj.c:2385-2397`. Chocolate's unmodeled guard:
 `reference/chocolate-doom/src/doom/p_mobj.c:698-701`.
+
+## 11. door/plat `specialdata` aliasing (complete)
+
+### DOS-era root cause
+
+Vanilla tags thinkers sharing the `sector_t.specialdata` void* slot with no
+type field: `EV_VerticalDoor`'s toggle branch (specials 1/26/27/28/117) casts
+the slot to `vldoor_t*` and identifies the occupier only by comparing
+`thinker.function.acp1` against `T_VerticalDoor` and `T_PlatRaise`
+(`vendor/doomgeneric/p_doors.c:418`, `:422` -- the "When is a door not a
+door?" comment). A sector whose use-line expects a door can legitimately host
+a *plat* thinker (both specials claim the same `specialdata` slot on such
+WADs), and any third thinker type falls into the else branch, which writes
+`door->direction = -1` through the door cast regardless of what the pointer
+really addresses -- a vanilla type-punning write. The released source carries
+the ep1-0500.lmp note: a plat and a door cross-referenced on the same sector;
+the door doesn't open on 64-bit builds.
+
+### What the aliasing observably affected
+
+On ep1-0500.lmp (Doom 1 E1M5, recorded on the DOS binary) the toggle branch
+meets a plat: vanilla's `T_PlatRaise` compare fires and sets `plat->wait =
+-1` instead of closing a "door", so the plat starts descending and the demo
+stays in sync -- the compare table IS the compatibility behavior. For any
+non-door non-plat occupier, the else-branch `direction = -1` store lands at
+`vldoor_t`'s `direction` offset (48) inside an alien thinker struct,
+corrupting whatever field lives there; demos recorded against that trample
+depend on the corrupted value.
+
+### Where we emulate it
+
+`room/src/doom/p_doors/events.rs:294-316` in `EV_VerticalDoor`: the same two
+compares, transmuting `T_VerticalDoor` and `T_PlatRaise` (the latter imported
+through the p_plats graduate's root re-export -- the identical single
+function item `EV_DoPlat` stores into `acp1`, which is what keeps the pointer
+compares meaningful), the `plat->wait = -1` arm through the `plat_t` cast,
+and the else branch verbatim:
+
+```rust
+if (*door).thinker.function.acp1 == t_vdoor {
+    (*door).direction = -1;
+} else if (*door).thinker.function.acp1 == t_plat {
+    let plat = door as *mut plat_t;
+    (*plat).wait = -1;
+} else {
+    eprintln!("EV_VerticalDoor: Tried to close something that wasn't a door.");
+    (*door).direction = -1;
+}
+```
+
+`sector->specialdata` in our port only ever holds thinkers we spawned, so the
+compare targets are in-tree types rather than raw DOS memory; the write
+through the cast reproduces the vanilla aliasing on our layout.
+
+### Semantics
+
+Bit-exact with vanilla's compare table (door -> close, plat -> `wait = -1`,
+other -> stderr note + blind `direction = -1` write). Known pre-existing
+divergence carried deliberately: the else branch prints via `eprintln!` where
+C uses `fprintf(stderr, ...)` -- stderr-text only, no sim-state difference.
+No census hook (pure replication, entry-8 style). The `T_VerticalDoor` /
+`T_PlatRaise` operands must stay single function items per name (the
+graduates' one-item-per-name re-export ruling) or the compares silently break.
+
+### Status
+
+`complete`.
+
+### Reference derivation
+
+`vendor/doomgeneric/p_doors.c:414-435` (the comment block, both `acp1`
+compares, the `plat->wait = -1` arm, and the ep1-0500.lmp note), `:436-446`
+(the else branch with `fprintf(stderr, ...)` at `:440`); cross-referenced
+from the
+p_plats graduate's mapping table (`room/src/doom/p_plats/mod.rs`,
+`T_PlatRaise` row). The upstream sliding-door family around it is `#if 0`
+("abandoned to the mists of time") and correctly absent from the port.
 
 ## Known gaps / intake
 
