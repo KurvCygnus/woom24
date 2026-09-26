@@ -382,6 +382,9 @@ pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t) {
         );
 
         let mut damage = 0;
+        //* The 15-draw ladder bound has no unit vector (a hit target needs
+        //* a blockmap world); it is guarded by the demo goldens alone -- do
+        //* not retune `0..15` casually.
         for _ in 0..15 {
             damage = dtmc::spray_step(damage, P_Random());
         }

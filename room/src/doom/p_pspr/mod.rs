@@ -100,13 +100,14 @@
 //! a gunshot draws 1 (accurate) or 3 (refire); each SSG pellet draws
 //! exactly 5 (damage, spread pair, slope pair) for 20 pellets; each
 //! BFG spray hit draws exactly 15 (`(rand & 7) + 1` ladder) and a
-//! miss draws 0; the plasma flash draws 1. All of those are pinned
-//! against the real bodies by the `baseline_*_draw_pins` vectors in
-//! `dtmc.rs`, which were written and run GREEN against the
-//! pre-extraction in-file bodies BEFORE the move, then retargeted
-//! (same vectors, same results, F10 §2.3). The four extracted helpers
-//! take the drawn bytes as arguments and never draw; the plasma flash
-//! draw and the SSG slope pair stay inline at their sites (too
+//! miss draws 0; the plasma flash draws 1. The swing/gunshot/SSG/BFG
+//! counts are pinned against the real bodies by the
+//! `baseline_*_draw_pins` vectors in `dtmc.rs`, which were written and
+//! run GREEN against the pre-extraction in-file bodies BEFORE the
+//! move, then retargeted (same vectors, same results, F10 §2.3). The
+//! four extracted helpers take the drawn bytes as arguments and never
+//! draw; the plasma flash draw and the SSG slope pair stay inline at
+//! their sites (too
 //! shape-specific to lift). `A_ReFire`'s refire counter couples the
 //! RNG across tics (it gates `P_GunShot` accuracy), so its whole-body
 //! adjudication guards the counter's write order. The F9 state hash

@@ -340,7 +340,10 @@ mod tests
             assert_eq!((*p6).frags[0], 1); // frag credited to players[0]
             assert_eq!(prnd_index(), 1); // kill roll only
             // Restore the shared players[0] slot (the statics start
-            // zeroed; leave every touched field zeroed again).
+            // zeroed; leave every touched field zeroed again -- incl.
+            // health and the psprite sy the P_DropWeapon -> A_Lower
+            // walk moved).
+            (*p6).health = 0;
             (*p6).armortype = 0;
             (*p6).cheats = 0;
             (*p6).playerstate = 0;
@@ -349,6 +352,7 @@ mod tests
             (*p6).attacker = std::ptr::null_mut();
             (*p6).psprites[0].state = std::ptr::null_mut();
             (*p6).psprites[0].tics = 0;
+            (*p6).psprites[0].sy = 0;
 
             gameskill = saved_skill;
         }
