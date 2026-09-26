@@ -345,9 +345,10 @@ out of range.
 Same substitution model as woof/dsda. Ours substitutes at seg-load time,
 while woof also substitutes at sight-check time
 (`reference/woof/src/p_sight.c:154-158`); because our `P_CheckSight` reads
-`seg.backsector` (`room/src/doom/p_sight.rs:417`), the load-time substitution
-covers both consumers. `line.backsector` stays null and is checked explicitly
-(`p_sight.rs:406`) to keep vanilla's block-on-null path. Every substitution
+`seg.backsector` (`room/src/doom/p_sight/bsp.rs:110` in `P_CrossSubsector`),
+the load-time substitution covers both consumers. `line.backsector` stays
+null and is checked explicitly (`p_sight/bsp.rs:99`) to keep vanilla's
+block-on-null path. Every substitution
 records a `violations::VanillaViolation::MissedBackSideOverrun` census hit
 (`room/src/doom/violations.rs`).
 
