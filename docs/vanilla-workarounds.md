@@ -34,7 +34,7 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | # | Item | Vanilla root cause (one-liner) | Status | Where (file:function) |
 |---|------|-------------------------------|--------|-----------------------|
 | 1 | spechit array overrun | `PIT_CheckLine` stores crossed special lines into a fixed `spechit[]` past its 8-slot vanilla bound; the stores trample DOS `.bss` neighbors (`tmbbox`, `crushchange`, `nofit`) | complete | `room/src/doom/p_map.rs:PIT_CheckLine` / `SpechitOverrun`; drains in `P_TryMove`, `P_Move` |
-| 2 | intercepts array overrun | `P_PathTraverse` stores ray/line and ray/thing hits into `intercepts[]` past 128 entries; stores land on `lowfloor`, `bmapwidth`, `playerstarts`, ... | complete | `room/src/doom/p_maputl.rs:InterceptsOverrun` |
+| 2 | intercepts array overrun | `P_PathTraverse` stores ray/line and ray/thing hits into `intercepts[]` past 128 entries; stores land on `lowfloor`, `bmapwidth`, `playerstarts`, ... | complete | `room/src/doom/p_maputl/intercepts.rs:InterceptsOverrun` |
 | 3 | donut NULL-backsector read | `EV_DoDonut` dereferences a null `s3` sector on malformed maps; vanilla reads DOS address `0000:0000`-adjacent memory | complete | `room/src/doom/p_spec.rs:DonutOverrun` |
 | 4 | REJECT undersized-lump read | `P_LoadReject` reads a REJECT lump shorter than `ceil(numsectors^2/8)` bytes; the tail falls into the `Z_Malloc` zone block header | complete | `room/src/doom/p_setup.rs:PadRejectArray` |
 | 5 | missed-backside null sector | segs of two-sided lines with a missing back sidedef get `backsector = NULL`-adjacent DOS memory; vanilla reads address 0 | complete | `room/src/doom/p_setup.rs:GetSectorAtNullAddress` |
@@ -182,10 +182,11 @@ particular redirect later blockmap walks, which demos can observe.
 
 ### Where we emulate it
 
-`room/src/doom/p_maputl.rs:628-688`, `InterceptsMemoryOverrun`, walks the
-vanilla layout as a sequence of `skip!` / `write_i32!` / `write_i16_arr!`
-steps (one per neighbor variable, in vanilla `.bss` order);
-`p_maputl.rs:700-709`, `InterceptsOverrun`, is the trigger:
+`room/src/doom/p_maputl/intercepts.rs:103-163`,
+`InterceptsMemoryOverrun`, walks the vanilla layout as a sequence of
+`skip!` / `write_i32!` / `write_i16_arr!` steps (one per neighbor
+variable, in vanilla `.bss` order); `p_maputl/intercepts.rs:175-186`,
+`InterceptsOverrun`, is the trigger:
 
 ```rust
 if num_intercepts <= MAXINTERCEPTS_ORIGINAL as c_int {
@@ -198,8 +199,9 @@ InterceptsMemoryOverrun(location + 8, (*intercept).d.thing as usize as c_int);
 ```
 
 Call sites: after each intercept store, before advancing `intercept_p` --
-`p_maputl.rs:785` (`PIT_AddLineIntercepts`) and `p_maputl.rs:853`
-(`PIT_AddThingIntercepts`). Constants at `p_maputl.rs:27-34`
+`p_maputl/intercepts.rs:256` (`PIT_AddLineIntercepts`) and
+`p_maputl/intercepts.rs:320` (`PIT_AddThingIntercepts`). Constants at
+`p_maputl/intercepts.rs:31-37`
 (`MAXINTERCEPTS_ORIGINAL = 128`, `MAXINTERCEPTS = 189`).
 
 ### Semantics
@@ -675,7 +677,8 @@ control flow: our `PIT_CheckLine` reads `tmbbox` before the push
 (`p_map.rs:526-529`), matching chocolate line for line.
 
 Panic safety of the corrupted values: every consumer is integer fixed-point
-arithmetic (`P_PointOnLineSide` `p_maputl.rs:147-172`, `FixedMul` with a
+arithmetic (`P_PointOnLineSide` `p_maputl/dtmc.rs:72-106` (core, wrapper
+`geometry.rs`), `FixedMul` with a
 64-bit intermediate), and the emulated addresses stay well inside `i32` range
 (~36M max), so the trampled state cannot panic or wrap differently from
 vanilla's C arithmetic on real content.
@@ -746,7 +749,7 @@ only):
 | Store | Classification |
 |---|---|
 | `spechit[20]` push (`p_map.rs:391`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
-| `intercepts[189]` stores (`p_maputl.rs:782-789`, `:850-857`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
+| `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy.rs:2093`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
 | `playerstarts[4]` (`p_mobj.rs:764-771`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
 | `deathmatchstarts[10]` (`p_mobj.rs:752-758`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |

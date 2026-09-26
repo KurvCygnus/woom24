@@ -73,7 +73,7 @@
 //! | `spread_angle` | `dtmc::spread_angle` | dtmc (extracted) | the `((r1 - r2) as u32) << shift` spread pair (`p_pspr.rs:492/:524/:666` shift 18, `:755` shift 19) -- draws stay at the call sites in first/second order; the SSG slope keeps its signed shape inline; no named C function, so no `#[doc(alias)]` |
 //! | `spray_step` | `dtmc::spray_step` | dtmc (extracted) | the `acc + (rand & 7) + 1` BFG spray ladder step (`p_pspr.rs:862-865`) -- the 15-draw loop stays at the site; no named C function, so no `#[doc(alias)]` |
 //! | `P_Pspr_Link_Anchor` | `anchor::P_Pspr_Link_Anchor` | glue | link scaffolding, never runs in sim; keeps the `#[no_mangle]` set alive (including dead `P_CalcSwing`) |
-//! | `swingx` / `swingy` / `bulletslope` | `state` | data | intercepts-overrun TRAMPLE TARGETS (`p_maputl.rs:673-675`: bulletslope is write slot 10, swingx/swingy the skipped slots 11/12 of the emulated BSS order); `pub`, module-root reachable, `c_int`-sized, order pinned -- a reorder would be a p_maputl edit; `#[no_mangle]` kept |
+//! | `swingx` / `swingy` / `bulletslope` | `state` | data | intercepts-overrun TRAMPLE TARGETS (`p_maputl/intercepts.rs:148-152`: bulletslope is write slot 10, swingx/swingy the skipped slots 11/12 of the emulated BSS order); `pub`, module-root reachable, `c_int`-sized, order pinned -- a reorder would be a p_maputl edit; `#[no_mangle]` kept |
 //! | `wp_*` (10), `am_*` (5), `pw_strength`, `BT_ATTACK`, `PST_DEAD`, `ANG90/180`, `MELEERANGE`, `MISSILERANGE`, `DEH_DEFAULT_BFG_CELLS_PER_SHOT` | `state` consts | data | weapon/ammo/angle vocabulary (`doomdef.h`, `p_local.h`, `p_pspr.c:38-42`); values pinned by the moved tests |
 //!
 //! No symbol was renamed, so there are no boundary shims and nothing
