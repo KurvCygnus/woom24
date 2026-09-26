@@ -4,10 +4,15 @@
 //!
 //! ## Submodule Responsibility
 //!
+//! - `state.rs` -- directory state: the `lumpinfo_t` entry layout
+//!   shared across the FFI boundary and the `lumpinfo` / `numlumps`
+//!   / `lumphash` statics, the in-memory directory of every lump
+//!   loaded from all WADs
 //! - `file.rs` -- file ingestion: `add_file` opens a WAD or
 //!   single-lump file, validates the header magic, and appends its
 //!   lumps to the global directory (with the `ExtendLumpInfo` growth
-//!   helper)
+//!   helper and the on-disk `wadinfo_t` / `filelump_t` layouts it
+//!   reads)
 //! - `lookup.rs` -- name resolution: the case-insensitive 8-char name
 //!   hash, the hash-table probe with backwards-linear fallback, and
 //!   hash-table construction
@@ -16,11 +21,18 @@
 //!   cache acquire/release surface, by lump number or by name
 //! - `iwad.rs` -- launch-time validation: refuse an IWAD whose unique
 //!   marker lump belongs to a different game
+//! - `ffi.rs` -- the libc declarations (string and memory
+//!   primitives) shared by `file.rs` and `lookup.rs`
+//! - `anchor.rs` -- the `W_Wad_Link_Anchor` link anchor: one
+//!   never-called C function referencing every public function so
+//!   the linker keeps their symbols alive
 //!
-//! The global `lumpinfo` array and its companion `numlumps` /
-//! `lumphash` form the in-memory directory of every lump loaded from
-//! all WADs; they live here as shared state, and the submodules reach
-//! them through `super::`.
+//! The module root is documentation + wiring only: the `mod`
+//! declarations, the wiring imports that keep the siblings'
+//! `super::` paths valid, the upstream-name shims, and the anchor
+//! re-export below; no content lives here. The `state.rs` statics
+//! are the shared state the other submodules reach through the
+//! module-root re-exports.
 //!
 //! ## Original Fn Name Mapping
 //!
@@ -41,7 +53,7 @@
 //! | `W_ReleaseLumpName` | `cache::release_lump_name` | glue | name-resolving wrapper; upstream `vendor/doomgeneric/w_wad.c:465` |
 //! | `W_CheckCorrectIWAD` | `iwad::check_correct_iwad` | glue | launch-time mission/IWAD mismatch guard; upstream `vendor/doomgeneric/w_wad.c:586` |
 //! | `W_Profile` | -- (never ported) | -- | upstream's own debug lump-cache profiler, called `UNUSED` in upstream `p_setup.c:771` and absent from this port; no Rust body and no Rust callers -- nothing to split |
-//! | `W_Wad_Link_Anchor` | stays in this file | glue | link-only anchor, not part of the upstream API; kept at module root; it pins the renamed Rust functions' symbols, not the shims |
+//! | `W_Wad_Link_Anchor` | `anchor::W_Wad_Link_Anchor` | glue | link-only anchor, not part of the upstream API; kept in `anchor.rs`, re-exported at the root; it pins the renamed Rust functions' symbols, not the shims |
 //!
 //! All renamed functions keep their `pub extern "C"` ABI kind but drop
 //! `#[no_mangle]` with the rename: `#[no_mangle]` binds the exported C
@@ -52,9 +64,9 @@
 //! `extern "C"` blocks link against them and must compile unchanged:
 //! `check_num_for_name` (declared in `d_net.rs`) and
 //! `cache_lump_name` (declared in `hu_stuff.rs`, `r_draw.rs`). The
-//! `lumpinfo` / `numlumps` statics and the `W_Wad_Link_Anchor` anchor
-//! keep their `#[no_mangle]` C symbols unchanged (they are not
-//! renamed).
+//! `lumpinfo` / `numlumps` statics (in `state.rs`) and the
+//! `W_Wad_Link_Anchor` anchor (in `anchor.rs`) keep their
+//! `#[no_mangle]` C symbols unchanged (they are not renamed).
 //!
 //! ## Deterministic Aspects
 //!
@@ -70,103 +82,26 @@
 //! zone-allocator marshalling, engine-lifecycle guards) or `data`
 //! (pure directory and name computation) in the mapping table above.
 
-#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
+use ffi::{calloc, free, strlen, strncmp, strncpy, toupper};
+use state::lumphash;
 
-use std::ffi::{c_char, c_int, c_uint, c_void};
-use std::ptr;
-
-use crate::doom::w_file::wad_file_t;
-
+pub mod anchor;
 pub mod cache;
 pub mod file;
 pub mod iwad;
 pub mod lookup;
+pub mod state;
 
-/// One entry in the global lump directory. Mirrors `lumpinfo_t` in
-/// `w_wad.h`. The size (40 bytes on x86_64) is asserted by a
-/// `cfg(test)` test below since other modules read this layout
-/// across the FFI boundary.
-#[repr(C)]
-pub struct lumpinfo_t
-{
-    /// 8-char ASCII lump name, **not** NUL-terminated when full.
-    pub name: [c_char; 8],
-    /// File the lump lives in.
-    pub wad_file: *mut wad_file_t,
-    /// Offset of the lump payload inside the file, in bytes.
-    pub position: c_int,
-    /// Payload size in bytes.
-    pub size: c_int,
-    /// Zone-allocated cache pointer, or null if not yet loaded.
-    /// Memory-mapped files leave this null; `W_CacheLumpNum`
-    /// returns a pointer into the mapping directly.
-    pub cache: *mut c_void,
-    /// Next entry in the per-hash-bucket chain when `lumphash` is
-    /// populated; null otherwise.
-    pub next: *mut lumpinfo_t,
-}
+mod ffi;
 
-/// On-disk WAD header. Read from offset 0 of every `.wad` file
-/// loaded by `W_AddFile`. Layout matches `wadinfo_t` in `w_wad.c`,
-/// 12 bytes on x86_64.
-#[repr(C)]
-struct wadinfo_t
-{
-    /// Magic identifier: `"IWAD"` for the main IWAD, `"PWAD"` for
-    /// a patch WAD. Anything else triggers `I_Error`.
-    identification: [c_char; 4],
-    /// Little-endian number of lumps in the directory.
-    numlumps: c_int,
-    /// Little-endian byte offset to the lump-directory table.
-    infotableofs: c_int,
-}
+//* path-stability wiring: the `use` bindings above keep the
+//* subfiles' `use super::{...}` imports (and `cache.rs`'s test-crate
+//* `lumphash` import) valid after the state/FFI moves; `lumphash`
+//* stays private to the module subtree.
 
-/// On-disk directory entry as it appears at `infotableofs`. Mirrors
-/// `filelump_t` in `w_wad.c`, 16 bytes on x86_64.
-#[repr(C)]
-struct filelump_t
-{
-    /// Little-endian byte offset of the lump payload inside the WAD.
-    filepos: c_int,
-    /// Little-endian payload length in bytes.
-    size: c_int,
-    /// 8-char ASCII lump name, NUL-padded.
-    name: [c_char; 8],
-}
-
-/// Pointer to the global lump directory. Mirrors the `lumpinfo` C
-/// global; sized by `numlumps`. Reallocated by `ExtendLumpInfo`
-/// every time a new file is added. C linkage so other translation
-/// units (and tests) can reach it.
-#[no_mangle]
-pub static mut lumpinfo: *mut lumpinfo_t = ptr::null_mut();
-
-/// Number of entries in `lumpinfo`. Mirrors the C `numlumps` global.
-#[no_mangle]
-pub static mut numlumps: c_uint = 0;
-
-/// Hash table: `numlumps` buckets, each a singly-linked list through
-/// `lumpinfo_t::next`. Built lazily by `W_GenerateHashTable` and
-/// dropped whenever a new file is added.
-static mut lumphash: *mut *mut lumpinfo_t = ptr::null_mut();
-
-extern "C"
-{
-    /// libc: byte-equal compare of first `n` bytes.
-    fn strncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int;
-    /// libc: copy up to `n` bytes, NUL-padding the destination.
-    fn strncpy(dst: *mut c_char, src: *const c_char, n: usize) -> *mut c_char;
-    /// libc: NUL-terminated string length.
-    fn strlen(s: *const c_char) -> usize;
-    /// libc: ASCII-upper-case.
-    fn toupper(c: c_int) -> c_int;
-
-    /// libc: zero-initialised allocation.
-    fn calloc(nmemb: usize, size: usize) -> *mut c_void;
-    /// libc: free a `malloc`/`calloc` block.
-    fn free(ptr: *mut c_void);
-}
-
+//* path-stability re-export: the anchor keeps its module-root path
+//* (the name was never renamed, so this is wiring, not a shim).
+pub use anchor::W_Wad_Link_Anchor;
 //* upstream-name shim: freeze-zone callers keep the upstream names.
 pub use cache::cache_lump_name as W_CacheLumpName;
 //* upstream-name shim: freeze-zone callers keep the upstream names.
@@ -194,67 +129,7 @@ pub use lookup::get_num_for_name as W_GetNumForName;
 //* upstream-name shim: freeze-zone callers keep the upstream names.
 pub use lookup::lump_name_hash as W_LumpNameHash;
 
-/// Link anchor referencing every public function of this module --
-/// the renamed Rust functions behind the upstream-name shims -- so
-/// the linker keeps their symbols alive. Not part of the original
-/// Doom API.
-///
-/// # Safety
-///
-/// Passes null pointers everywhere and would crash if called.
-/// Treat as link-only.
-#[no_mangle]
-pub unsafe extern "C" fn W_Wad_Link_Anchor()
-{
-    W_LumpNameHash(ptr::null());
-    W_AddFile(ptr::null_mut());
-    W_NumLumps();
-    W_CheckNumForName(ptr::null());
-    W_GetNumForName(ptr::null());
-    W_LumpLength(0);
-    W_ReadLump(0, ptr::null_mut());
-    W_CacheLumpNum(0, 0);
-    W_CacheLumpName(ptr::null(), 0);
-    W_ReleaseLumpNum(0);
-    W_ReleaseLumpName(ptr::null());
-    W_GenerateHashTable();
-    W_CheckCorrectIWAD(0);
-}
-
-#[cfg(test)]
-mod tests
-{
-    use super::filelump_t;
-    use super::lumpinfo_t;
-    use super::wadinfo_t;
-
-    /// `lumpinfo_t` is shared with C code: its 40-byte size on
-    /// x86_64 must not silently change.
-    #[test]
-    fn lumpinfo_size_matches_c()
-    {
-        // C lumpinfo_t = name[8] + wad_file* + position + size + cache + next
-        // On x86_64: 8 + 8 + 4 + 4 + 8 + 8 = 40 bytes
-        assert_eq!(std::mem::size_of::<lumpinfo_t>(), 40);
-    }
-
-    /// `wadinfo_t` must match the on-disk WAD header layout: 12
-    /// packed bytes.
-    #[test]
-    fn wadinfo_size_matches_c()
-    {
-        // C wadinfo_t = ident[4] + numlumps + infotableofs
-        // On x86_64: 4 + 4 + 4 = 12 bytes
-        assert_eq!(std::mem::size_of::<wadinfo_t>(), 12);
-    }
-
-    /// `filelump_t` must match the on-disk directory-entry layout:
-    /// 16 packed bytes.
-    #[test]
-    fn filelump_size_matches_c()
-    {
-        // C filelump_t = filepos + size + name[8]
-        // On x86_64: 4 + 4 + 8 = 16 bytes
-        assert_eq!(std::mem::size_of::<filelump_t>(), 16);
-    }
-}
+//* path-stability re-export: the directory state keeps its
+//* module-root paths (`d_main.rs` consumers and the in-module test
+//* imports).
+pub use state::{lumpinfo, lumpinfo_t, numlumps};

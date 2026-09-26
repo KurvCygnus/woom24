@@ -5,10 +5,16 @@
 //!
 //! ## Submodule Responsibility
 //!
-//! None yet -- `dtmc` only: the F10 pilot extracted the module's whole
-//! qualifying surface into `dtmc.rs`, and no non-dtmc responsibility
-//! split exists. The type aliases and constants below are shared
-//! vocabulary, deliberately not part of the dtmc surface.
+//! - `defs.rs` -- shared fixed-point vocabulary: the `fixed_t` /
+//!   `angle_t` type aliases and the `FRACBITS` / `FRACUNIT`
+//!   constants, re-exported at the module root so freeze-zone import
+//!   paths stay valid
+//!
+//! The module root is documentation + wiring only: the `mod`
+//! declarations, the `defs` re-exports, and the two upstream-name
+//! shims below; no content lives here. `dtmc` holds the module's
+//! whole qualifying surface (F10 pilot) and is covered by
+//! Deterministic Aspects.
 //!
 //! ## Original Fn Name Mapping
 //!
@@ -17,7 +23,8 @@
 //! | `FixedMul`   | `dtmc::fixed_mul`   | dtmc    | pure 16.16 multiply feeding movement/angle/damage every tic; `#[no_mangle]` dropped with the rename; zero C/wasm export consumers; upstream `vendor/doomgeneric/m_fixed.c:33-39` |
 //! | `FixedDiv`   | `dtmc::fixed_div`   | dtmc    | `>> 14` saturation guard + 64-bit division, demo-observable; `#[no_mangle]` dropped with the rename; zero C/wasm export consumers; upstream `vendor/doomgeneric/m_fixed.c:47-61` |
 //! | `FixedDiv2`  | -- (never ported)    | --       | absent from this port: the vendored C is the Chocolate-style version with only `FixedMul`/`FixedDiv`, so vanilla's asm `FixedDiv2` (the `I_Error` abort path) has no counterpart and no Rust callers -- nothing to extract |
-//! | `fixed_t`    | stays in this file   | data    | type alias stayed `fixed_t` (spec's `FixedT` rename rejected -- would have rippled into freeze-zone callers) |
+//! | `fixed_t`    | `defs::fixed_t`     | data    | type alias stayed `fixed_t` (spec's `FixedT` rename rejected -- would have rippled into freeze-zone callers); housed in `defs.rs` with the constants, re-exported at the root |
+//! | `angle_t`    | `defs::angle_t`     | data    | BAM angle alias (upstream `tables.h`), housed beside `fixed_t` as shared vocabulary |
 //!
 //! ## Deterministic Aspects
 //!
@@ -33,25 +40,13 @@
 //! pinned by the baseline vectors in `dtmc`'s test module, written and
 //! run against the original bodies before extraction (F10 pilot).
 
-#![allow(non_camel_case_types, non_snake_case)]
-
-use std::ffi::c_int;
-
-/// `fixed_t` -- matches `typedef int fixed_t;` in m_fixed.h.
-pub type fixed_t = c_int;
-
-/// `angle_t` -- BAM angle, matches `typedef unsigned int angle_t;` in tables.h.
-pub type angle_t = u32;
-
-/// Number of fractional bits in `fixed_t`. Matches `FRACBITS` in
-/// `m_fixed.h` and is the right-shift used by `dtmc::fixed_mul`.
-pub const FRACBITS: u32 = 16;
-
-/// `1.0` expressed in 16.16 fixed-point (`1 << FRACBITS`). Matches
-/// `FRACUNIT` in `m_fixed.h`.
-pub const FRACUNIT: fixed_t = 1 << FRACBITS;
-
+pub mod defs;
 pub mod dtmc;
+
+//* path-stability re-export: the shared vocabulary keeps its
+//* module-root paths for the freeze-zone callers (`p_*.rs`,
+//* `am_map.rs`, `c_ffi.rs`, `m_bbox.rs`, ...).
+pub use defs::{angle_t, fixed_t, FRACBITS, FRACUNIT};
 
 //* upstream-name shim: freeze-zone callers keep the upstream names.
 pub use dtmc::fixed_div as FixedDiv;

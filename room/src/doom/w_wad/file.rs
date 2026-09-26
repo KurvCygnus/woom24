@@ -1,16 +1,48 @@
 //! File ingestion for the WAD lump directory: opening a WAD or
 //! single-lump file, validating its header, and appending its lumps
-//! to the global `lumpinfo` directory owned by the module root.
+//! to the global `lumpinfo` directory owned by the module root --
+//! together with the two on-disk layouts this file reads
+//! (`wadinfo_t` header, `filelump_t` directory entry).
+
+#![allow(non_camel_case_types, non_snake_case)]
 
 use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
 use std::ptr;
 
-use super::{calloc, filelump_t, free, lumpinfo, lumpinfo_t, lumphash, numlumps, strlen, strncmp, strncpy, wadinfo_t};
+use super::{calloc, free, lumpinfo, lumpinfo_t, lumphash, numlumps, strlen, strncmp, strncpy};
 use crate::doom::crt::{c_printf1, strcasecmp};
 use crate::doom::m_misc::M_ExtractFileBase;
 use crate::doom::w_file::{wad_file_t, W_OpenFile, W_Read};
 use crate::doom::z_zone::{Z_ChangeUser, Z_Free, Z_Malloc, PU_STATIC};
 use crate::i_error;
+
+/// On-disk WAD header. Read from offset 0 of every `.wad` file
+/// loaded by `W_AddFile`. Layout matches `wadinfo_t` in `w_wad.c`,
+/// 12 bytes on x86_64.
+#[repr(C)]
+struct wadinfo_t
+{
+    /// Magic identifier: `"IWAD"` for the main IWAD, `"PWAD"` for
+    /// a patch WAD. Anything else triggers `I_Error`.
+    identification: [c_char; 4],
+    /// Little-endian number of lumps in the directory.
+    numlumps: c_int,
+    /// Little-endian byte offset to the lump-directory table.
+    infotableofs: c_int,
+}
+
+/// On-disk directory entry as it appears at `infotableofs`. Mirrors
+/// `filelump_t` in `w_wad.c`, 16 bytes on x86_64.
+#[repr(C)]
+struct filelump_t
+{
+    /// Little-endian byte offset of the lump payload inside the WAD.
+    filepos: c_int,
+    /// Little-endian payload length in bytes.
+    size: c_int,
+    /// 8-char ASCII lump name, NUL-padded.
+    name: [c_char; 8],
+}
 
 /// Grow the global `lumpinfo` array to `newnumlumps` entries, copy
 /// the existing entries across, fix up any zone-allocator user
@@ -167,5 +199,31 @@ pub extern "C" fn add_file(filename: *mut c_char) -> *mut wad_file_t
         }
 
         wad_file
+    }
+}
+
+#[cfg(test)]
+mod tests
+{
+    use super::{filelump_t, wadinfo_t};
+
+    /// `wadinfo_t` must match the on-disk WAD header layout: 12
+    /// packed bytes.
+    #[test]
+    fn wadinfo_size_matches_c()
+    {
+        // C wadinfo_t = ident[4] + numlumps + infotableofs
+        // On x86_64: 4 + 4 + 4 = 12 bytes
+        assert_eq!(std::mem::size_of::<wadinfo_t>(), 12);
+    }
+
+    /// `filelump_t` must match the on-disk directory-entry layout:
+    /// 16 packed bytes.
+    #[test]
+    fn filelump_size_matches_c()
+    {
+        // C filelump_t = filepos + size + name[8]
+        // On x86_64: 4 + 4 + 8 = 16 bytes
+        assert_eq!(std::mem::size_of::<filelump_t>(), 16);
     }
 }
