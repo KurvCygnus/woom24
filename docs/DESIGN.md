@@ -37,6 +37,12 @@ Rule: engines layers live in `room/src/` (new modules, English comments, `//`-on
 Shell layers never own logic. Anything that would put a `match complevel` inside a ported `p_*` /
 `g_*` file is a design violation — route it through the owning layer's query surface.
 
+Freeze zone (F10): ported `room/src/doom/` files stay frozen (no renames, splits, reorders) until they
+graduate — graduation is the only exit and adopts the module-directory anatomy with an extracted `dtmc`
+demo-synchronization surface and boundary shims re-exporting upstream names. Landed pilots: `m_fixed`
+(dtmc extraction) and `w_wad` (mechanics split); rolling graduation per the F10 process (local spec
+`docs/specs/F10-foundation-reform.md`).
+
 ## Roadmap
 
 | Unit | Spec | Delivers | Depends on | Status |
@@ -50,7 +56,7 @@ Shell layers never own logic. Anything that would put a `match complevel` inside
 | F7 in-game settings | local spec | `settings` typed registry (L9), persistence via L7, bindings for vanilla menu + F8 UI | F1 (video settings exist), F2 (compat override), F5 (L7 storage, settings blob) | spec ready |
 | F8 fullscreen modern UI | local spec | `ui` toolkit backend (L10): screen stack, widget model, input routing, framebuffer primitives — Eternity-Engine-inspired; **visual design deferred** to a Visual Companion session | F7, F1 (presenters) | backend-only spec |
 | F9 e2e infra | local spec | engine-framebuffer pixel goldens (wasm `harness` exports + Node scenario runner), host/wasm cross-target hash gate, I_Error overlay + audio-health counters, CI (GitHub Actions), CI-only Freedoom live-corpus soak (non-blocking) | F1 (frame/pump driver), spec ② (shell exports) | M1-M3 landed (goldens, twin, CI); M4 (browser smoke, playwright approved) / M5 (soak, Freedoom vendored) next |
-| F10 foundation reform | local spec | freeze-zone + graduation process; per-module `dtmc` extraction with pinned doc templates; pilot = `m_fixed` + `w_wad` | F9 (golden gates as the graduation safety net) | pilot in progress |
+| F10 foundation reform | local spec | freeze-zone + graduation process; per-module `dtmc` extraction with pinned doc templates; pilot = `m_fixed` + `w_wad` | F9 (golden gates as the graduation safety net) | pilot landed (m_fixed dtmc extraction, w_wad split); rolling graduation per the F10 process (local spec §6) |
 
 Iron rules (every spec inherits): (1) landing any unit must leave the full host suite AND the
 vanilla demo bit-exact baseline green; (2) interpolation/resolution/widescreen/net never mutate

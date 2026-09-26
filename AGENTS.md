@@ -94,6 +94,14 @@ Notes:
 - **Determinism is a feature, not an optimization detail.** Simulation is integer/fixed-point exactly as
   vanilla used it: no floats in sim, no hash-map iteration order reaching sim state, seeded deterministic RNG.
   When vanilla relied on accidental behavior, replicate that behavior explicitly and mark it with `//!`.
+- **Freeze zone + graduation (F10).** Every ported file under `room/src/doom/` that has not graduated is in
+  the freeze zone: no renames, no splits, no reorders, and any edit inside the zone runs the full golden gate.
+  Graduation is the only exit: a module adopts the graduated anatomy (module directory, pinned doc templates,
+  extracted `dtmc` demo-synchronization surface) and only then becomes free terrain for idiomatic rewriting.
+  Graduated modules hold boundary shims that re-export upstream names so freeze-zone callers stay untouched;
+  shims die when the freeze zone retires. `dtmc` admission is per function — "does this function's observable
+  behavior belong to the demo synchronization surface?" — extract the qualifying part, never wholesale moves.
+  Process, anatomy, and doc templates: local working spec `docs/specs/F10-foundation-reform.md`.
 - One `Complevel` enum drives every compat switch. Per-tier behavior gets its own table in `core`, reviewed
   against that tier's primary reference.
 - Wasm FFI rule: variadic `extern "C"` calls must never be declared directly in `room/src/doom/` — wasm-lld
@@ -102,10 +110,12 @@ Notes:
 
 ### Fork Discipline (`sunsided/room`)
 
-- The upstream is **active** — keep an `upstream` remote, merge room master regularly, and never rewrite
-  history in ways that block future merges.
-- Preserve room's module layout, file names, and its C-vs-Rust differential-test culture; deviation needs a
-  stated reason. Merge friction is a real cost.
+- The upstream is **active** — keep an `upstream` remote as the source for behavior cherry-picks, and never
+  rewrite history in ways that block future merges.
+- The C-vs-Rust differential-test culture is PRESERVED. Module layout and file names are not frozen: ported
+  modules graduate from the freeze zone per the F10 process (local working spec
+  `docs/specs/F10-foundation-reform.md`). Upstream is a cherry-pick source, not a merge target — behavior
+  fixes are manually ported through the graduated modules' name-mapping tables.
 - Keep changes upstreamable: bugfixes and general improvements (the WASM platform layer itself is a prime
   candidate) stay PR-shaped and go back to room. This is how the DOOM community works — participate.
 - GPL-2.0 inheritance is accepted: keep `LICENSE`, preserve copyright/provenance headers, add ours on new
