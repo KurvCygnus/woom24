@@ -98,8 +98,9 @@ Notes:
   the freeze zone: no renames, no splits, no reorders, and any edit inside the zone runs the full golden gate.
   Graduation is the only exit: a module adopts the graduated anatomy (module directory, pinned doc templates,
   extracted `dtmc` demo-synchronization surface) and only then becomes free terrain for idiomatic rewriting.
-  Graduated modules hold boundary shims that re-export upstream names so freeze-zone callers stay untouched;
-  shims die when the freeze zone retires. `dtmc` admission is per function — "does this function's observable
+  Graduated modules hold boundary shims that re-export upstream names so freeze-zone callers stay untouched
+  (plus C-symbol pins via `#[export_name]` where legacy extern-C declarers link by symbol); shims die when
+  the freeze zone retires. `dtmc` admission is per function — "does this function's observable
   behavior belong to the demo synchronization surface?" — extract the qualifying part, never wholesale moves.
   Process, anatomy, and doc templates: local working spec `docs/specs/F10-foundation-reform.md`.
 - One `Complevel` enum drives every compat switch. Per-tier behavior gets its own table in `core`, reviewed

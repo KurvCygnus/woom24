@@ -84,7 +84,7 @@ pub extern "C" fn fixed_div(a: fixed_t, b: fixed_t) -> fixed_t
 #[cfg(test)]
 mod tests
 {
-    use super::{fixed_div, fixed_mul};
+    use crate::doom::m_fixed::dtmc::{fixed_div, fixed_mul};
     use crate::doom::m_fixed::FRACUNIT;
 
     /// Baseline contract (F10 dtmc pilot): these vectors were written
@@ -154,6 +154,8 @@ mod tests
         // negative, so the guard does not fire and the i64 division runs:
         // (i32::MIN << 16) / 1 truncates back to 0 through `as fixed_t`.
         assert_eq!(fixed_div(i32::MIN, 1), 0);
+        // 64-bit dividend pin: (i32::MIN as i64) << 16 == -2^47; a 32-bit shift would wrap to 0.
+        assert_eq!((i32::MIN as i64) << 16, -(1i64 << 47));
         // b == 0: the guard is always true (|a| >> 14 >= 0 == |b|), so
         // the result saturates by sign; no abort exists on this path.
         assert_eq!(fixed_div(1, 0), i32::MAX);

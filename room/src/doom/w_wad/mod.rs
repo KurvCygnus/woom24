@@ -41,7 +41,7 @@
 //! | `W_ReleaseLumpName` | `cache::release_lump_name` | glue | name-resolving wrapper; upstream `vendor/doomgeneric/w_wad.c:465` |
 //! | `W_CheckCorrectIWAD` | `iwad::check_correct_iwad` | glue | launch-time mission/IWAD mismatch guard; upstream `vendor/doomgeneric/w_wad.c:586` |
 //! | `W_Profile` | -- (never ported) | -- | upstream's own debug lump-cache profiler, called `UNUSED` in upstream `p_setup.c:771` and absent from this port; no Rust body and no Rust callers -- nothing to split |
-//! | `W_Wad_Link_Anchor` | stays in this file | glue | link-only anchor, not part of the upstream API; kept at module root beside the shims it pins |
+//! | `W_Wad_Link_Anchor` | stays in this file | glue | link-only anchor, not part of the upstream API; kept at module root; it pins the renamed Rust functions' symbols, not the shims |
 //!
 //! All renamed functions keep their `pub extern "C"` ABI kind but drop
 //! `#[no_mangle]` with the rename: `#[no_mangle]` binds the exported C
@@ -194,8 +194,10 @@ pub use lookup::get_num_for_name as W_GetNumForName;
 //* upstream-name shim: freeze-zone callers keep the upstream names.
 pub use lookup::lump_name_hash as W_LumpNameHash;
 
-/// Link anchor referencing every public C symbol in this module so
-/// the linker keeps them all. Not part of the original Doom API.
+/// Link anchor referencing every public function of this module --
+/// the renamed Rust functions behind the upstream-name shims -- so
+/// the linker keeps their symbols alive. Not part of the original
+/// Doom API.
 ///
 /// # Safety
 ///

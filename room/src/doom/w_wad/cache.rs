@@ -184,8 +184,8 @@ pub extern "C" fn release_lump_name(name: *const c_char)
 #[cfg(test)]
 mod tests
 {
-    use super::release_lump_name;
     use crate::doom::w_file::wad_file_t;
+    use crate::doom::w_wad::cache::release_lump_name;
     use crate::doom::w_wad::{lumpinfo, lumphash, lumpinfo_t, numlumps};
     use std::ffi::{c_char, c_uint};
     use std::ptr;

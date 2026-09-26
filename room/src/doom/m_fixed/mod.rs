@@ -14,9 +14,10 @@
 //!
 //! | Original (C) | New location        | Surface | Notes                                                                                                                  |
 //! |--------------|---------------------|---------|------------------------------------------------------------------------------------------------------------------------|
-//! | `FixedMul`   | `dtmc::fixed_mul`   | dtmc    | pure 16.16 multiply feeding movement/angle/damage every tic; upstream `vendor/doomgeneric/m_fixed.c:33-39`              |
-//! | `FixedDiv`   | `dtmc::fixed_div`   | dtmc    | `>> 14` saturation guard + 64-bit division, demo-observable; upstream `vendor/doomgeneric/m_fixed.c:47-61`               |
+//! | `FixedMul`   | `dtmc::fixed_mul`   | dtmc    | pure 16.16 multiply feeding movement/angle/damage every tic; `#[no_mangle]` dropped with the rename; zero C/wasm export consumers; upstream `vendor/doomgeneric/m_fixed.c:33-39` |
+//! | `FixedDiv`   | `dtmc::fixed_div`   | dtmc    | `>> 14` saturation guard + 64-bit division, demo-observable; `#[no_mangle]` dropped with the rename; zero C/wasm export consumers; upstream `vendor/doomgeneric/m_fixed.c:47-61` |
 //! | `FixedDiv2`  | -- (never ported)    | --       | absent from this port: the vendored C is the Chocolate-style version with only `FixedMul`/`FixedDiv`, so vanilla's asm `FixedDiv2` (the `I_Error` abort path) has no counterpart and no Rust callers -- nothing to extract |
+//! | `fixed_t`    | stays in this file   | data    | type alias stayed `fixed_t` (spec's `FixedT` rename rejected -- would have rippled into freeze-zone callers) |
 //!
 //! ## Deterministic Aspects
 //!
