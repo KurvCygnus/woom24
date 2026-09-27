@@ -2273,4 +2273,96 @@ mod tests {
             "save path was truncated for long directory"
         );
     }
+
+    // =========================================================================
+    // F10 wave B4b dtmc baseline vectors (pre-move; F10 spec §2.3)
+    // =========================================================================
+
+    //* The three computations the B4b graduation extracts
+    //* (`leveltime_pack3`/`leveltime_unpack3`, `version_bytes`, and the
+    //* stream-alignment formula) live in the bodies above today. Per F10
+    //* §2.3 the baseline vectors land BEFORE the move: each test carries a
+    //* test-local transcription whose doc comment names the body lines it
+    //* mirrors verbatim, and the graduation commit retargets the SAME
+    //* vectors onto the extracted `p_saveg/dtmc.rs` functions -- same
+    //* vectors, same results. The alignment formula is already baselined by
+    //* the `padding_calculation` test above (those vectors carry, not
+    //* re-transcribe). Whole-body archive runs need a booted level, so the
+    //* F9 flow-5 `save_load_roundtrip` + demo goldens remain the whole-body
+    //* oracle; these pins fix the exact integer semantics the extraction
+    //* must preserve.
+
+    /// Baseline transcription of the 3-byte big-endian `leveltime` write
+    /// codec (`p_saveg.rs:1335-1339`, the three shifted `saveg_write8`
+    /// calls in `P_WriteSaveGameHeader`), verbatim.
+    fn leveltime_pack3(lt: u32) -> [u8; 3]
+    {
+        [((lt >> 16) & 0xff) as u8, ((lt >> 8) & 0xff) as u8, (lt & 0xff) as u8]
+    }
+
+    /// Baseline transcription of the 3-byte big-endian `leveltime` read
+    /// codec (`p_saveg.rs:1394-1398`, the three `saveg_read8` shifts in
+    /// `P_ReadSaveGameHeader`), verbatim. `leveltime` is a demo-sync input
+    /// (the Nightmare respawn gate reads it per-tic), so these are the
+    /// exact restore bits.
+    fn leveltime_unpack3(bytes: [u8; 3]) -> u32
+    {
+        ((bytes[0] as u32) << 16) | ((bytes[1] as u32) << 8) | (bytes[2] as u32)
+    }
+
+    /// Baseline transcription of the NUL-padded `"version N\0"` header
+    /// buffer, shared by the write side (`p_saveg.rs:1314-1322`,
+    /// `P_WriteSaveGameHeader`) and the read side's `expected_padded`
+    /// (`p_saveg.rs:1370-1382`, `P_ReadSaveGameHeader`), verbatim. The
+    /// `.take(VERSIONSIZE)` bound is the silent truncation guard for a
+    /// version string that does not fit; the compare itself stays at the
+    /// call site.
+    fn version_bytes(version_code: c_int) -> [u8; VERSIONSIZE]
+    {
+        let expected = format!("version {}\0", version_code);
+        let expected_bytes = expected.as_bytes();
+        let mut expected_padded = [0u8; VERSIONSIZE];
+        for (i, &b) in expected_bytes.iter().enumerate().take(VERSIONSIZE)
+        {
+            expected_padded[i] = b;
+        }
+        expected_padded
+    }
+
+    /// Baseline vectors: zero, a mid-range value, the full 24-bit maximum,
+    /// and bit>=24 truncation (only the low 24 bits are serialized, so a
+    /// wider value folds -- documented upstream shape, mirrored by the
+    /// `& 0xff` masks). Round-trip identity holds over the serialized
+    /// 24-bit domain and folds identically outside it.
+    #[test]
+    fn baseline_leveltime_pack3_unpack3()
+    {
+        assert_eq!(leveltime_pack3(0), [0, 0, 0]);
+        assert_eq!(leveltime_pack3(0x123456), [0x12, 0x34, 0x56]);
+        assert_eq!(leveltime_pack3(0xFFFFFF), [0xFF, 0xFF, 0xFF]);
+        // bit >= 24 truncation: 0x12345678 serializes as 0x345678.
+        assert_eq!(leveltime_pack3(0x12345678), [0x34, 0x56, 0x78]);
+        assert_eq!(leveltime_unpack3([0, 0, 0]), 0);
+        assert_eq!(leveltime_unpack3([0x12, 0x34, 0x56]), 0x123456);
+        assert_eq!(leveltime_unpack3([0xFF, 0xFF, 0xFF]), 0xFFFFFF);
+        assert_eq!(leveltime_unpack3([0x34, 0x56, 0x78]), 0x345678);
+        for lt in [0u32, 1, 35, 0x123456, 0xFFFFFF, 0x12345678, 0xDEAD_BEEF]
+        {
+            assert_eq!(leveltime_unpack3(leveltime_pack3(lt)), lt & 0xFFFFFF);
+        }
+    }
+
+    /// Baseline vectors for the header version buffer: the vanilla code
+    /// 109 pads to exactly `VERSIONSIZE` bytes with NUL, code 0 likewise,
+    /// and a code whose string does not fit truncates silently (no panic)
+    /// and deterministically -- the `len < 16` guard shape.
+    #[test]
+    fn baseline_version_bytes()
+    {
+        assert_eq!(version_bytes(109), *b"version 109\0\0\0\0\0");
+        assert_eq!(version_bytes(0), *b"version 0\0\0\0\0\0\0\0");
+        // "version 2147483647\0" is 19 bytes; the first VERSIONSIZE bytes
+        // are kept, the rest dropped, no panic.
+        assert_eq!(version_bytes(0x7FFF_FFFF), *b"version 21474836");
+    }
 }
