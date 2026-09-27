@@ -734,7 +734,7 @@ table); cross-checked woof `src/p_map.c:2493-2501` and dsda
 What happened: on Firefox + real `doom1.wad`, the engine booted, rendered the
 title, ran tics 1-5, then trapped with `panic_const_div_by_zero` at
 `I_GetTime() / ticdup` in `TryRunTics`: `ticdup` (a `static mut c_int` in
-`.bss`, `room/src/doom/d_loop.rs:111`) was zeroed mid-run by an out-of-bounds
+`.bss`, `room/src/doom/d_loop/mod.rs:229`) was zeroed mid-run by an out-of-bounds
 write; no source path writes 0 to it (hunt log:
 `.superpowers/sdd/2026-09-17-wasm-shell-implementation/task-8-report.md`).
 The wasm link map placed `ticdup` in the `p_map` interaction cluster with
@@ -744,7 +744,7 @@ wasm-bindgen `GLOBAL_EXNDATA`/`HEAP_SLAB` -- making the unguarded
 
 Shipped interim mitigations (guards, not root-cause emulations; see also the
 "Related deliberate deviations" section below): guarded spechit store + drains
-(entry 1), `ticdup < 1` -> `I_Error` (`d_loop.rs:419-424`), `I_Error` also
+(entry 1), `ticdup < 1` -> `I_Error` (`d_loop/net_stub.rs:150-157`), `I_Error` also
 emits through the log facade (`room/src/doom/i_system.rs:295`; wasm has no
 stderr), the pre-creation frame-entry latch
 (`room/src/doom/doomgeneric.rs:214-222`, consulted at `d_main.rs:923` and
@@ -770,7 +770,7 @@ only):
 | `playerstarts[4]` (`p_mobj/mapthings.rs:204-213`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
 | `deathmatchstarts[10]` (`p_mobj/mapthings.rs:190-197`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
 | `bodyque[32]` (`g_game.rs:1772-1777`) | bounded (`% 32` on both read and write) |
-| `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop.rs:276,362,678`) |
+| `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop/tic_pump.rs:102`, `d_loop/net_stub.rs:77-78`, `d_loop/tic_pump.rs:424`) |
 | visplanes / openings / drawsegs growth | render-side; in Rust these fail loud (index panic), not silent -- limit-removal (F2) concerns, out of canary scope |
 
 Canary run (temporary instrumentation, commit `a3838cb`, stripped in
@@ -1140,7 +1140,8 @@ motivated by a vanilla DOOM bug, and none changes simulation-observable
 state for compatible inputs.
 
 - **`TryRunTics` stall cap + `D_StartNetGame` parity**
-  (`room/src/doom/d_loop.rs:103`, `:646-669`, `:408-424`; commit `a297e53`).
+  (`room/src/doom/d_loop/mod.rs:221`, `d_loop/tic_pump.rs:386-409`,
+  `d_loop/net_stub.rs:138-157`; commit `a297e53`).
   The port originally gave up after a single tic boundary (`I_GetTime() /
   ticdup - entertic > 0` -- the linuxdoom `d_net.c` behavior), which let
   `TryRunTics` return having run zero tics so the renderer drew unsimulated
@@ -1151,7 +1152,7 @@ state for compatible inputs.
   and `:50-53`. (Chocolate's comment claims "Vanilla Doom used 20" for the
   cap; the released linuxdoom source actually returns after one tic
   boundary -- the discrepancy is chocolate's characterization, inherited
-  verbatim into our doc comment at `d_loop.rs:101`.)
+  verbatim into our doc comment at `d_loop/mod.rs:219`.)
   `D_StartNetGame` additionally fills `localplayer`/`local_playeringame[]`
   and rejects `ticdup < 1` with `I_Error`, matching
   `reference/chocolate-doom/src/d_loop.c:402-419`
@@ -1162,8 +1163,8 @@ state for compatible inputs.
   doubles as the symptom guard for G2. The revert `54c9f45` records these as
   "mature-practice safety floor pending the explicit vanilla-violations
   design".
-- **`pump_tic_cap`** (`room/src/doom/d_loop.rs:131`, applied at
-  `d_loop.rs:641-644`): browser-shell catch-up cap so a suspended tab
+- **`pump_tic_cap`** (`room/src/doom/d_loop/mod.rs:249`, applied at
+  `d_loop/tic_pump.rs:381-384`): browser-shell catch-up cap so a suspended tab
   cannot trigger a multi-second tic burst. Render-side policy (`AGENTS.md`
   constraint 3), vanilla path unaffected at the default 0. Not a vanilla
   defect workaround.
@@ -1196,11 +1197,11 @@ Interim-guard dispositions (V3 final pass, 2026-09-25): the guards shipped
 around the G2 incident are all **KEEP**; the 2026-09-23 audit obsoleted none
 of them and no guard was stripped. Per-guard rationale:
 
-- `ticdup < 1 -> I_Error` (`d_loop.rs:419-424`) -- KEEP: chocolate-parity
+- `ticdup < 1 -> I_Error` (`d_loop/net_stub.rs:150-157`) -- KEEP: chocolate-parity
   `D_StartNetGame` validation on the live boot path (`D_CheckNetGame` ->
   `D_StartNetGame`) that doubles as the G2 symptom guard; the audit found no
   distinct root cause, so nothing argues the parity guard away.
-- `pump_tic_cap` (`d_loop.rs:131`) -- KEEP: F1 render policy (bullet above),
+- `pump_tic_cap` (`d_loop/mod.rs:249`) -- KEEP: F1 render policy (bullet above),
   not a workaround; nothing to strip.
 - Engine-created frame-entry latch (`doomgeneric.rs:214-222`) -- KEEP:
   host-lifecycle platform work; the `ticdup == 0` it fences comes from
