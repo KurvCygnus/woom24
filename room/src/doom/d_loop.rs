@@ -738,6 +738,16 @@ mod tests {
     /// num_players.
     #[test]
     fn d_start_net_game_sets_single_player_parity() {
+        // Serialise against c_tests/d_loop_c.rs (`ticdup_default_zero`
+        // asserts `c_ffi::ticdup == 0` in this same test binary): the
+        // parity stub below writes `ticdup`/`LOCALPLAYER`/
+        // `LOCAL_PLAYERINGAME`, so both sides' exact-value asserts must
+        // hold the shared engine-statics test lock (B1a p_user
+        // precedent; parallel unit-test threads can otherwise interleave
+        // the write with the sibling's read).
+        let _g = crate::doom::violations::ENGINE_STATICS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         unsafe {
             let mut settings: NetGameSettingsT = std::mem::zeroed();
             D_StartNetGame(&mut settings, std::ptr::null());
