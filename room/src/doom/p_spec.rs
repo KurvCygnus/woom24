@@ -1555,4 +1555,378 @@ mod tests {
         let last = ANIMDEFS[ANIMDEFS.len() - 1];
         assert_eq!(last.0, -1);
     }
+
+    // --- F10 wave B3b dtmc baseline vectors (pre-move; F10 spec §2.3) ---
+
+    //* The B3b graduation extracts the eleven-function pure geometry
+    //* family (`getSide`/`getSector`/`twoSided`/`getNextSector` + the
+    //* seven `P_Find*`) whole into the module's dtmc surface, plus the
+    //* `anim_frame_pic` phase formula that is inline inside
+    //* `P_UpdateSpecials` today (`p_spec.rs:1150`). Per F10 §2.3 the
+    //* baseline vectors land BEFORE the move: the geometry drives below
+    //* call the current in-file functions directly; the phase formula
+    //* is pinned through this test-local transcription (its doc
+    //* comment names the body line it mirrors verbatim). The graduation
+    //* commit retargets the SAME test bodies onto the moved/extracted
+    //* functions -- same vectors, same results.
+
+    /// Baseline transcription of the animation phase formula, verbatim
+    /// from `P_UpdateSpecials` (`p_spec.rs:1150`):
+    /// `base + ((leveltime / (*anim).speed + i) % numpics)`. The tic
+    /// parameter is named `tic` because `leveltime` is a module static
+    /// this test module imports.
+    fn anim_frame_pic_transcription(
+        basepic: c_int,
+        numpics: c_int,
+        speed: c_int,
+        tic: c_int,
+        i: c_int,
+    ) -> c_int
+    {
+        basepic + ((tic / speed + i) % numpics)
+    }
+
+    /// Synthetic sector graph for the geometry drives: a center sector
+    /// (index 0) ringed by one line per neighbor, plus full
+    /// snapshot/restore of the `p_setup` map globals the family reads
+    /// (`sectors`, `sides`, `numsectors`). Line `i` of the center is
+    /// two-sided, `front` = center, `back` = neighbor `i`, with
+    /// `sidenum = [2i, 2i + 1]`. `one_sided` adds that many flag-less
+    /// lines after the ring lines (their `getNextSector` arm is the
+    /// null return the report names). Caller sets heights/light/tags on
+    /// the returned vectors before installing. (Field names avoid the
+    /// module statics this test module imports.)
+    struct GeometryFixture
+    {
+        sec_storage: Vec<sector_t>,
+        side_storage: Vec<side_t>,
+        line_storage: Vec<line_t>,
+        center_line_ptrs: Vec<*mut c_void>,
+    }
+
+    impl GeometryFixture
+    {
+        fn build(ring_lines: usize, one_sided: usize) -> Self
+        {
+            let total_lines = ring_lines + one_sided;
+            let mut sec_list = vec![unsafe { std::mem::zeroed::<sector_t>() }; ring_lines + 1];
+            let mut side_list = vec![unsafe { std::mem::zeroed::<side_t>() }; total_lines * 2];
+            let mut line_list = vec![unsafe { std::mem::zeroed::<line_t>() }; total_lines];
+            let mut center_line_ptrs: Vec<*mut c_void> = Vec::with_capacity(total_lines);
+
+            let center = &mut sec_list[0] as *mut sector_t;
+            for i in 0..total_lines
+            {
+                let line = &mut line_list[i] as *mut line_t;
+                if i < ring_lines
+                {
+                    let back = &mut sec_list[i + 1] as *mut sector_t;
+                    unsafe
+                    {
+                        (*line).flags = LinedefFlag::TWOSIDED as c_short;
+                        (*line).sidenum = [(i * 2) as c_short, (i * 2 + 1) as c_short];
+                        (*line).frontsector = center as *mut c_void;
+                        (*line).backsector = back as *mut c_void;
+                        side_list[i * 2].sector = center;
+                        side_list[i * 2 + 1].sector = back;
+                    }
+                }
+                else
+                {
+                    // One-sided: no TWOSIDED flag, no back sector, the
+                    // front sidedef still resolves through `sides`.
+                    unsafe
+                    {
+                        (*line).sidenum = [(i * 2) as c_short, -1];
+                        (*line).frontsector = center as *mut c_void;
+                        side_list[i * 2].sector = center;
+                    }
+                }
+                center_line_ptrs.push(line as *mut c_void);
+            }
+
+            unsafe
+            {
+                (*center).linecount = total_lines as c_int;
+                (*center).lines = center_line_ptrs.as_mut_ptr();
+            }
+
+            GeometryFixture
+            {
+                sec_storage: sec_list,
+                side_storage: side_list,
+                line_storage: line_list,
+                center_line_ptrs,
+            }
+        }
+
+        /// Center sector pointer (index 0).
+        fn center(&mut self) -> *mut sector_t
+        {
+            &mut self.sec_storage[0] as *mut sector_t
+        }
+
+        /// Neighbor sector pointer (ring index `i`, sector `i + 1`).
+        fn neighbor(&mut self, i: usize) -> *mut sector_t
+        {
+            &mut self.sec_storage[i + 1] as *mut sector_t
+        }
+
+        /// Line pointer (center line `i`).
+        fn line(&mut self, i: usize) -> *mut line_t
+        {
+            &mut self.line_storage[i] as *mut line_t
+        }
+
+        //* Installs the fixture into the p_setup globals the geometry
+        //* family reads and returns the prior values for
+        //* [`GeometryFixture::restore`]. The writes are plain
+        //* static-mut assignments (no references); the reads use
+        //* addr_of! so no shared-reference lint fires.
+        unsafe fn install(&mut self) -> (*mut sector_t, *mut side_t, c_int)
+        {
+            let sectors_before = std::ptr::addr_of!(sectors).read();
+            let sides_before = std::ptr::addr_of!(sides).read();
+            let numsectors_before = std::ptr::addr_of!(numsectors).read();
+            sectors = self.sec_storage.as_mut_ptr();
+            sides = self.side_storage.as_mut_ptr();
+            numsectors = self.sec_storage.len() as c_int;
+            (sectors_before, sides_before, numsectors_before)
+        }
+
+        unsafe fn restore(before: (*mut sector_t, *mut side_t, c_int))
+        {
+            sectors = before.0;
+            sides = before.1;
+            numsectors = before.2;
+        }
+    }
+
+    /// Baseline vectors (F10 §2.3, wave B3b pre-move) for the pure map
+    /// queries: `twoSided` (`p_spec.rs:446`), `getSide` (`:407`),
+    /// `getSector` (`:425`), `getNextSector` (`:459`, including the
+    /// null arm for one-sided lines), and the sentinel-initialised
+    /// surrounding sweeps `P_FindLowestFloorSurrounding` (`:478`),
+    /// `P_FindHighestFloorSurrounding` (`:502`, the `-500 * FRACUNIT`
+    /// no-neighbor sentinel), `P_FindLowestCeilingSurrounding`
+    /// (`:578`, the `INT_MAX` sentinel), `P_FindHighestCeilingSurrounding`
+    /// (`:600`, the 0 sentinel), and `P_FindMinSurroundingLight`
+    /// (`:643`, the `max` clamp).
+    #[test]
+    fn baseline_geometry_query_vectors()
+    {
+        let _engine = crate::doom::violations::ENGINE_STATICS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let _g = LOCK.lock().unwrap();
+
+        unsafe
+        {
+            let mut fx = GeometryFixture::build(1, 1);
+
+            // Neighbor + center geometry.
+            fx.sec_storage[0].floorheight = 16 * FRACUNIT;
+            fx.sec_storage[0].ceilingheight = 160 * FRACUNIT;
+            fx.sec_storage[1].floorheight = -8 * FRACUNIT;
+            fx.sec_storage[1].ceilingheight = 128 * FRACUNIT;
+            fx.sec_storage[1].lightlevel = 96;
+
+            let before = fx.install();
+
+            // twoSided: the two-sided ring line carries the flag bit,
+            // the one-sided line (index 1) carries none.
+            assert_eq!(twoSided(0, 0), LinedefFlag::TWOSIDED as c_int);
+            assert_eq!(twoSided(0, 1), 0);
+
+            // getSide resolves the line's sidenum through `sides`:
+            // line 0 has sidenum [0, 1], so side 0/1 land on the first
+            // two side_t entries.
+            assert_eq!(getSide(0, 0, 0), fx.side_storage.as_mut_ptr());
+            assert_eq!(getSide(0, 0, 1), fx.side_storage.as_mut_ptr().offset(1));
+
+            // getSector resolves the side's sector: front = center,
+            // back = the ring neighbor.
+            assert_eq!(getSector(0, 0, 0), fx.center());
+            assert_eq!(getSector(0, 0, 1), fx.neighbor(0));
+
+            // getNextSector: opposite side of the line from `sec`;
+            // one-sided (flag-less) lines return the null arm.
+            assert_eq!(getNextSector(fx.line(0), fx.center()), fx.neighbor(0));
+            assert_eq!(getNextSector(fx.line(0), fx.neighbor(0)), fx.center());
+            assert!(getNextSector(fx.line(1), fx.center()).is_null());
+
+            // Surrounding sweeps: the two-sided neighbor participates,
+            // the one-sided line is skipped, and a center with only the
+            // one-sided line sees its sentinel initial value.
+            assert_eq!(P_FindLowestFloorSurrounding(fx.center()), -8 * FRACUNIT);
+            assert_eq!(P_FindHighestFloorSurrounding(fx.center()), -8 * FRACUNIT);
+            assert_eq!(P_FindLowestCeilingSurrounding(fx.center()), 128 * FRACUNIT);
+            assert_eq!(P_FindHighestCeilingSurrounding(fx.center()), 128 * FRACUNIT);
+            assert_eq!(P_FindMinSurroundingLight(fx.center(), 160), 96);
+            // The clamp: no neighbor below `max` returns `max` itself.
+            assert_eq!(P_FindMinSurroundingLight(fx.center(), 96), 96);
+
+            GeometryFixture::restore(before);
+
+            // Sentinel drives: an isolated center whose only line is
+            // one-sided never sees a neighbor, so each sweep returns
+            // its initial value (own floor, -500 * FRACUNIT, INT_MAX,
+            // 0).
+            let mut iso = GeometryFixture::build(0, 1);
+            iso.sec_storage[0].floorheight = 42 * FRACUNIT;
+            let iso_before = iso.install();
+            assert_eq!(P_FindLowestFloorSurrounding(iso.center()), 42 * FRACUNIT);
+            assert_eq!(P_FindHighestFloorSurrounding(iso.center()), -500 * FRACUNIT);
+            assert_eq!(P_FindLowestCeilingSurrounding(iso.center()), c_int::MAX);
+            assert_eq!(P_FindHighestCeilingSurrounding(iso.center()), 0);
+            GeometryFixture::restore(iso_before);
+        }
+    }
+
+    /// Baseline vectors for `P_FindNextHighestFloor`
+    /// (`p_spec.rs:535`): the vanilla adjoining-sector overrun boundary
+    /// (catalog-relevant; see docs/vanilla-workarounds.md). Drives with
+    /// 20, 21 and 22 qualifying neighbors all return the true minimum.
+    /// The 23-line drive is the one that makes the
+    /// `h == MAX_ADJOINING_SECTORS + 1` stack-shadow arm OBSERVABLE
+    /// (`p_spec.rs:547-548`, the vanilla write that lands on `height`
+    /// instead of the array): the 22nd qualifying neighbor raises the
+    /// filter threshold, so the 23rd (between `currentheight` and the
+    /// 22nd's height) never qualifies -- with the arm, the sweep
+    /// returns the min of 22; without it (an "array-bounds fix") the
+    /// 23rd would qualify, reach `h == MAX_ADJOINING_SECTORS + 2` and
+    /// hit the `i_error!` at `:549-551` (the vanilla crash; never
+    /// driven here, it aborts). Also pins the no-higher-neighbor
+    /// return of `currentheight` and the min-selection sweep.
+    #[test]
+    fn baseline_next_highest_floor_20_21_22_overrun_boundary()
+    {
+        let _engine = crate::doom::violations::ENGINE_STATICS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let _g = LOCK.lock().unwrap();
+
+        unsafe
+        {
+            let current = 50 * FRACUNIT;
+
+            // 20/21/22 qualifying neighbors: all stored (the 22nd
+            // enters the shadow arm, harmless as the last sweep
+            // entry), minimum lands at a different index per drive so
+            // the min-selection sweep is load-bearing every time.
+            for (count, expect_min_at) in [(20usize, 7usize), (21, 0), (22, 21)]
+            {
+                let mut fx = GeometryFixture::build(count, 0);
+                for i in 0..count
+                {
+                    fx.sec_storage[i + 1].floorheight =
+                        current + ((i as c_int * 7 + 13) % (count as c_int * 7) + 6) * FRACUNIT;
+                }
+                fx.sec_storage[expect_min_at + 1].floorheight = current + FRACUNIT;
+
+                let before = fx.install();
+                assert_eq!(
+                    P_FindNextHighestFloor(fx.center(), current),
+                    current + FRACUNIT,
+                    "drive with {count} qualifying neighbors"
+                );
+                GeometryFixture::restore(before);
+            }
+
+            // 23 lines, 23rd shadow-guarded: neighbors 0..=20 sit at
+            // +10..=30, the 22nd at +100 (enters the shadow arm and
+            // raises the filter threshold), the 23rd at +50 (above
+            // `currentheight`, below the raised threshold -> never
+            // qualifies). Result: min of the 22-entry list. A port
+            // that "fixed" the overrun into a plain bounds-checked
+            // store would qualify the 23rd, reach h == 22 and abort.
+            let mut fx = GeometryFixture::build(23, 0);
+            for i in 0..21
+            {
+                fx.sec_storage[i + 1].floorheight = current + (10 + i as c_int) * FRACUNIT;
+            }
+            fx.sec_storage[22].floorheight = current + 100 * FRACUNIT;
+            fx.sec_storage[23].floorheight = current + 50 * FRACUNIT;
+
+            let before = fx.install();
+            assert_eq!(P_FindNextHighestFloor(fx.center(), current), current + 10 * FRACUNIT);
+            GeometryFixture::restore(before);
+
+            // No neighbor above `currentheight`: the qualifying set is
+            // empty and the function returns `currentheight` itself.
+            let mut fx = GeometryFixture::build(2, 0);
+            fx.sec_storage[1].floorheight = current;
+            fx.sec_storage[2].floorheight = current - FRACUNIT;
+            let before = fx.install();
+            assert_eq!(P_FindNextHighestFloor(fx.center(), current), current);
+            GeometryFixture::restore(before);
+        }
+    }
+
+    /// Baseline vectors for `P_FindSectorFromLineTag`
+    /// (`p_spec.rs:624`): the tag scan starts at `start + 1` (so
+    /// `start = -1` sees sector 0), resumes after the previous hit
+    /// (the donut/door action loops' iterator protocol), and returns
+    /// -1 once the scan runs off the end.
+    #[test]
+    fn baseline_sector_from_line_tag_scan_vectors()
+    {
+        let _engine = crate::doom::violations::ENGINE_STATICS_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let _g = LOCK.lock().unwrap();
+
+        unsafe
+        {
+            let mut fx = GeometryFixture::build(2, 0);
+            fx.sec_storage[0].tag = 7;
+            fx.sec_storage[1].tag = 9;
+            fx.sec_storage[2].tag = 7;
+            let mut tag_line: Box<line_t> = Box::new(std::mem::zeroed());
+            tag_line.tag = 7;
+            let tag_ptr = &mut *tag_line as *mut line_t;
+
+            let before = fx.install();
+            assert_eq!(P_FindSectorFromLineTag(tag_ptr, -1), 0);
+            assert_eq!(P_FindSectorFromLineTag(tag_ptr, 0), 2);
+            assert_eq!(P_FindSectorFromLineTag(tag_ptr, 2), -1);
+            (*tag_ptr).tag = 42;
+            assert_eq!(P_FindSectorFromLineTag(tag_ptr, -1), -1);
+            GeometryFixture::restore(before);
+        }
+    }
+
+    /// Baseline vectors for the animation phase formula the B3b
+    /// graduation extracts as `anim_frame_pic` (transcription above,
+    /// mirrored verbatim from `P_UpdateSpecials`,
+    /// `p_spec.rs:1150`): frame `i` shows pic
+    /// `base + ((leveltime / speed + i) % numpics)`, so the whole
+    /// cycle advances one phase per `speed` tics and wraps modulo
+    /// `numpics`. Integer division/modulo order is load-bearing for
+    /// every animated texture/flat in demos.
+    #[test]
+    fn baseline_anim_frame_pic_phase_wrap()
+    {
+        let (base, numpics, speed) = (10, 3, 8);
+
+        // Tic 0: frames in identity order.
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 0, 0), 10);
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 0, 1), 11);
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 0, 2), 12);
+        // Before the first advance (leveltime < speed) the phase is 0.
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 7, 0), 10);
+        // One speed period: every frame shifts forward by one and
+        // frame 2 wraps to the base pic.
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 8, 0), 11);
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 8, 1), 12);
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 8, 2), 10);
+        // A full cycle of the phase (3 periods = numpics): back to the
+        // identity order -- the modulo wrap.
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 24, 0), 10);
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 24, 1), 11);
+        assert_eq!(anim_frame_pic_transcription(base, numpics, speed, 24, 2), 12);
+        // Single-frame cycles are pinned to the base pic.
+        assert_eq!(anim_frame_pic_transcription(base, 1, 8, 8, 0), 10);
+        assert_eq!(anim_frame_pic_transcription(base, 1, 8, 23, 0), 10);
+    }
 }
