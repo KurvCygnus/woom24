@@ -45,49 +45,46 @@ const SAVESTRINGSIZE: usize = 24;
 /// `leveltime` must have been set to valid values before this call.
 #[doc(alias = "P_WriteSaveGameHeader")]
 #[export_name = "P_WriteSaveGameHeader"]
-pub extern "C" fn write_save_game_header(description: *const c_char)
+pub unsafe extern "C" fn write_save_game_header(description: *const c_char)
 {
-    unsafe
+    let desc = std::ffi::CStr::from_ptr(description);
+    let desc_bytes = desc.to_bytes();
+
+    // Write description (padded to SAVESTRINGSIZE)
+    for i in 0..SAVESTRINGSIZE
     {
-        let desc = std::ffi::CStr::from_ptr(description);
-        let desc_bytes = desc.to_bytes();
-
-        // Write description (padded to SAVESTRINGSIZE)
-        for i in 0..SAVESTRINGSIZE
+        if i < desc_bytes.len()
         {
-            if i < desc_bytes.len()
-            {
-                write_byte(desc_bytes[i]);
-            }
-            else
-            {
-                write_byte(0);
-            }
+            write_byte(desc_bytes[i]);
         }
-
-        // Write version string (VERSIONSIZE bytes): the NUL-padded
-        // `"version N\0"` buffer from dtmc::version_bytes.
-        for byte in version_bytes(G_VanillaVersionCode())
+        else
         {
-            write_byte(byte);
+            write_byte(0);
         }
+    }
 
-        // Write skill, episode, map
-        write_byte(gameskill as u8);
-        write_byte(gameepisode as u8);
-        write_byte(gamemap as u8);
+    // Write version string (VERSIONSIZE bytes): the NUL-padded
+    // `"version N\0"` buffer from dtmc::version_bytes.
+    for byte in version_bytes(G_VanillaVersionCode())
+    {
+        write_byte(byte);
+    }
 
-        // Write playeringame
-        for i in 0..MAXPLAYERS
-        {
-            write_byte(playeringame[i] as u8);
-        }
+    // Write skill, episode, map
+    write_byte(gameskill as u8);
+    write_byte(gameepisode as u8);
+    write_byte(gamemap as u8);
 
-        // Write leveltime (3 bytes, big-endian)
-        for byte in leveltime_pack3(leveltime as u32)
-        {
-            write_byte(byte);
-        }
+    // Write playeringame
+    for i in 0..MAXPLAYERS
+    {
+        write_byte(playeringame[i] as u8);
+    }
+
+    // Write leveltime (3 bytes, big-endian)
+    for byte in leveltime_pack3(leveltime as u32)
+    {
+        write_byte(byte);
     }
 }
 
@@ -107,46 +104,43 @@ pub extern "C" fn write_save_game_header(description: *const c_char)
 /// with values from the stream.
 #[doc(alias = "P_ReadSaveGameHeader")]
 #[export_name = "P_ReadSaveGameHeader"]
-pub extern "C" fn read_save_game_header() -> c_int
+pub unsafe extern "C" fn read_save_game_header() -> c_int
 {
-    unsafe
+    // Skip description (SAVESTRINGSIZE bytes)
+    for _ in 0..SAVESTRINGSIZE
     {
-        // Skip description (SAVESTRINGSIZE bytes)
-        for _ in 0..SAVESTRINGSIZE
-        {
-            read_byte();
-        }
-
-        // Read version string
-        let mut read_vcheck = [0u8; VERSIONSIZE];
-        for i in 0..VERSIONSIZE
-        {
-            read_vcheck[i] = read_byte();
-        }
-
-        // Compare version against the NUL-padded expected buffer
-        // (dtmc::version_bytes); the compare itself stays at the call site.
-        if read_vcheck != version_bytes(G_VanillaVersionCode())
-        {
-            return 0; // bad version
-        }
-
-        // Read skill, episode, map
-        gameskill = read_byte() as c_int;
-        gameepisode = read_byte() as c_int;
-        gamemap = read_byte() as c_int;
-
-        // Read playeringame
-        for i in 0..MAXPLAYERS
-        {
-            playeringame[i] = read_byte() as c_int;
-        }
-
-        // Read leveltime (3 bytes, big-endian)
-        leveltime = leveltime_unpack3([read_byte(), read_byte(), read_byte()]) as c_int;
-
-        1 // success
+        read_byte();
     }
+
+    // Read version string
+    let mut read_vcheck = [0u8; VERSIONSIZE];
+    for i in 0..VERSIONSIZE
+    {
+        read_vcheck[i] = read_byte();
+    }
+
+    // Compare version against the NUL-padded expected buffer
+    // (dtmc::version_bytes); the compare itself stays at the call site.
+    if read_vcheck != version_bytes(G_VanillaVersionCode())
+    {
+        return 0; // bad version
+    }
+
+    // Read skill, episode, map
+    gameskill = read_byte() as c_int;
+    gameepisode = read_byte() as c_int;
+    gamemap = read_byte() as c_int;
+
+    // Read playeringame
+    for i in 0..MAXPLAYERS
+    {
+        playeringame[i] = read_byte() as c_int;
+    }
+
+    // Read leveltime (3 bytes, big-endian)
+    leveltime = leveltime_unpack3([read_byte(), read_byte(), read_byte()]) as c_int;
+
+    1 // success
 }
 
 /// Reads the end-of-file marker byte from `save_stream`.
@@ -162,19 +156,16 @@ pub extern "C" fn read_save_game_header() -> c_int
 /// marker. Reading from an invalid or exhausted stream is undefined behaviour.
 #[doc(alias = "P_ReadSaveGameEOF")]
 #[export_name = "P_ReadSaveGameEOF"]
-pub extern "C" fn read_save_game_eof() -> c_int
+pub unsafe extern "C" fn read_save_game_eof() -> c_int
 {
-    unsafe
+    let value = read_byte();
+    if value == SAVEGAME_EOF
     {
-        let value = read_byte();
-        if value == SAVEGAME_EOF
-        {
-            1
-        }
-        else
-        {
-            0
-        }
+        1
+    }
+    else
+    {
+        0
     }
 }
 
@@ -192,12 +183,9 @@ pub extern "C" fn read_save_game_eof() -> c_int
 /// at the correct position for `P_ReadSaveGameEOF` to validate.
 #[doc(alias = "P_WriteSaveGameEOF")]
 #[export_name = "P_WriteSaveGameEOF"]
-pub extern "C" fn write_save_game_eof()
+pub unsafe extern "C" fn write_save_game_eof()
 {
-    unsafe
-    {
-        write_byte(SAVEGAME_EOF);
-    }
+    write_byte(SAVEGAME_EOF);
 }
 
 #[cfg(test)]

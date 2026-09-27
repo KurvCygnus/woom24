@@ -80,42 +80,30 @@ const tc_endspecials: u8 = 7;
 /// etc.).
 #[doc(alias = "P_ArchiveSpecials")]
 #[export_name = "P_ArchiveSpecials"]
-pub extern "C" fn archive_specials()
+pub unsafe extern "C" fn archive_specials()
 {
-    unsafe
+    let cap = &raw mut thinkercap;
+    let mut th = (*cap).next;
+
+    while th != cap
     {
-        let cap = &raw mut thinkercap;
-        let mut th = (*cap).next;
+        let func = (*th).function;
 
-        while th != cap
+        // Check for ceiling (acv == NULL means in activeceilings list)
+        if func.acv.is_none()
         {
-            let func = (*th).function;
-
-            // Check for ceiling (acv == NULL means in activeceilings list)
-            if func.acv.is_none()
+            // Check if it's in activeceilings
+            let activeceilings_ptr = std::ptr::addr_of!(crate::doom::p_ceilng::activeceilings[0]);
+            let mut found = false;
+            for i in 0..MAXCEILINGS
             {
-                // Check if it's in activeceilings
-                let activeceilings_ptr = std::ptr::addr_of!(crate::doom::p_ceilng::activeceilings[0]);
-                let mut found = false;
-                for i in 0..MAXCEILINGS
+                if *activeceilings_ptr.add(i) == th as *mut ceiling_t
                 {
-                    if *activeceilings_ptr.add(i) == th as *mut ceiling_t
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if found
-                {
-                    write_byte(tc_ceiling);
-                    write_padding();
-                    write_ceiling_record(th as *const ceiling_t);
-                    th = (*th).next;
-                    continue;
+                    found = true;
+                    break;
                 }
             }
-
-            if func.acp1.map(|f| f as usize) == Some(T_MoveCeiling as *const () as usize)
+            if found
             {
                 write_byte(tc_ceiling);
                 write_padding();
@@ -123,66 +111,75 @@ pub extern "C" fn archive_specials()
                 th = (*th).next;
                 continue;
             }
-
-            if func.acp1.map(|f| f as usize) == Some(T_VerticalDoor as *const () as usize)
-            {
-                write_byte(tc_door);
-                write_padding();
-                write_door_record(th as *const vldoor_t);
-                th = (*th).next;
-                continue;
-            }
-
-            if func.acp1.map(|f| f as usize) == Some(T_MoveFloor as *const () as usize)
-            {
-                write_byte(tc_floor);
-                write_padding();
-                write_floormove_record(th as *const floormove_t);
-                th = (*th).next;
-                continue;
-            }
-
-            if func.acp1.map(|f| f as usize) == Some(T_PlatRaise as *const () as usize)
-            {
-                write_byte(tc_plat);
-                write_padding();
-                write_plat_record(th as *const plat_t);
-                th = (*th).next;
-                continue;
-            }
-
-            if func.acp1.map(|f| f as usize) == Some(T_LightFlash as *const () as usize)
-            {
-                write_byte(tc_flash);
-                write_padding();
-                write_lightflash_record(th as *const lightflash_t);
-                th = (*th).next;
-                continue;
-            }
-
-            if func.acp1.map(|f| f as usize) == Some(T_StrobeFlash as *const () as usize)
-            {
-                write_byte(tc_strobe);
-                write_padding();
-                write_strobe_record(th as *const strobe_t);
-                th = (*th).next;
-                continue;
-            }
-
-            if func.acp1.map(|f| f as usize) == Some(T_Glow as *const () as usize)
-            {
-                write_byte(tc_glow);
-                write_padding();
-                write_glow_record(th as *const glow_t);
-                th = (*th).next;
-                continue;
-            }
-
-            th = (*th).next;
         }
 
-        write_byte(tc_endspecials);
+        if func.acp1.map(|f| f as usize) == Some(T_MoveCeiling as *const () as usize)
+        {
+            write_byte(tc_ceiling);
+            write_padding();
+            write_ceiling_record(th as *const ceiling_t);
+            th = (*th).next;
+            continue;
+        }
+
+        if func.acp1.map(|f| f as usize) == Some(T_VerticalDoor as *const () as usize)
+        {
+            write_byte(tc_door);
+            write_padding();
+            write_door_record(th as *const vldoor_t);
+            th = (*th).next;
+            continue;
+        }
+
+        if func.acp1.map(|f| f as usize) == Some(T_MoveFloor as *const () as usize)
+        {
+            write_byte(tc_floor);
+            write_padding();
+            write_floormove_record(th as *const floormove_t);
+            th = (*th).next;
+            continue;
+        }
+
+        if func.acp1.map(|f| f as usize) == Some(T_PlatRaise as *const () as usize)
+        {
+            write_byte(tc_plat);
+            write_padding();
+            write_plat_record(th as *const plat_t);
+            th = (*th).next;
+            continue;
+        }
+
+        if func.acp1.map(|f| f as usize) == Some(T_LightFlash as *const () as usize)
+        {
+            write_byte(tc_flash);
+            write_padding();
+            write_lightflash_record(th as *const lightflash_t);
+            th = (*th).next;
+            continue;
+        }
+
+        if func.acp1.map(|f| f as usize) == Some(T_StrobeFlash as *const () as usize)
+        {
+            write_byte(tc_strobe);
+            write_padding();
+            write_strobe_record(th as *const strobe_t);
+            th = (*th).next;
+            continue;
+        }
+
+        if func.acp1.map(|f| f as usize) == Some(T_Glow as *const () as usize)
+        {
+            write_byte(tc_glow);
+            write_padding();
+            write_glow_record(th as *const glow_t);
+            th = (*th).next;
+            continue;
+        }
+
+        th = (*th).next;
     }
+
+    write_byte(tc_endspecials);
 }
 
 /// Deserializes all sector-special thinkers from `save_stream`.
@@ -227,123 +224,120 @@ pub extern "C" fn archive_specials()
 // affects when the zone allocator may purge the block.
 #[doc(alias = "P_UnArchiveSpecials")]
 #[export_name = "P_UnArchiveSpecials"]
-pub extern "C" fn unarchive_specials()
+pub unsafe extern "C" fn unarchive_specials()
 {
-    unsafe
+    loop
     {
-        loop
+        let tclass = read_byte();
+        match tclass
         {
-            let tclass = read_byte();
-            match tclass
+            x if x == tc_endspecials => return,
+            x if x == tc_ceiling =>
             {
-                x if x == tc_endspecials => return,
-                x if x == tc_ceiling =>
-                {
-                    read_padding();
-                    let ceiling = Z_Malloc(
-                        std::mem::size_of::<ceiling_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut ceiling_t;
-                    read_ceiling_record(ceiling);
-                    (*ceiling).sector.as_mut().unwrap().specialdata = ceiling as *mut c_void;
+                read_padding();
+                let ceiling = Z_Malloc(
+                    std::mem::size_of::<ceiling_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut ceiling_t;
+                read_ceiling_record(ceiling);
+                (*ceiling).sector.as_mut().unwrap().specialdata = ceiling as *mut c_void;
 
-                    if ceiling.as_ref().unwrap().thinker.function.acp1.is_some()
-                    {
-                        ceiling.as_mut().unwrap().thinker.function = actionf_of_move_ceiling();
-                    }
+                if ceiling.as_ref().unwrap().thinker.function.acp1.is_some()
+                {
+                    ceiling.as_mut().unwrap().thinker.function = actionf_of_move_ceiling();
+                }
 
-                    P_AddThinker(&mut (*ceiling).thinker);
-                    P_AddActiveCeiling(ceiling);
-                }
-                x if x == tc_door =>
-                {
-                    read_padding();
-                    let door = Z_Malloc(
-                        std::mem::size_of::<vldoor_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut vldoor_t;
-                    read_door_record(door);
-                    (*door).sector.as_mut().unwrap().specialdata = door as *mut c_void;
-                    door.as_mut().unwrap().thinker.function = actionf_of_vertical_door();
-                    P_AddThinker(&mut (*door).thinker);
-                }
-                x if x == tc_floor =>
-                {
-                    read_padding();
-                    let floor = Z_Malloc(
-                        std::mem::size_of::<floormove_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut floormove_t;
-                    read_floormove_record(floor);
-                    (*floor).sector.as_mut().unwrap().specialdata = floor as *mut c_void;
-                    floor.as_mut().unwrap().thinker.function = actionf_of_move_floor();
-                    P_AddThinker(&mut (*floor).thinker);
-                }
-                x if x == tc_plat =>
-                {
-                    read_padding();
-                    let plat = Z_Malloc(
-                        std::mem::size_of::<plat_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut plat_t;
-                    read_plat_record(plat);
-                    (*plat).sector.as_mut().unwrap().specialdata = plat as *mut c_void;
+                P_AddThinker(&mut (*ceiling).thinker);
+                P_AddActiveCeiling(ceiling);
+            }
+            x if x == tc_door =>
+            {
+                read_padding();
+                let door = Z_Malloc(
+                    std::mem::size_of::<vldoor_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut vldoor_t;
+                read_door_record(door);
+                (*door).sector.as_mut().unwrap().specialdata = door as *mut c_void;
+                door.as_mut().unwrap().thinker.function = actionf_of_vertical_door();
+                P_AddThinker(&mut (*door).thinker);
+            }
+            x if x == tc_floor =>
+            {
+                read_padding();
+                let floor = Z_Malloc(
+                    std::mem::size_of::<floormove_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut floormove_t;
+                read_floormove_record(floor);
+                (*floor).sector.as_mut().unwrap().specialdata = floor as *mut c_void;
+                floor.as_mut().unwrap().thinker.function = actionf_of_move_floor();
+                P_AddThinker(&mut (*floor).thinker);
+            }
+            x if x == tc_plat =>
+            {
+                read_padding();
+                let plat = Z_Malloc(
+                    std::mem::size_of::<plat_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut plat_t;
+                read_plat_record(plat);
+                (*plat).sector.as_mut().unwrap().specialdata = plat as *mut c_void;
 
-                    if plat.as_ref().unwrap().thinker.function.acp1.is_some()
-                    {
-                        plat.as_mut().unwrap().thinker.function = actionf_of_plat_raise();
-                    }
+                if plat.as_ref().unwrap().thinker.function.acp1.is_some()
+                {
+                    plat.as_mut().unwrap().thinker.function = actionf_of_plat_raise();
+                }
 
-                    P_AddThinker(&mut (*plat).thinker);
-                    P_AddActivePlat(plat);
-                }
-                x if x == tc_flash =>
-                {
-                    read_padding();
-                    let flash = Z_Malloc(
-                        std::mem::size_of::<lightflash_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut lightflash_t;
-                    read_lightflash_record(flash);
-                    flash.as_mut().unwrap().thinker.function = actionf_of_light_flash();
-                    P_AddThinker(&mut (*flash).thinker);
-                }
-                x if x == tc_strobe =>
-                {
-                    read_padding();
-                    let strobe = Z_Malloc(
-                        std::mem::size_of::<strobe_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut strobe_t;
-                    read_strobe_record(strobe);
-                    strobe.as_mut().unwrap().thinker.function = actionf_of_strobe_flash();
-                    P_AddThinker(&mut (*strobe).thinker);
-                }
-                x if x == tc_glow =>
-                {
-                    read_padding();
-                    let glow = Z_Malloc(
-                        std::mem::size_of::<glow_t>() as c_int,
-                        PU_LEVSPEC,
-                        std::ptr::null_mut(),
-                    ) as *mut glow_t;
-                    read_glow_record(glow);
-                    glow.as_mut().unwrap().thinker.function = actionf_of_glow();
-                    P_AddThinker(&mut (*glow).thinker);
-                }
-                _ =>
-                {
-                    i_error!(
-                        "P_UnarchiveSpecials:Unknown tclass {} in savegame",
-                        tclass as c_int
-                    );
-                }
+                P_AddThinker(&mut (*plat).thinker);
+                P_AddActivePlat(plat);
+            }
+            x if x == tc_flash =>
+            {
+                read_padding();
+                let flash = Z_Malloc(
+                    std::mem::size_of::<lightflash_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut lightflash_t;
+                read_lightflash_record(flash);
+                flash.as_mut().unwrap().thinker.function = actionf_of_light_flash();
+                P_AddThinker(&mut (*flash).thinker);
+            }
+            x if x == tc_strobe =>
+            {
+                read_padding();
+                let strobe = Z_Malloc(
+                    std::mem::size_of::<strobe_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut strobe_t;
+                read_strobe_record(strobe);
+                strobe.as_mut().unwrap().thinker.function = actionf_of_strobe_flash();
+                P_AddThinker(&mut (*strobe).thinker);
+            }
+            x if x == tc_glow =>
+            {
+                read_padding();
+                let glow = Z_Malloc(
+                    std::mem::size_of::<glow_t>() as c_int,
+                    PU_LEVSPEC,
+                    std::ptr::null_mut(),
+                ) as *mut glow_t;
+                read_glow_record(glow);
+                glow.as_mut().unwrap().thinker.function = actionf_of_glow();
+                P_AddThinker(&mut (*glow).thinker);
+            }
+            _ =>
+            {
+                i_error!(
+                    "P_UnarchiveSpecials:Unknown tclass {} in savegame",
+                    tclass as c_int
+                );
             }
         }
     }

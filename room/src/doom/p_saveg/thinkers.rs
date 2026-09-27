@@ -54,34 +54,31 @@ const tc_mobj: u8 = 1;
 /// function equals `P_MobjThinker` must point to a valid `mobj_t`.
 #[doc(alias = "P_ArchiveThinkers")]
 #[export_name = "P_ArchiveThinkers"]
-pub extern "C" fn archive_thinkers()
+pub unsafe extern "C" fn archive_thinkers()
 {
-    unsafe
+    let cap = &raw mut thinkercap;
+    let mut th = (*cap).next;
+
+    while th != cap
     {
-        let cap = &raw mut thinkercap;
-        let mut th = (*cap).next;
-
-        while th != cap
+        // Check if function is P_MobjThinker by comparing pointers
+        let func = (*th).function.acp1;
+        if let Some(fn_ptr) = func
         {
-            // Check if function is P_MobjThinker by comparing pointers
-            let func = (*th).function.acp1;
-            if let Some(fn_ptr) = func
+            if fn_ptr as usize == P_MobjThinker as *const () as usize
             {
-                if fn_ptr as usize == P_MobjThinker as *const () as usize
-                {
-                    write_byte(tc_mobj);
-                    write_padding();
-                    write_mobj_record(th as *const c_void);
-                    th = (*th).next;
-                    continue;
-                }
+                write_byte(tc_mobj);
+                write_padding();
+                write_mobj_record(th as *const c_void);
+                th = (*th).next;
+                continue;
             }
-            th = (*th).next;
         }
-
-        // terminating marker
-        write_byte(tc_end);
+        th = (*th).next;
     }
+
+    // terminating marker
+    write_byte(tc_end);
 }
 
 /// Clears all existing thinkers then deserializes the thinker chain from
@@ -112,93 +109,90 @@ pub extern "C" fn archive_thinkers()
 /// and before any code dereferences `players[i].mo`.
 #[doc(alias = "P_UnArchiveThinkers")]
 #[export_name = "P_UnArchiveThinkers"]
-pub extern "C" fn unarchive_thinkers()
+pub unsafe extern "C" fn unarchive_thinkers()
 {
-    unsafe
+    let cap = &raw mut thinkercap;
+    let mut currentthinker = (*cap).next;
+
+    // remove all current thinkers
+    while currentthinker != cap
     {
-        let cap = &raw mut thinkercap;
-        let mut currentthinker = (*cap).next;
+        let next = (*currentthinker).next;
 
-        // remove all current thinkers
-        while currentthinker != cap
+        let func = (*currentthinker).function.acp1;
+        if let Some(fn_ptr) = func
         {
-            let next = (*currentthinker).next;
-
-            let func = (*currentthinker).function.acp1;
-            if let Some(fn_ptr) = func
+            if fn_ptr as usize == P_MobjThinker as *const () as usize
             {
-                if fn_ptr as usize == P_MobjThinker as *const () as usize
-                {
-                    P_RemoveMobj(currentthinker as *mut c_void);
-                }
-                else
-                {
-                    Z_Free(currentthinker as *mut c_void);
-                }
+                P_RemoveMobj(currentthinker as *mut c_void);
             }
             else
             {
                 Z_Free(currentthinker as *mut c_void);
             }
-
-            currentthinker = next;
+        }
+        else
+        {
+            Z_Free(currentthinker as *mut c_void);
         }
 
-        P_InitThinkers();
+        currentthinker = next;
+    }
 
-        // read saved thinkers
-        loop
+    P_InitThinkers();
+
+    // read saved thinkers
+    loop
+    {
+        let tclass = read_byte();
+        match tclass
         {
-            let tclass = read_byte();
-            match tclass
+            x if x == tc_end => return,
+            x if x == tc_mobj =>
             {
-                x if x == tc_end => return,
-                x if x == tc_mobj =>
+                read_padding();
+                let mobj = Z_Malloc(
+                    std::mem::size_of::<crate::doom::c_ffi::mobj_t>() as c_int,
+                    PU_LEVEL,
+                    std::ptr::null_mut(),
+                );
+                read_mobj_record(mobj);
+
+                let mo = mobj as *mut crate::doom::c_ffi::mobj_t;
+
+                // target/tracer set to NULL (will be rebuilt)
+                (*mo).target = std::ptr::null_mut();
+                (*mo).tracer = std::ptr::null_mut();
+
+                P_SetThingPosition(mobj);
+
+                // rebuild info from mobjinfo
+                (*mo).info = &mut mobjinfo[(*mo).type_ as usize] as *mut MobjInfo
+                    as *mut crate::doom::c_ffi::mobjinfo_t;
+
+                // rebuild floorz/ceilingz from subsector
+                let subsec = (*mo).subsector as *mut crate::doom::c_ffi::subsector_t;
+                if !subsec.is_null()
                 {
-                    read_padding();
-                    let mobj = Z_Malloc(
-                        std::mem::size_of::<crate::doom::c_ffi::mobj_t>() as c_int,
-                        PU_LEVEL,
-                        std::ptr::null_mut(),
-                    );
-                    read_mobj_record(mobj);
-
-                    let mo = mobj as *mut crate::doom::c_ffi::mobj_t;
-
-                    // target/tracer set to NULL (will be rebuilt)
-                    (*mo).target = std::ptr::null_mut();
-                    (*mo).tracer = std::ptr::null_mut();
-
-                    P_SetThingPosition(mobj);
-
-                    // rebuild info from mobjinfo
-                    (*mo).info = &mut mobjinfo[(*mo).type_ as usize] as *mut MobjInfo
-                        as *mut crate::doom::c_ffi::mobjinfo_t;
-
-                    // rebuild floorz/ceilingz from subsector
-                    let subsec = (*mo).subsector as *mut crate::doom::c_ffi::subsector_t;
-                    if !subsec.is_null()
+                    let sector = (*subsec).sector as *mut sector_t;
+                    if !sector.is_null()
                     {
-                        let sector = (*subsec).sector as *mut sector_t;
-                        if !sector.is_null()
-                        {
-                            (*mo).floorz = (*sector).floorheight;
-                            (*mo).ceilingz = (*sector).ceilingheight;
-                        }
+                        (*mo).floorz = (*sector).floorheight;
+                        (*mo).ceilingz = (*sector).ceilingheight;
                     }
-
-                    // set thinker function
-                    let thinker_ptr = std::ptr::addr_of_mut!((*mo).thinker_prev) as *mut thinker_t;
-                    (*thinker_ptr).function = actionf_t {
-                        acp1: Some(P_MobjThinker),
-                    };
-
-                    P_AddThinker(&mut (*thinker_ptr));
                 }
-                _ =>
-                {
-                    i_error!("Unknown tclass {} in savegame", tclass as c_int);
-                }
+
+                // set thinker function
+                let thinker_ptr = std::ptr::addr_of_mut!((*mo).thinker_prev) as *mut thinker_t;
+                (*thinker_ptr).function = actionf_t {
+                    acp1: Some(P_MobjThinker),
+                };
+
+                P_AddThinker(&mut (*thinker_ptr));
+            }
+            _ =>
+            {
+                i_error!("Unknown tclass {} in savegame", tclass as c_int);
             }
         }
     }

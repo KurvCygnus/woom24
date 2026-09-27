@@ -36,46 +36,43 @@ use super::{lines, numlines, numsectors, sectors, sides};
 /// `line_t.sidenum[j]` that is not `-1` must be a valid index into `sides`.
 #[doc(alias = "P_ArchiveWorld")]
 #[export_name = "P_ArchiveWorld"]
-pub extern "C" fn archive_world()
+pub unsafe extern "C" fn archive_world()
 {
-    unsafe
+    let num_sec = numsectors as usize;
+    let num_li = numlines as usize;
+
+    // do sectors
+    for i in 0..num_sec
     {
-        let num_sec = numsectors as usize;
-        let num_li = numlines as usize;
+        let sec = sectors.add(i);
+        write_le16(((*sec).floorheight >> 16) as u16);
+        write_le16(((*sec).ceilingheight >> 16) as u16);
+        write_le16((*sec).floorpic as u16);
+        write_le16((*sec).ceilingpic as u16);
+        write_le16((*sec).lightlevel as u16);
+        write_le16((*sec).special as u16);
+        write_le16((*sec).tag as u16);
+    }
 
-        // do sectors
-        for i in 0..num_sec
+    // do lines
+    for i in 0..num_li
+    {
+        let li = lines.add(i);
+        write_le16((*li).flags as u16);
+        write_le16((*li).special as u16);
+        write_le16((*li).tag as u16);
+        for j in 0..2
         {
-            let sec = sectors.add(i);
-            write_le16(((*sec).floorheight >> 16) as u16);
-            write_le16(((*sec).ceilingheight >> 16) as u16);
-            write_le16((*sec).floorpic as u16);
-            write_le16((*sec).ceilingpic as u16);
-            write_le16((*sec).lightlevel as u16);
-            write_le16((*sec).special as u16);
-            write_le16((*sec).tag as u16);
-        }
-
-        // do lines
-        for i in 0..num_li
-        {
-            let li = lines.add(i);
-            write_le16((*li).flags as u16);
-            write_le16((*li).special as u16);
-            write_le16((*li).tag as u16);
-            for j in 0..2
+            if (*li).sidenum[j as usize] == -1
             {
-                if (*li).sidenum[j as usize] == -1
-                {
-                    continue;
-                }
-                let si = sides.add((*li).sidenum[j as usize] as usize);
-                write_le16(((*si).textureoffset >> 16) as u16);
-                write_le16(((*si).rowoffset >> 16) as u16);
-                write_le16((*si).toptexture as u16);
-                write_le16((*si).bottomtexture as u16);
-                write_le16((*si).midtexture as u16);
+                continue;
             }
+            let si = sides.add((*li).sidenum[j as usize] as usize);
+            write_le16(((*si).textureoffset >> 16) as u16);
+            write_le16(((*si).rowoffset >> 16) as u16);
+            write_le16((*si).toptexture as u16);
+            write_le16((*si).bottomtexture as u16);
+            write_le16((*si).midtexture as u16);
         }
     }
 }
@@ -102,48 +99,45 @@ pub extern "C" fn archive_world()
 /// index into `sides`.
 #[doc(alias = "P_UnArchiveWorld")]
 #[export_name = "P_UnArchiveWorld"]
-pub extern "C" fn unarchive_world()
+pub unsafe extern "C" fn unarchive_world()
 {
-    unsafe
+    let num_sec = numsectors as usize;
+    let num_li = numlines as usize;
+
+    // do sectors
+    for i in 0..num_sec
     {
-        let num_sec = numsectors as usize;
-        let num_li = numlines as usize;
+        let sec = sectors.add(i);
+        (*sec).floorheight = (read_le16() as i16 as c_int) << 16;
+        (*sec).ceilingheight = (read_le16() as i16 as c_int) << 16;
+        (*sec).floorpic = read_le16() as i16;
+        (*sec).ceilingpic = read_le16() as i16;
+        (*sec).lightlevel = read_le16() as i16;
+        (*sec).special = read_le16() as i16;
+        (*sec).tag = read_le16() as i16;
+        (*sec).specialdata = std::ptr::null_mut();
+        (*sec).soundtarget = std::ptr::null_mut();
+    }
 
-        // do sectors
-        for i in 0..num_sec
+    // do lines
+    for i in 0..num_li
+    {
+        let li = lines.add(i);
+        (*li).flags = read_le16() as i16;
+        (*li).special = read_le16() as i16;
+        (*li).tag = read_le16() as i16;
+        for j in 0..2
         {
-            let sec = sectors.add(i);
-            (*sec).floorheight = (read_le16() as i16 as c_int) << 16;
-            (*sec).ceilingheight = (read_le16() as i16 as c_int) << 16;
-            (*sec).floorpic = read_le16() as i16;
-            (*sec).ceilingpic = read_le16() as i16;
-            (*sec).lightlevel = read_le16() as i16;
-            (*sec).special = read_le16() as i16;
-            (*sec).tag = read_le16() as i16;
-            (*sec).specialdata = std::ptr::null_mut();
-            (*sec).soundtarget = std::ptr::null_mut();
-        }
-
-        // do lines
-        for i in 0..num_li
-        {
-            let li = lines.add(i);
-            (*li).flags = read_le16() as i16;
-            (*li).special = read_le16() as i16;
-            (*li).tag = read_le16() as i16;
-            for j in 0..2
+            if (*li).sidenum[j as usize] == -1
             {
-                if (*li).sidenum[j as usize] == -1
-                {
-                    continue;
-                }
-                let si = sides.add((*li).sidenum[j as usize] as usize);
-                (*si).textureoffset = (read_le16() as i16 as c_int) << 16;
-                (*si).rowoffset = (read_le16() as i16 as c_int) << 16;
-                (*si).toptexture = read_le16() as i16;
-                (*si).bottomtexture = read_le16() as i16;
-                (*si).midtexture = read_le16() as i16;
+                continue;
             }
+            let si = sides.add((*li).sidenum[j as usize] as usize);
+            (*si).textureoffset = (read_le16() as i16 as c_int) << 16;
+            (*si).rowoffset = (read_le16() as i16 as c_int) << 16;
+            (*si).toptexture = read_le16() as i16;
+            (*si).bottomtexture = read_le16() as i16;
+            (*si).midtexture = read_le16() as i16;
         }
     }
 }

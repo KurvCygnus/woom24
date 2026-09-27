@@ -29,19 +29,16 @@ use super::playeringame;
 /// before `P_WriteSaveGameEOF`.
 #[doc(alias = "P_ArchivePlayers")]
 #[export_name = "P_ArchivePlayers"]
-pub extern "C" fn archive_players()
+pub unsafe extern "C" fn archive_players()
 {
-    unsafe
+    for i in 0..MAXPLAYERS
     {
-        for i in 0..MAXPLAYERS
+        if playeringame[i] == 0
         {
-            if playeringame[i] == 0
-            {
-                continue;
-            }
-            write_padding();
-            write_player_record(&players[i]);
+            continue;
         }
+        write_padding();
+        write_player_record(&players[i]);
     }
 }
 
@@ -62,23 +59,20 @@ pub extern "C" fn archive_players()
 /// null and must not be dereferenced until thinkers are unarchived.
 #[doc(alias = "P_UnArchivePlayers")]
 #[export_name = "P_UnArchivePlayers"]
-pub extern "C" fn unarchive_players()
+pub unsafe extern "C" fn unarchive_players()
 {
-    unsafe
+    for i in 0..MAXPLAYERS
     {
-        for i in 0..MAXPLAYERS
+        if playeringame[i] == 0
         {
-            if playeringame[i] == 0
-            {
-                continue;
-            }
-            read_padding();
-            read_player_record(&mut players[i]);
-
-            // will be set when unarc thinker
-            players[i].mo = std::ptr::null_mut();
-            players[i].message = std::ptr::null_mut();
-            players[i].attacker = std::ptr::null_mut();
+            continue;
         }
+        read_padding();
+        read_player_record(&mut players[i]);
+
+        // will be set when unarc thinker
+        players[i].mo = std::ptr::null_mut();
+        players[i].message = std::ptr::null_mut();
+        players[i].attacker = std::ptr::null_mut();
     }
 }

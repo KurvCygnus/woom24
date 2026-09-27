@@ -59,22 +59,19 @@ const SAVEGAMENAME: &str = "doomsav";
 /// not free or mutate it.
 #[doc(alias = "P_TempSaveGameFile")]
 #[export_name = "P_TempSaveGameFile"]
-pub extern "C" fn temp_save_game_file() -> *mut c_char
+pub unsafe extern "C" fn temp_save_game_file() -> *mut c_char
 {
-    unsafe
+    if TEMP_SAVE_FILENAME.is_null()
     {
-        if TEMP_SAVE_FILENAME.is_null()
-        {
-            let dir = std::ffi::CStr::from_ptr(savegamedir).to_string_lossy();
-            let full = format!("{}temp.dsg\0", dir);
-            let bytes = full.into_bytes();
-            let ptr = std::alloc::alloc(std::alloc::Layout::from_size_align(bytes.len(), 1).unwrap())
-                as *mut c_char;
-            ptr::copy_nonoverlapping(bytes.as_ptr(), ptr as *mut u8, bytes.len());
-            TEMP_SAVE_FILENAME = ptr;
-        }
-        TEMP_SAVE_FILENAME
+        let dir = std::ffi::CStr::from_ptr(savegamedir).to_string_lossy();
+        let full = format!("{}temp.dsg\0", dir);
+        let bytes = full.into_bytes();
+        let ptr = std::alloc::alloc(std::alloc::Layout::from_size_align(bytes.len(), 1).unwrap())
+            as *mut c_char;
+        ptr::copy_nonoverlapping(bytes.as_ptr(), ptr as *mut u8, bytes.len());
+        TEMP_SAVE_FILENAME = ptr;
     }
+    TEMP_SAVE_FILENAME
 }
 
 /// Returns the path to the save-game file for the given `slot` (0-7).
@@ -92,30 +89,27 @@ pub extern "C" fn temp_save_game_file() -> *mut c_char
 /// valid until the next call to this function; the caller must not free it.
 #[doc(alias = "P_SaveGameFile")]
 #[export_name = "P_SaveGameFile"]
-pub extern "C" fn save_game_file(slot: c_int) -> *mut c_char
+pub unsafe extern "C" fn save_game_file(slot: c_int) -> *mut c_char
 {
-    unsafe
+    let dir_len = std::ffi::CStr::from_ptr(savegamedir).to_bytes().len();
+    let alloc_size = dir_len + 32;
+
+    if SAVE_FILENAME.is_null()
     {
-        let dir_len = std::ffi::CStr::from_ptr(savegamedir).to_bytes().len();
-        let alloc_size = dir_len + 32;
-
-        if SAVE_FILENAME.is_null()
+        let layout = std::alloc::Layout::from_size_align(alloc_size, 1).unwrap();
+        let ptr = std::alloc::alloc(layout);
+        if ptr.is_null()
         {
-            let layout = std::alloc::Layout::from_size_align(alloc_size, 1).unwrap();
-            let ptr = std::alloc::alloc(layout);
-            if ptr.is_null()
-            {
-                std::alloc::handle_alloc_error(layout);
-            }
-            SAVE_FILENAME = ptr as *mut c_char;
+            std::alloc::handle_alloc_error(layout);
         }
-
-        let dir_str = std::ffi::CStr::from_ptr(savegamedir).to_str().unwrap();
-        let buf = std::slice::from_raw_parts_mut(SAVE_FILENAME as *mut u8, alloc_size);
-        fill_save_filename(buf, dir_str, slot);
-
-        SAVE_FILENAME
+        SAVE_FILENAME = ptr as *mut c_char;
     }
+
+    let dir_str = std::ffi::CStr::from_ptr(savegamedir).to_str().unwrap();
+    let buf = std::slice::from_raw_parts_mut(SAVE_FILENAME as *mut u8, alloc_size);
+    fill_save_filename(buf, dir_str, slot);
+
+    SAVE_FILENAME
 }
 
 #[cfg(test)]
