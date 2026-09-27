@@ -59,7 +59,7 @@ pub extern "C" fn parm_exists(check: *const c_char) -> c_int
 /// `M_CheckParmWithArgs(check, 0)`.
 ///
 //* Freeze-zone legacy `extern "C"` blocks link this function by its
-//* upstream C symbol (`d_net.rs:184`, called from `D_ConnectNetGame`
+//* upstream C symbol (`d_net/mod.rs:155`, called from `D_ConnectNetGame`
 //* at every boot) -- a declarer missed by the investigation report's
 //* four-pin list -- so the symbol is pinned with `#[export_name]`
 //* instead of being dropped with the rename.
