@@ -2,6 +2,10 @@
 //! length constants. The struct is consumer-owned state -- instances
 //! live in `st_stuff` / `am_map` statics, never here.
 
+// Belt-and-suspenders (see p_spec/anims.rs): `cheatseq_t` and the C-suffix
+// type names carry the allow regardless of toolchain lint probing.
+#![allow(non_camel_case_types)]
+
 use std::ffi::{c_char, c_int};
 
 /// Maximum length of a cheat sequence including the NUL terminator,

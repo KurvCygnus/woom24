@@ -41,7 +41,7 @@
 //! | `SHA1_UpdateInt32` | `stream::update_int32` | glue | shim; big-endian u32 feed; upstream `sha1.c:303` |
 //! | `SHA1_UpdateString` | `stream::update_string` | glue | shim; feeds the NUL terminator (intentional, C convention); upstream `sha1.c:315` |
 //! | `sha1_update` (Rust-only safe core) | `stream::update_stream` | glue | private; Rust-only name, renamed per the functions ruling; the `Option<&[u8]>` flush shape and the aliasing `buf_copy` snapshots are load-bearing |
-//! | `Transform` (file-static) | `compress::transform` | glue | private; NO rename -- already plain English (m_random precedent); shape-identical to `sha1.c:55-195`: byte-assembled big-endian schedule, wrapping arithmetic -- the RFC vectors pin the digests, never "modernise" |
+//! | `Transform` (file-static) | `compress::transform` | glue | pub(super) within the module (stream.rs is the only consumer); NO rename -- already plain English (m_random precedent); shape-identical to `sha1.c:55-195`: byte-assembled big-endian schedule, wrapping arithmetic -- the RFC vectors pin the digests, never "modernise" |
 //! | `rol` / `M!` / `R!` / `f1..f4` / `K1..K4` | `compress.rs` | glue | private helpers kept; `R!` shuffles fixed-name variables where C rotates macro arguments (algorithmically equivalent, module doc) |
 //! | `sha1_context_t` → `SHA1Context` | `context::SHA1Context` | data | type name kept; `#[repr(C)]` layout unchanged |
 //! | `sha1_digest_t` | `context::sha1_digest_t` | data | `[u8; 20]` alias kept |

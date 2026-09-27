@@ -1,6 +1,6 @@
 //! Executable-basename extraction from `myargv[0]`.
 
-use std::ffi::c_char;
+use std::ffi::{c_char, c_int};
 
 use super::state::DIR_SEPARATOR;
 use super::state::myargv;
@@ -9,8 +9,6 @@ extern "C" {
     /// libc `strrchr` — locate the last occurrence of `c` in the string `s`.
     fn strrchr(s: *const c_char, c: c_int) -> *mut c_char;
 }
-
-use std::ffi::c_int;
 
 /// `char *M_GetExecutableName(void)` — return the basename portion of
 /// `myargv[0]` (everything after the last `DIR_SEPARATOR`), or the whole
