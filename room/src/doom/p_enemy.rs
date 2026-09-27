@@ -2284,3 +2284,278 @@ pub unsafe extern "C" fn A_PlayerScream(mo: *mut mobj_t) {
     }
     S_StartSound(mo as *mut c_void, sound);
 }
+
+#[cfg(test)]
+mod tests
+{
+    use std::ffi::c_void;
+    use std::os::raw::c_int;
+    use std::sync::Mutex;
+
+    use crate::doom::doomstat::gameversion;
+    use crate::doom::g_game::{gameepisode, gamemap};
+    use crate::doom::info::{MT_BABY, MT_BRUISER, MT_CYBORG, MT_FATSO, MT_SPIDER};
+    use crate::doom::p_tick::thinker_t;
+
+    // --- F10 wave B3c dtmc baseline vectors (pre-move; F10 spec §2.3) ---
+
+    //* The three computations the B3c graduation extracts (`check_boss_end`,
+    //* `spawn_fly_pick`, `is_mobj_thinker`) live in the bodies above today.
+    //* Per F10 §2.3 the baseline vectors land BEFORE the move:
+    //* - `CheckBossEnd` is already a (private) function -- the matrix test
+    //*   drives it through `super::` verbatim;
+    //* - `spawn_fly_pick` and `is_mobj_thinker` are inline expressions, so
+    //*   the tests carry test-local transcriptions whose doc comments name
+    //*   the body lines they mirror verbatim.
+    //* The graduation commit retargets the SAME vectors onto the extracted
+    //* `p_enemy/dtmc.rs` / `map_events.rs` functions -- same vectors, same
+    //* results. Whole-body drives through the state machine need a booted
+    //* level, so the F9 goldens remain the whole-body oracle; these pins fix
+    //* the exact integer/pointer semantics the extraction must preserve.
+
+    /// The (version arm, episode, map, boss type) cross-product the matrix
+    /// test sweeps: both `gameversion` arms of `CheckBossEnd`
+    /// (pre-`exe_ultimate` 1.9 and `exe_ultimate`; the `exe_final2` default
+    /// rides the same `>=` arm, pinned separately), episodes 0..=5 (0 =
+    /// "no episode" floor, 5 = one past Ultimate's 4), maps 1/6/7/8/9
+    /// (6/8 are the boss-map arms, 1/9 are non-boss controls), and the
+    /// five boss types named by the matrix (Baron, Cyberdemon, Spider,
+    /// Mancubus, Arachnotron).
+    const MATRIX_VERSIONS: [c_int; 2] = [4, 6]; // exe_doom_1_9, exe_ultimate
+    const MATRIX_EPISODES: [c_int; 6] = [0, 1, 2, 3, 4, 5];
+    const MATRIX_MAPS: [c_int; 5] = [1, 6, 7, 8, 9];
+    const MATRIX_TYPES: [c_int; 5] = [MT_BRUISER, MT_CYBORG, MT_SPIDER, MT_FATSO, MT_BABY];
+
+    /// Baseline transcription of the `CheckBossEnd` episode/map matrix,
+    /// verbatim from the private fn at `p_enemy.rs:1847-1868` (read from
+    /// its doc comment, which restates the shipped branches). The matrix
+    /// test asserts the fn against this table over the full cross-product.
+    fn expected_boss_end(version: c_int, episode: c_int, map: c_int, motype: c_int) -> bool
+    {
+        if version < super::exe_ultimate
+        {
+            // Pre-ultimate: map 8 only; Barons ignored outside episode 1.
+            if map != 8
+            {
+                return false;
+            }
+            if motype == MT_BRUISER && episode != 1
+            {
+                return false;
+            }
+            true
+        }
+        else
+        {
+            // Ultimate and later: per-episode boss assignment.
+            match episode
+            {
+                1 => map == 8 && motype == MT_BRUISER,
+                2 => map == 8 && motype == MT_CYBORG,
+                3 => map == 8 && motype == MT_SPIDER,
+                4 => map == 6 && motype == MT_CYBORG || map == 8 && motype == MT_SPIDER,
+                _ => map == 8,
+            }
+        }
+    }
+
+    /// Baseline vectors (F10 §2.3, wave B3c pre-move): the full
+    /// 2 x (episode x map x boss-type) boss-death matrix of the private
+    /// `CheckBossEnd` (`p_enemy.rs:1847`). The globals are saved and
+    /// restored around the sweep; the fn reads no other state.
+    #[test]
+    fn baseline_check_boss_end_matrix()
+    {
+        static LOCK: Mutex<()> = Mutex::new(());
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe
+        {
+            let saved = (gameversion, gameepisode, gamemap);
+            for &version in &MATRIX_VERSIONS
+            {
+                for &episode in &MATRIX_EPISODES
+                {
+                    for &map in &MATRIX_MAPS
+                    {
+                        for &motype in &MATRIX_TYPES
+                        {
+                            gameversion = version;
+                            gameepisode = episode;
+                            gamemap = map;
+                            let got = super::CheckBossEnd(motype).is_truthy();
+                            assert_eq!(
+                                got,
+                                expected_boss_end(version, episode, map, motype),
+                                "version={version} episode={episode} map={map} type={motype}"
+                            );
+                        }
+                    }
+                }
+            }
+            // The >= pin: the shipped default (exe_final2) rides the same
+            // ultimate arm, not a third matrix.
+            gameversion = 8; // exe_final2
+            gameepisode = 4;
+            gamemap = 6;
+            assert_eq!(
+                super::CheckBossEnd(MT_CYBORG).is_truthy(),
+                expected_boss_end(8, 4, 6, MT_CYBORG)
+            );
+            (gameversion, gameepisode, gamemap) = saved;
+        }
+    }
+
+    /// Baseline transcription of the `A_SpawnFly` weighted monster pick,
+    /// verbatim from the if-else chain at `p_enemy.rs:2238-2260` (the
+    /// drawn byte `r` is the chain's only input).
+    fn spawn_fly_pick(r: c_int) -> c_int
+    {
+        use crate::doom::info::{
+            MT_HEAD, MT_KNIGHT, MT_PAIN, MT_SERGEANT, MT_SHADOWS, MT_TROOP, MT_UNDEAD, MT_VILE,
+        };
+        if r < 50 as c_int
+        {
+            MT_TROOP
+        }
+        else if r < 90 as c_int
+        {
+            MT_SERGEANT
+        }
+        else if r < 120 as c_int
+        {
+            MT_SHADOWS
+        }
+        else if r < 130 as c_int
+        {
+            MT_PAIN
+        }
+        else if r < 160 as c_int
+        {
+            MT_HEAD
+        }
+        else if r < 162 as c_int
+        {
+            MT_VILE
+        }
+        else if r < 172 as c_int
+        {
+            MT_UNDEAD
+        }
+        else if r < 192 as c_int
+        {
+            MT_BABY
+        }
+        else if r < 222 as c_int
+        {
+            MT_FATSO
+        }
+        else if r < 246 as c_int
+        {
+            MT_KNIGHT
+        }
+        else
+        {
+            MT_BRUISER
+        }
+    }
+
+    /// Baseline vectors: each of the eleven threshold boundaries (49/50
+    /// through 245/246) plus the 0 and 255 rails -- the drawn byte lands
+    /// exactly one monster per band, and the bands tile 0..=255 with no
+    /// gap or overlap.
+    #[test]
+    fn baseline_spawn_fly_pick_thresholds()
+    {
+        use crate::doom::info::{
+            MT_HEAD, MT_KNIGHT, MT_PAIN, MT_SERGEANT, MT_SHADOWS, MT_TROOP, MT_UNDEAD, MT_VILE,
+        };
+        assert_eq!(spawn_fly_pick(0), MT_TROOP);
+        assert_eq!(spawn_fly_pick(49), MT_TROOP);
+        assert_eq!(spawn_fly_pick(50), MT_SERGEANT);
+        assert_eq!(spawn_fly_pick(89), MT_SERGEANT);
+        assert_eq!(spawn_fly_pick(90), MT_SHADOWS);
+        assert_eq!(spawn_fly_pick(119), MT_SHADOWS);
+        assert_eq!(spawn_fly_pick(120), MT_PAIN);
+        assert_eq!(spawn_fly_pick(129), MT_PAIN);
+        assert_eq!(spawn_fly_pick(130), MT_HEAD);
+        assert_eq!(spawn_fly_pick(159), MT_HEAD);
+        assert_eq!(spawn_fly_pick(160), MT_VILE);
+        assert_eq!(spawn_fly_pick(161), MT_VILE);
+        assert_eq!(spawn_fly_pick(162), MT_UNDEAD);
+        assert_eq!(spawn_fly_pick(171), MT_UNDEAD);
+        assert_eq!(spawn_fly_pick(172), MT_BABY);
+        assert_eq!(spawn_fly_pick(191), MT_BABY);
+        assert_eq!(spawn_fly_pick(192), MT_FATSO);
+        assert_eq!(spawn_fly_pick(221), MT_FATSO);
+        assert_eq!(spawn_fly_pick(222), MT_KNIGHT);
+        assert_eq!(spawn_fly_pick(245), MT_KNIGHT);
+        assert_eq!(spawn_fly_pick(246), MT_BRUISER);
+        assert_eq!(spawn_fly_pick(255), MT_BRUISER);
+    }
+
+    /// Baseline transcription of the `acp1 == P_MobjThinker` pointer
+    /// compare, verbatim from the four in-file sites: `A_KeenDie`
+    /// (`p_enemy.rs:678-685`), `A_PainShootSkull` (`p_enemy.rs:1699-1706`),
+    /// `A_BossDeath` (`p_enemy.rs:1930-1937`), `A_BrainAwake`
+    /// (`p_enemy.rs:2083-2090`). The graduation extracts exactly this
+    /// expression as the shared `is_mobj_thinker` helper.
+    fn is_mobj_thinker(thinker: *mut thinker_t) -> bool
+    {
+        unsafe
+        {
+            (*thinker).function.acp1
+                == core::mem::transmute::<
+                    Option<unsafe extern "C" fn(*mut crate::doom::p_telept::mobj_t) -> ()>,
+                    Option<unsafe extern "C" fn(*mut c_void) -> ()>,
+                >(Some(
+                    super::P_MobjThinker
+                        as unsafe extern "C" fn(*mut crate::doom::p_telept::mobj_t) -> (),
+                ))
+        }
+    }
+
+    /// Baseline vectors: a thinker whose `acp1` holds the
+    /// `P_MobjThinker` function item compares equal (the live-mobj
+    /// discriminator all four scan sites rely on); a null `acp1` and a
+    /// foreign `acp1` (a non-mobj action) both miss. The sentinel-vs-live
+    /// removal pattern itself is covered by the p_tick dtmc tests.
+    #[test]
+    fn baseline_is_mobj_thinker_discriminates()
+    {
+        use crate::doom::p_telept::mobj_t;
+
+        let mut live = thinker_t {
+            prev: std::ptr::null_mut(),
+            next: std::ptr::null_mut(),
+            function: crate::doom::p_tick::actionf_t { acp1: None },
+        };
+        // Foreign action: a real (non-mobj) single-argument action -- any
+        // address other than P_MobjThinker's must miss.
+        let foreign_ptr = unsafe {
+            core::mem::transmute::<
+                unsafe extern "C" fn(*mut mobj_t) -> (),
+                unsafe extern "C" fn(*mut c_void),
+            >(super::A_Fall)
+        };
+        let mut foreign = thinker_t {
+            prev: std::ptr::null_mut(),
+            next: std::ptr::null_mut(),
+            function: crate::doom::p_tick::actionf_t { acp1: Some(foreign_ptr) },
+        };
+        live.function.acp1 = Some(unsafe {
+            core::mem::transmute::<
+                unsafe extern "C" fn(*mut mobj_t) -> (),
+                unsafe extern "C" fn(*mut c_void),
+            >(super::P_MobjThinker)
+        });
+
+        assert!(is_mobj_thinker(&mut live));
+        assert!(!is_mobj_thinker(&mut foreign));
+        let mut empty = thinker_t {
+            prev: std::ptr::null_mut(),
+            next: std::ptr::null_mut(),
+            function: crate::doom::p_tick::actionf_t { acp1: None },
+        };
+        assert!(!is_mobj_thinker(&mut empty));
+    }
+}
