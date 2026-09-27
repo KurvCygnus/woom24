@@ -36,8 +36,8 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | 1 | spechit array overrun | `PIT_CheckLine` stores crossed special lines into a fixed `spechit[]` past its 8-slot vanilla bound; the stores trample DOS `.bss` neighbors (`tmbbox`, `crushchange`, `nofit`) | complete | `room/src/doom/p_map/move.rs:pit_check_line` / `p_map/spechit.rs:spechit_overrun`; drains in `p_map/move.rs:try_move` (`P_TryMove`), `p_enemy/chase.rs:move_step` |
 | 2 | intercepts array overrun | `P_PathTraverse` stores ray/line and ray/thing hits into `intercepts[]` past 128 entries; stores land on `lowfloor`, `bmapwidth`, `playerstarts`, ... | complete | `room/src/doom/p_maputl/intercepts.rs:InterceptsOverrun` |
 | 3 | donut NULL-backsector read | `EV_DoDonut` dereferences a null `s3` sector on malformed maps; vanilla reads DOS address `0000:0000`-adjacent memory | complete | `room/src/doom/p_spec/donut.rs:donut_overrun` |
-| 4 | REJECT undersized-lump read | `P_LoadReject` reads a REJECT lump shorter than `ceil(numsectors^2/8)` bytes; the tail falls into the `Z_Malloc` zone block header | complete | `room/src/doom/p_setup.rs:PadRejectArray` |
-| 5 | missed-backside null sector | segs of two-sided lines with a missing back sidedef get `backsector = NULL`-adjacent DOS memory; vanilla reads address 0 | complete | `room/src/doom/p_setup.rs:GetSectorAtNullAddress` |
+| 4 | REJECT undersized-lump read | `P_LoadReject` reads a REJECT lump shorter than `ceil(numsectors^2/8)` bytes; the tail falls into the `Z_Malloc` zone block header | complete | `room/src/doom/p_setup/reject.rs:pad_reject_array` |
+| 5 | missed-backside null sector | segs of two-sided lines with a missing back sidedef get `backsector = NULL`-adjacent DOS memory; vanilla reads address 0 | complete | `room/src/doom/p_setup/null_sector.rs:sector_at_null_address` |
 | 6 | teleport-fog signed-angle overrun | `G_CheckSpot` computes `an = (ANG45 * angle/45) >> 19` with a signed shift in the DOS binary; out-of-range indices read `finetangent[]` instead of the sine/cosine tables | complete | `room/src/doom/g_game.rs:G_CheckSpot` / `TeleportFogAngleOverrun` |
 | 7 | episode-4 par-time off-by-one | `G_DoCompleted` reads `cpars[gamemap]` (not `[gamemap-1]`) for Doom 1 episode 4 -- an accidental adjacent-array read that statcheck depends on | complete | `room/src/doom/g_game.rs:G_DoCompleted` |
 | 8 | Archvile fire spawn coordinates | `A_VileTarget` passes `target->x` for both X and Y of `P_SpawnMobj` (vanilla typo) | complete | `room/src/doom/p_enemy/vile_fire.rs:action_vile_target` |
@@ -300,15 +300,17 @@ deterministic reject table.
 
 ### Where we emulate it
 
-`room/src/doom/p_setup.rs:1132-1162`, `PadRejectArray`, fills the tail of an
+`room/src/doom/p_setup/reject.rs`, `pad_reject_array`, fills the tail of an
 undersized REJECT with the modeled zone header:
 
 ```rust
 let rejectpad: [u32; 4] = [((totallines * 4 + 3) & !3) as u32 + 24, 0, 50, 0x1d4a11];
 ```
 
-followed by 0x00 fill (or 0xff with `-reject_pad_with_ff`). Called from
-`P_LoadReject` (`p_setup.rs:1184`) when `lumplen < minlength`.
+(the initializer is the extracted pure formula
+`room/src/doom/p_setup/dtmc.rs::reject_pad_words`), followed by 0x00 fill
+(or 0xff with `-reject_pad_with_ff`). Called from `load_reject`
+(`p_setup/reject.rs`, C name `P_LoadReject`) when `lumplen < minlength`.
 
 ### Semantics
 
@@ -347,11 +349,11 @@ sight and rendering under specific height relationships. Demos on such WADs
 
 ### Where we emulate it
 
-`room/src/doom/p_setup.rs:422-443`, `GetSectorAtNullAddress`, returns a
+`room/src/doom/p_setup/null_sector.rs`, `sector_at_null_address`, returns a
 synthetic zeroed `sector_t` whose `floorheight`/`ceilingheight` are read via
-`I_GetMemoryValue(0/4, ...)` on first call; `p_setup.rs:537` in `P_LoadSegs`
-stores it as the seg's `backsector` when the opposite `sidenum` is missing or
-out of range.
+`I_GetMemoryValue(0/4, ...)` on first call; `p_setup/loaders.rs` in
+`load_segs` (C name `P_LoadSegs`) stores it as the seg's `backsector` when
+the opposite `sidenum` is missing or out of range.
 
 ### Semantics
 
