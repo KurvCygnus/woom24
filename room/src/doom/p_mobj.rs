@@ -1182,4 +1182,161 @@ mod tests {
             }
         }
     }
+
+    // --- F10 wave B3a dtmc baseline vectors (pre-move; F10 spec §2.3) ---
+
+    //* The four pure computations the B3a graduation extracts
+    //* (`mapthing_angle_quantize`, `respawn_queue_step`, `spawn_skill_bit`,
+    //* `tics_jitter_clamp`) are inline expressions inside the function
+    //* bodies above today. Per F10 §2.3 the baseline vectors land BEFORE
+    //* the move, asserted against these test-local transcriptions of the
+    //* current in-file expressions (each doc comment names the body lines
+    //* it mirrors verbatim). The graduation commit retargets the SAME
+    //* test bodies onto the extracted `p_mobj/dtmc.rs` functions -- same
+    //* vectors, same results. Whole-body drives through the public spawn
+    //* API need a booted level (zone allocator + blockmap), so the F9
+    //* goldens remain the whole-body oracle; these pins fix the exact
+    //* integer semantics the extraction must preserve.
+
+    /// Baseline transcription of the mapthing-angle quantization,
+    /// verbatim from the four in-file sites: `P_NightmareRespawn`
+    /// (`p_mobj.rs:438`), `P_RespawnSpecials` (`p_mobj.rs:645`),
+    /// `P_SpawnPlayer` (`p_mobj.rs:710`), `P_SpawnMapThing`
+    /// (`p_mobj.rs:840`).
+    fn mapthing_angle_quantize(angle: u32) -> u32
+    {
+        ANG45.wrapping_mul(angle / 45)
+    }
+
+    /// Baseline vectors (F10 §2.3, wave B3a pre-move): the binary-angle
+    /// (BAM) quantization every mapthing angle passes through. Zero
+    /// stays zero, each 45-degree step is one `ANG45`, and a full turn
+    /// wraps the `u32` angle space back to zero. The negative-angle
+    /// vector pins the shipped expression's exact semantic: the
+    /// `i16 -> u32` conversion sign-extends and the division is
+    /// unsigned, so `-45` lands on `0x8000_0000` (C's signed division
+    /// would give `0xE000_0000`; no WAD angle ever reaches it -- the
+    /// vector freezes the shipped behavior, it does not bless it).
+    #[test]
+    fn baseline_mapthing_angle_quantize_vectors()
+    {
+        assert_eq!(mapthing_angle_quantize(0), 0);
+        assert_eq!(mapthing_angle_quantize(45), ANG45);
+        assert_eq!(mapthing_angle_quantize(90), ANG45 * 2);
+        assert_eq!(mapthing_angle_quantize(135), ANG45 * 3);
+        assert_eq!(mapthing_angle_quantize(180), ANG45 * 4);
+        assert_eq!(mapthing_angle_quantize(225), ANG45 * 5);
+        assert_eq!(mapthing_angle_quantize(270), ANG45 * 6);
+        assert_eq!(mapthing_angle_quantize(315), ANG45 * 7);
+        // 360 degrees == one full turn: the multiply wraps the u32.
+        assert_eq!(mapthing_angle_quantize(360), 0);
+        // Negative mapthing angle (never produced by WAD data): pins
+        // the sign-extend-then-unsigned-divide the shipped body uses.
+        assert_eq!(mapthing_angle_quantize((-45i16) as u32), 0x8000_0000);
+    }
+
+    /// Baseline transcription of the item-respawn ring step, verbatim
+    /// from `P_RemoveMobj` (`p_mobj.rs:589`, `:591`) and
+    /// `P_RespawnSpecials` (`p_mobj.rs:647`):
+    /// `(i + 1) & (ITEMQUESIZE as c_int - 1)`.
+    fn respawn_queue_step(index: c_int) -> c_int
+    {
+        (index + 1) & (ITEMQUESIZE as c_int - 1)
+    }
+
+    /// Baseline vectors: the ring walks 0, 1, ..., 127 and wraps
+    /// 127 -> 0 (`ITEMQUESIZE` = 128). The wrap IS the deathmatch
+    /// item-respawn demo surface -- head chases tail around the ring.
+    #[test]
+    fn baseline_respawn_queue_step_wraps_at_127()
+    {
+        assert_eq!(ITEMQUESIZE, 128);
+        assert_eq!(respawn_queue_step(0), 1);
+        assert_eq!(respawn_queue_step(1), 2);
+        assert_eq!(respawn_queue_step(63), 64);
+        assert_eq!(respawn_queue_step(126), 127);
+        // The wrap the report names: the last slot steps back to 0.
+        assert_eq!(respawn_queue_step(127), 0);
+    }
+
+    /// Baseline transcription of the THINGS-lump skill filter bit
+    /// ladder, verbatim from `P_SpawnMapThing` (`p_mobj.rs:779-787`).
+    /// The body reads the `gameskill` global; the transcription takes
+    /// it as a parameter (`skill_level` -- the static is glob-imported
+    /// into this test module, so the parameter must not shadow it).
+    fn spawn_skill_bit(skill_level: c_int) -> c_int
+    {
+        if skill_level == 0
+        {
+            // sk_baby
+            1
+        }
+        else if skill_level == 4
+        {
+            // sk_nightmare
+            4
+        }
+        else
+        {
+            1 << (skill_level - 1)
+        }
+    }
+
+    /// Baseline vectors: skills 0..=4 select skill bits 1, 1, 2, 4, 4
+    /// -- baby (0) plays the easy-family things, nightmare (4) shares
+    /// the hard bit with skill 3, and the middle rung is `1 <<
+    /// (gameskill - 1)`.
+    #[test]
+    fn baseline_spawn_skill_bit_ladder()
+    {
+        assert_eq!(spawn_skill_bit(0), 1);
+        assert_eq!(spawn_skill_bit(1), 1);
+        assert_eq!(spawn_skill_bit(2), 2);
+        assert_eq!(spawn_skill_bit(3), 4);
+        assert_eq!(spawn_skill_bit(4), 4);
+    }
+
+    /// Baseline transcription of the spawn-tic jitter clamp, verbatim
+    /// from the four in-file sites: `P_ExplodeMissile`
+    /// (`p_mobj.rs:181-184`), `P_SpawnPuff` (`p_mobj.rs:858-861`),
+    /// `P_SpawnBlood` (`p_mobj.rs:881-884`), `P_CheckMissileSpawn`
+    /// (`p_mobj.rs:903-906`): `t -= draw & 3;` floored at 1. The RNG
+    /// draw itself stays at the call site; only the mask-subtract +
+    /// floor pair extracts.
+    fn tics_jitter_clamp(tics: c_int, draw: c_int) -> c_int
+    {
+        let tics = tics - (draw & 3);
+        if tics < 1
+        {
+            1
+        }
+        else
+        {
+            tics
+        }
+    }
+
+    /// Baseline vectors: masked draws 0..=3 subtract from the incoming
+    /// tic count with a floor at 1, and raw byte draws land on the
+    /// `& 3` mask first (so 4 masks to 0, 255 masks to 3). Values at
+    /// or below the floor stay at 1 -- the clamp, not the draw, is the
+    /// pinned half.
+    #[test]
+    fn baseline_tics_jitter_clamp_floors_at_one()
+    {
+        assert_eq!(tics_jitter_clamp(5, 0), 5);
+        assert_eq!(tics_jitter_clamp(5, 1), 4);
+        assert_eq!(tics_jitter_clamp(5, 2), 3);
+        assert_eq!(tics_jitter_clamp(5, 3), 2);
+        assert_eq!(tics_jitter_clamp(4, 3), 1);
+        assert_eq!(tics_jitter_clamp(2, 1), 1);
+        assert_eq!(tics_jitter_clamp(1, 0), 1);
+        assert_eq!(tics_jitter_clamp(1, 3), 1);
+        assert_eq!(tics_jitter_clamp(0, 0), 1);
+        assert_eq!(tics_jitter_clamp(-2, 0), 1);
+        assert_eq!(tics_jitter_clamp(10, 3), 7);
+        // The & 3 mask, not the raw byte, is what subtracts.
+        assert_eq!(tics_jitter_clamp(10, 4), 10);
+        assert_eq!(tics_jitter_clamp(10, 255), 7);
+    }
 }
