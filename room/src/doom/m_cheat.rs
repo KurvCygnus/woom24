@@ -221,7 +221,8 @@ mod tests {
     /// 72 bytes (matches the layout comment on the struct).
     #[test]
     #[cfg(target_pointer_width = "64")]
-    fn struct_size_assertion() {
+    fn struct_size_assertion()
+    {
         assert_eq!(std::mem::size_of::<cheatseq_t>(), 72);
     }
 
@@ -229,7 +230,40 @@ mod tests {
     /// 52 bytes (matches the layout comment on the struct).
     #[test]
     #[cfg(target_pointer_width = "32")]
-    fn struct_size_assertion() {
+    fn struct_size_assertion()
+    {
         assert_eq!(std::mem::size_of::<cheatseq_t>(), 52);
+    }
+
+    /// Vanilla quirk (m_cheat.c:39-43, Rust guard at the
+    /// `parameter_chars > 0` branch): a sequence SHORTER than the
+    /// declared `sequence_len` on a parameter-bearing cheat NEVER
+    /// fires -- the checker bails before matching anything. Upstream
+    /// documents this as intended behaviour, not a bug emulation.
+    /// Baseline vector written pre-move (F10 wave B5).
+    #[test]
+    fn short_sequence_on_parameter_cheat_never_fires()
+    {
+        // Declared length one past the real 5-char sequence: the
+        // guard `seq_len < sequence_len` trips on every keystroke.
+        let mut cheat = make_cheat("IDKFA", 2);
+        cheat.sequence_len = 6;
+        for ch in b"IDKFA"
+        {
+            assert_eq!(cht_CheckCheat(&mut cheat, *ch as c_char), 0);
+        }
+        // Even the trailing parameter characters cannot rescue it.
+        assert_eq!(cht_CheckCheat(&mut cheat, b'0' as c_char), 0);
+        assert_eq!(cht_CheckCheat(&mut cheat, b'1' as c_char), 0);
+
+        // Positive control: declared length EQUAL to the real
+        // sequence fires normally once the parameters are typed.
+        let mut control = make_cheat("IDKFA", 2);
+        for ch in b"IDKFA"
+        {
+            assert_eq!(cht_CheckCheat(&mut control, *ch as c_char), 0);
+        }
+        assert_eq!(cht_CheckCheat(&mut control, b'0' as c_char), 0);
+        assert_eq!(cht_CheckCheat(&mut control, b'1' as c_char), 1);
     }
 }
