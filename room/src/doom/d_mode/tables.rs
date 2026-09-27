@@ -17,8 +17,7 @@ use super::consts::{
 /// number accessible in that combination. [`super::validate::valid_episode_map`]
 /// uses these bounds for range-checking. Corresponds to the anonymous struct
 /// inside the `valid_modes[]` array in `d_mode.c`.
-pub(super) struct ValidMode
-{
+pub(super) struct ValidMode {
     /// `GameMission_t` constant for this entry.
     pub(super) mission: c_int,
     /// `GameMode_t` constant for this entry.
@@ -38,92 +37,79 @@ pub(super) struct ValidMode
 /// indetermined combinations; those return false from the validation
 /// functions.
 pub(super) static VALID_MODES: [ValidMode; 13] = [
-    ValidMode
-    {
+    ValidMode {
         mission: pack_chex,
         mode: shareware,
         episode: 1,
         map: 5,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: doom,
         mode: shareware,
         episode: 1,
         map: 9,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: doom,
         mode: registered,
         episode: 3,
         map: 9,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: doom,
         mode: retail,
         episode: 4,
         map: 9,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: doom2,
         mode: commercial,
         episode: 1,
         map: 32,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: pack_tnt,
         mode: commercial,
         episode: 1,
         map: 32,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: pack_plut,
         mode: commercial,
         episode: 1,
         map: 32,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: pack_hacx,
         mode: commercial,
         episode: 1,
         map: 32,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: heretic,
         mode: shareware,
         episode: 1,
         map: 9,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: heretic,
         mode: registered,
         episode: 3,
         map: 9,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: heretic,
         mode: retail,
         episode: 5,
         map: 9,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: hexen,
         mode: commercial,
         episode: 1,
         map: 60,
     },
-    ValidMode
-    {
+    ValidMode {
         mission: strife,
         mode: commercial,
         episode: 1,
@@ -136,8 +122,7 @@ pub(super) static VALID_MODES: [ValidMode; 13] = [
 /// Each entry in [`VALID_VERSIONS`] asserts that a given `GameVersion_t` is
 /// legal for a given `GameMission_t`. Corresponds to the anonymous struct
 /// inside `valid_versions[]` in `d_mode.c`.
-pub(super) struct ValidVersion
-{
+pub(super) struct ValidVersion {
     /// `GameMission_t` constant for this entry.
     pub(super) mission: c_int,
     /// `GameVersion_t` constant for this entry.
@@ -151,53 +136,43 @@ pub(super) struct ValidVersion
 /// to `doom` before the lookup, so only `doom` entries need to appear here for
 /// those games. Corresponds to `valid_versions[]` in `d_mode.c`.
 pub(super) static VALID_VERSIONS: [ValidVersion; 10] = [
-    ValidVersion
-    {
+    ValidVersion {
         mission: doom,
         version: exe_doom_1_9,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: doom,
         version: exe_hacx,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: doom,
         version: exe_ultimate,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: doom,
         version: exe_final,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: doom,
         version: exe_final2,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: doom,
         version: exe_chex,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: heretic,
         version: exe_heretic_1_3,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: hexen,
         version: exe_hexen_1_1,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: strife,
         version: exe_strife_1_2,
     },
-    ValidVersion
-    {
+    ValidVersion {
         mission: strife,
         version: exe_strife_1_31,
     },
