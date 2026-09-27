@@ -364,7 +364,7 @@ pub extern "C" fn load_things(lump: c_int)
 /// `maplinedef_t`. Notable steps per linedef:
 /// - Vertex pointers are resolved from indices into `vertexes`.
 /// - `dx` and `dy` are computed from the vertex coordinates (fixed-point).
-/// - `slopetype` is set by [`super::dtmc::slopetype_of`] (`ST_VERTICAL`,
+/// - `slopetype` is set by `dtmc::slopetype_of` (`ST_VERTICAL`,
 ///   `ST_HORIZONTAL`, `ST_POSITIVE`, or `ST_NEGATIVE`).
 /// - The linedef's axis-aligned bounding box (`bbox[4]`) is computed from the
 ///   two vertex coordinates.
