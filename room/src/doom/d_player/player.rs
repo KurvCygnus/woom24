@@ -1,28 +1,19 @@
-//! Mirror of `d_player.h` types for FFI with remaining C code.
-//!
-//! Provides `PlayerT`, `TiccmdT`, `PspdefT` and the C globals `players` / `consoleplayer`.
-//! Also implements `M_Menu_SetPlayerMessage` (previously in `m_menu_shim.c`).
-//!
-//! In the original C code `player_t`, `ticcmd_t`, and `pspdef_t` are spread
-//! across `d_player.h`, `d_ticcmd.h`, and `p_pspr.h`.  They are collected
-//! here for convenience because they form a tight cluster needed for FFI.
-//!
-//! Rust differences from C:
-//! - Boolean fields (`cards`, `backpack`, `weaponowned`, `didsecret`) that are
-//!   `boolean` in C are stored as `c_int` here to keep the struct layout
-//!   identical to the C ABI on x86-64 Linux (where `boolean = unsigned int =
-//!   4 bytes`).  Using a Rust `bool` would break layout because `bool` is 1
-//!   byte.
-//! - `TiccmdT` adds an explicit `_pad: [u8; 2]` after `arti` to match the
-//!   C compiler's padding and reach the expected struct size.
-//! - Opaque C types `mobj_t` and `state_t` are represented as empty enums,
-//!   which is the idiomatic Rust way to express "pointer-only, never
-//!   constructed" foreign types.
+//! The player vocabulary: `PlayerT` (the `player_t` FFI mirror), the
+//! opaque `mobj_t` / `state_t` handles, the size constants, and the
+//! cheat flags. The 328-byte `PlayerT` layout IS the savegame record
+//! layout and the F9 `FinalState` capture surface -- the compile-time
+//! layout guards below are load-bearing; never "modernize" the `c_int`
+//! boolean fields (`bool` is 1 byte and would break the C ABI).
 
-#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
+// The opaque C handles are lowercase (`mobj_t`, `state_t`); names are
+// verbatim upstream data, so the type-name lint is silenced file-wide.
+#![allow(non_camel_case_types)]
 
 use std::ffi::c_char;
 use std::os::raw::c_int;
+
+use super::pspr::PspdefT;
+use super::ticcmd::TiccmdT;
 
 /// Number of power-up slots in `PlayerT::powers`.  Matches `NUMPOWERS` in `doomdef.h`.
 pub const NUMPOWERS: usize = 6;
@@ -65,72 +56,6 @@ pub enum mobj_t {}
 /// represented as an empty enum so only pointers to it are valid at the
 /// Rust call sites.
 pub enum state_t {}
-
-/// Per-tic command packet: the inputs sampled from one player for one game tic.
-///
-/// Corresponds to `ticcmd_t` in `d_ticcmd.h`.  One `TiccmdT` is built each
-/// tic by `G_BuildTiccmd` and stored in `PlayerT::cmd`.  In a network game,
-/// these packets are also transmitted to peers so every machine runs the same
-/// simulation.
-///
-/// Field semantics (from `d_ticcmd.h`):
-/// - `forwardmove`: signed forward/back movement, scaled by 2048 inside the sim.
-/// - `sidemove`: signed strafe movement, scaled by 2048.
-/// - `angleturn`: signed yaw delta, shifted left by 16 when applied.
-/// - `chatchar`: character typed for chat, or 0.
-/// - `buttons`: bitfield of `BT_*` action flags (fire, use, weapon change).
-/// - `consistancy`: checksum byte used in network games to detect desync.
-/// - `buttons2`: Strife-specific secondary button bitfield (`BT2_*`).
-/// - `inventory`: Strife-specific inventory item index.
-/// - `lookfly`: Heretic/Hexen look-up/down/center.
-/// - `arti`: Heretic/Hexen artifact type to use.
-///
-/// The two padding bytes after `arti` are not present in the C struct but are
-/// required here to reach the ABI size on x86-64 Linux.
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct TiccmdT {
-    /// Signed forward/backward movement unit; multiply by 2048 to get fixed-point speed.
-    pub forwardmove: i8,
-    /// Signed strafe movement unit; multiply by 2048 to get fixed-point speed.
-    pub sidemove: i8,
-    /// Signed yaw turn delta; shift left 16 to get a `angle_t` increment.
-    pub angleturn: i16,
-    /// Chat character typed this tic, or 0 if none.
-    pub chatchar: u8,
-    /// `BT_*` button bitfield for fire, use, weapon-change, and special actions.
-    pub buttons: u8,
-    /// Network consistency check byte; compared across peers to detect desyncs.
-    pub consistancy: u8,
-    /// Strife-specific `BT2_*` secondary button bitfield (look, jump, inventory).
-    pub buttons2: u8,
-    /// Strife-specific inventory item index to use this tic.
-    pub inventory: c_int,
-    /// Heretic/Hexen look-up/down/center command byte.
-    pub lookfly: u8,
-    /// Heretic/Hexen artifact (`artitype_t`) to activate this tic.
-    pub arti: u8,
-    /// Explicit padding to match C ABI struct size on x86-64 Linux.
-    _pad: [u8; 2],
-}
-
-/// Player-sprite definition: the on-screen weapon/hand overlay animation state.
-///
-/// Corresponds to `pspdef_t` in `p_pspr.h`.  Each player has
-/// [`NUMPSPRITES`] slots (typically `ps_weapon` and `ps_flash`), stored in
-/// `PlayerT::psprites`.
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-pub struct PspdefT {
-    /// Pointer to the current animation state for this sprite overlay.
-    pub state: *mut state_t,
-    /// Remaining tics in the current animation state; 0 means advance to next.
-    pub tics: c_int,
-    /// Screen-space X position of the sprite, in fixed-point pixels.
-    pub sx: c_int,
-    /// Screen-space Y position of the sprite, in fixed-point pixels.
-    pub sy: c_int,
-}
 
 /// Complete per-player state, updated every tic by the game logic.
 ///
@@ -217,42 +142,15 @@ pub struct PlayerT {
     pub didsecret: c_int,
 }
 
-extern "C" {
-    /// Global array of player state structs; defined in C (`g_game.c`).
-    ///
-    /// Index 0 is the local player when `consoleplayer == 0`.  Slots
-    /// `[1..MAXPLAYERS-1]` are used in network games.
-    pub static mut players: [PlayerT; MAXPLAYERS];
-
-    /// Index into `players` for the player whose view is shown on the local screen.
-    ///
-    /// Defined in C (`g_game.c`).  Always 0 for single-player games; may differ
-    /// in split-screen or network configurations.
-    pub static mut consoleplayer: c_int;
-}
-
-/// Set the HUD hint message for the console player.
-///
-/// This function replaces the tiny `m_menu_shim.c` that previously bridged
-/// the C `M_Menu` code to the player struct.  It writes `msg` into
-/// `players[consoleplayer].message` so the HUD renderer can display it.
-///
-/// Called from C (`m_menu.c`) when a menu action produces a status message
-/// (e.g., "Gamma correction OFF").
-///
-/// # Safety
-/// - `msg` must be a valid pointer to a NUL-terminated C string that remains
-///   valid at least until the next game tic clears the message field.
-/// - `consoleplayer` must be in the range `[0, MAXPLAYERS)` before this
-///   function is called (guaranteed by the engine's startup sequence).
-#[no_mangle]
-pub unsafe extern "C" fn M_Menu_SetPlayerMessage(msg: *const c_char) {
-    (*std::ptr::addr_of_mut!(players[0]).offset(consoleplayer as isize)).message =
-        msg as *mut c_char;
-}
-
+/// The in-module layout guards (pre-move `d_player.rs:254-285`):
+/// the expected `player_t` values as emitted by `layout_probe.c` on
+/// x86_64 Linux, cross-checked C-side by `c_tests/struct_layouts.rs`
+/// via `test_helpers.c`. These are the F10 §2.3 baseline for this
+/// module -- they moved with the type unchanged and rerun after the
+/// move, same vectors.
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
 
     /// Expected layout of `player_t` as emitted by layout_probe.c
@@ -262,7 +160,8 @@ mod tests {
     const PLAYER_T_MESSAGE_OFFSET: usize = 232;
 
     #[test]
-    fn player_t_size_matches_c() {
+    fn player_t_size_matches_c()
+    {
         assert_eq!(
             std::mem::size_of::<PlayerT>(),
             PLAYER_T_SIZEOF,
@@ -273,7 +172,8 @@ mod tests {
     }
 
     #[test]
-    fn player_t_message_offset_matches_c() {
+    fn player_t_message_offset_matches_c()
+    {
         assert_eq!(
             std::mem::offset_of!(PlayerT, message),
             PLAYER_T_MESSAGE_OFFSET,
