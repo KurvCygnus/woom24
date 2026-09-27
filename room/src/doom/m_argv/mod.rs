@@ -31,7 +31,7 @@
 //!
 //! | Original (C) | New location | Surface | Notes |
 //! |--------------|--------------|---------|-------|
-//! | `M_CheckParmWithArgs` | `lookup::check_parm_with_args` | glue | shim + `#[export_name = "M_CheckParmWithArgs"]` pin (declared extern by `d_iwad.rs`); case-insensitive scan with the `i < myargc - num_args` window; pinned by the baseline tests; upstream `vendor/doomgeneric/m_argv.c:43` |
+//! | `M_CheckParmWithArgs` | `lookup::check_parm_with_args` | glue | shim + `#[export_name = "M_CheckParmWithArgs"]` pin (declared extern by the `d_iwad` module root, carried verbatim at `d_iwad/mod.rs`); case-insensitive scan with the `i < myargc - num_args` window; pinned by the baseline tests; upstream `vendor/doomgeneric/m_argv.c:43` |
 //! | `M_ParmExists` | `lookup::parm_exists` | glue | shim; sole live consumer paths: `i_system.rs` (`I_Error`'s `-nogui` scan -- keep allocation-free) and `statdump/capture.rs`; upstream `m_argv.c:63` |
 //! | `M_CheckParm` | `lookup::check_parm` | glue | shim + `#[export_name = "M_CheckParm"]` pin -- a FIFTH pin beyond the report's four-pin list: `d_net.rs:184` declares it extern and `D_ConnectNetGame` (every boot) links it by symbol; the report's declarer sweep missed it, surfaced by the `struct_sizes` bin link, and the AGENTS.md declarer rule forced the pin (disclosed deviation); upstream `m_argv.c:68` |
 //! | `LoadResponseFile` (file-static) | `response::load_response_file` | glue | private; upstream kept it file-static too, so doc alias only (no shim); whitespace/quoted-string tokenising with `I_Error` on missing file / unclosed quotes; upstream `m_argv.c:75` |

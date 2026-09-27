@@ -2,9 +2,10 @@
 //! submodules serve from.
 //!
 //! The statics keep their upstream names and `#[no_mangle]` linkage
-//! (functions-only ruling): `doomgeneric.rs` and `d_iwad.rs` declare
-//! them in legacy `extern "C"` blocks and `doomgeneric_Create` writes
-//! them BY SYMBOL before `D_DoomMain` runs. The web shell's
+//! (functions-only ruling): `doomgeneric.rs` and the `d_iwad` module
+//! root (its verbatim extern block) declare them in legacy `extern "C"`
+//! blocks and `doomgeneric_Create` writes them BY SYMBOL before
+//! `D_DoomMain` runs. The web shell's
 //! argv-anchor contract additionally requires the `myargv` array to
 //! survive for the process lifetime (`shells/web/src/init_pipeline.rs`).
 
