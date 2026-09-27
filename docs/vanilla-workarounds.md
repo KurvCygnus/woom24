@@ -33,14 +33,14 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 
 | # | Item | Vanilla root cause (one-liner) | Status | Where (file:function) |
 |---|------|-------------------------------|--------|-----------------------|
-| 1 | spechit array overrun | `PIT_CheckLine` stores crossed special lines into a fixed `spechit[]` past its 8-slot vanilla bound; the stores trample DOS `.bss` neighbors (`tmbbox`, `crushchange`, `nofit`) | complete | `room/src/doom/p_map/move.rs:pit_check_line` / `p_map/spechit.rs:spechit_overrun`; drains in `p_map/move.rs:try_move` (`P_TryMove`), `p_enemy.rs:P_Move` |
+| 1 | spechit array overrun | `PIT_CheckLine` stores crossed special lines into a fixed `spechit[]` past its 8-slot vanilla bound; the stores trample DOS `.bss` neighbors (`tmbbox`, `crushchange`, `nofit`) | complete | `room/src/doom/p_map/move.rs:pit_check_line` / `p_map/spechit.rs:spechit_overrun`; drains in `p_map/move.rs:try_move` (`P_TryMove`), `p_enemy/chase.rs:move_step` |
 | 2 | intercepts array overrun | `P_PathTraverse` stores ray/line and ray/thing hits into `intercepts[]` past 128 entries; stores land on `lowfloor`, `bmapwidth`, `playerstarts`, ... | complete | `room/src/doom/p_maputl/intercepts.rs:InterceptsOverrun` |
 | 3 | donut NULL-backsector read | `EV_DoDonut` dereferences a null `s3` sector on malformed maps; vanilla reads DOS address `0000:0000`-adjacent memory | complete | `room/src/doom/p_spec/donut.rs:donut_overrun` |
 | 4 | REJECT undersized-lump read | `P_LoadReject` reads a REJECT lump shorter than `ceil(numsectors^2/8)` bytes; the tail falls into the `Z_Malloc` zone block header | complete | `room/src/doom/p_setup.rs:PadRejectArray` |
 | 5 | missed-backside null sector | segs of two-sided lines with a missing back sidedef get `backsector = NULL`-adjacent DOS memory; vanilla reads address 0 | complete | `room/src/doom/p_setup.rs:GetSectorAtNullAddress` |
 | 6 | teleport-fog signed-angle overrun | `G_CheckSpot` computes `an = (ANG45 * angle/45) >> 19` with a signed shift in the DOS binary; out-of-range indices read `finetangent[]` instead of the sine/cosine tables | complete | `room/src/doom/g_game.rs:G_CheckSpot` / `TeleportFogAngleOverrun` |
 | 7 | episode-4 par-time off-by-one | `G_DoCompleted` reads `cpars[gamemap]` (not `[gamemap-1]`) for Doom 1 episode 4 -- an accidental adjacent-array read that statcheck depends on | complete | `room/src/doom/g_game.rs:G_DoCompleted` |
-| 8 | Archvile fire spawn coordinates | `A_VileTarget` passes `target->x` for both X and Y of `P_SpawnMobj` (vanilla typo) | complete | `room/src/doom/p_enemy.rs:A_VileTarget` |
+| 8 | Archvile fire spawn coordinates | `A_VileTarget` passes `target->x` for both X and Y of `P_SpawnMobj` (vanilla typo) | complete | `room/src/doom/p_enemy/vile_fire.rs:action_vile_target` |
 | 9 | commercial map33 par-time read | `G_DoCompleted` reads one `int` past `cpars[31]` for a map 33 exit; the read lands in the first four bytes of the adjacent `GAMMALVL0` rodata string | complete | `room/src/doom/g_game.rs:G_DoCompleted` / `ParTimeOverrun` |
 | 10 | playeringame[-1] overrun | `P_SpawnPlayer` gates the spawn on `playeringame[mthing->type - 1]`; a type-0 mapthing makes the index `-1`, which aliases `players[3].didsecret` in the DOS `.bss` | complete | `room/src/doom/p_mobj/mapthings.rs:spawn_player` / `PlayeringameOverrun` |
 | 11 | door/plat `specialdata` aliasing | `EV_VerticalDoor` discriminates the thinker in an aliased `sector->specialdata` slot by `acp1` function-pointer compare and, for a plat, writes `plat->wait` through a `vldoor_t*` cast (the "When is a door not a door?" quirk) | complete | `room/src/doom/p_doors/events.rs:EV_VerticalDoor` |
@@ -94,9 +94,10 @@ if numspechit > MAXSPECIALCROSS_ORIGINAL
 }
 ```
 
-- `p_map/move.rs:574-577` in `try_move` (`P_TryMove`) and `p_enemy.rs:428-430`
-  in `P_Move` (bounded drain reads; both loops decrement `numspechit` first
-  and must skip indices the guarded push never stored):
+- `p_map/move.rs:574-577` in `try_move` (`P_TryMove`) and
+  `p_enemy/chase.rs:276-279` in `move_step` (`P_Move`; bounded drain
+  reads; both loops decrement `numspechit` first and must skip indices
+  the guarded push never stored):
 
 ```rust
 if numspechit as usize >= MAXSPECIALCROSS
@@ -534,7 +535,8 @@ Archvile attack's observable behavior) differs from the "obviously intended"
 
 ### Where we emulate it
 
-`room/src/doom/p_enemy.rs:1492-1497` in `A_VileTarget`:
+`room/src/doom/p_enemy/vile_fire.rs:125-131` in `action_vile_target`
+(`A_VileTarget`):
 
 ```rust
 let fog: *mut mobj_t = P_SpawnMobj(
@@ -545,7 +547,7 @@ let fog: *mut mobj_t = P_SpawnMobj(
 );
 ```
 
-with the `//!`-style note at `p_enemy.rs:1490-1491` marking it as a faithful
+with the `//!`-style note at `vile_fire.rs:123-124` marking it as a faithful
 vanilla-bug reproduction.
 
 ### Semantics
@@ -762,7 +764,7 @@ only):
 | `spechit[20]` push (`p_map/move.rs:264`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
 | `heightlist[20]` stores (`p_spec/geometry.rs:277-287`) | vanilla adjoining-sector overrun, catalog entry 13: writes at `h == 20`/`h == 21` are in-bounds of the `MAX+2` window, the `h == MAX+1` arm's write lands on `height` (emulated verbatim), and `h == MAX+2` is chocolate's `I_Error`; 20/21/22-boundary baseline-pinned in `geometry::tests` |
 | `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
-| `braintargets[32]` store (`p_enemy.rs:2093`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
+| `braintargets[32]` store (`p_enemy/brain.rs:71`, `action_brain_awake`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
 | `playerstarts[4]` (`p_mobj/mapthings.rs:204-213`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
 | `deathmatchstarts[10]` (`p_mobj/mapthings.rs:190-197`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
 | `bodyque[32]` (`g_game.rs:1772-1777`) | bounded (`% 32` on both read and write) |
@@ -1017,9 +1019,11 @@ pinned as `P_SubstNullMobj`): null in -> pointer to a function-local
 `static mut DUMMY_MOBJ` whose `x`/`y`/`z`/`flags` fields are re-zeroed
 on every substitution (the exact four fields upstream writes),
 non-null in -> the pointer passes through unchanged. The call sites
-are the upstream set, unchanged by the p_mobj graduation:
+are the upstream set, unchanged by the p_mobj graduation and re-homed
+by the p_enemy graduation:
 `A_Fire`/`A_FatAttack1`/`A_FatAttack2`/`A_FatAttack3`/`A_SpawnFly`
-(`room/src/doom/p_enemy.rs:1460`, `:1559`, `:1585`, `:1616`, `:2234`)
+(`room/src/doom/p_enemy/vile_fire.rs:88`,
+`p_enemy/mancubus.rs:48`, `:77`, `:111`, `p_enemy/brain.rs:243`)
 and `P_LineAttack`'s `t1` substitution
 (`room/src/doom/p_map/attack.rs:394`).
 
@@ -1200,7 +1204,7 @@ of them and no guard was stripped. Per-guard rationale:
   host-lifecycle platform work; the `ticdup == 0` it fences comes from
   pre-init zeroing, not from any remaining OOB writer.
 - Guarded spechit store + bounded drains (`p_map/move.rs:262-270`, `:574-577`,
-  `p_enemy.rs:428-430`) -- KEEP: they are entry 1's emulation surface itself;
+  `p_enemy/chase.rs:276-279`) -- KEEP: they are entry 1's emulation surface itself;
   stripping them would reintroduce the G2 silent trampler.
 
 ## Out of scope
