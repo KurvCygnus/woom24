@@ -1637,4 +1637,150 @@ mod tests {
         assert_eq!(correct, 22);
         assert_eq!(buggy, 11);
     }
+
+    // =========================================================================
+    // F10 wave B4a dtmc baseline vectors (pre-move; F10 spec §2.3)
+    // =========================================================================
+
+    //* The three computations the B4a graduation extracts (`slopetype_of`,
+    //* `reject_pad_words`, `clamp_block`) live in the bodies above today.
+    //* Per F10 §2.3 the baseline vectors land BEFORE the move: each test
+    //* carries a test-local transcription whose doc comment names the body
+    //* lines it mirrors verbatim, and the graduation commit retargets the
+    //* SAME vectors onto the extracted `p_setup/dtmc.rs` functions -- same
+    //* vectors, same results. The fourth extraction,
+    //* `is_noncommercial_thing`, is already baselined by the
+    //* `count_spawnable_things` mirror tests above. Whole-body setup runs
+    //* need a booted level, so the F9 demo goldens remain the whole-body
+    //* oracle; these pins fix the exact integer semantics the extraction
+    //* must preserve.
+
+    /// Baseline transcription of the `P_LoadLineDefs` slopetype ladder
+    /// (`p_setup.rs:797-807`), verbatim. `dx == 0` tests first, so the
+    /// `(0, 0)` degenerate classifies as `ST_VERTICAL` -- the ladder-order
+    /// pin.
+    fn slopetype_ladder(dx: c_int, dy: c_int) -> c_int
+    {
+        if dx == 0
+        {
+            ST_VERTICAL
+        }
+        else if dy == 0
+        {
+            ST_HORIZONTAL
+        }
+        else if FixedDiv(dy, dx) > 0
+        {
+            ST_POSITIVE
+        }
+        else
+        {
+            ST_NEGATIVE
+        }
+    }
+
+    /// Baseline vectors: both axis rails, both same-sign and mixed-sign
+    /// diagonals, and the `(0, 0)` degenerate that pins the dx-first
+    /// ladder order. This port's `FixedDiv` saturates on overflow instead
+    /// of aborting (m_fixed graduation note), so no input is forbidden
+    /// here beyond a zero `dx` -- which the ladder never reaches
+    /// `FixedDiv` with.
+    #[test]
+    fn baseline_slopetype_ladder()
+    {
+        assert_eq!(slopetype_ladder(0, 7), ST_VERTICAL);
+        assert_eq!(slopetype_ladder(0, -7), ST_VERTICAL);
+        assert_eq!(slopetype_ladder(0, 0), ST_VERTICAL);
+        assert_eq!(slopetype_ladder(7, 0), ST_HORIZONTAL);
+        assert_eq!(slopetype_ladder(-7, 0), ST_HORIZONTAL);
+        assert_eq!(slopetype_ladder(7, 7), ST_POSITIVE);
+        assert_eq!(slopetype_ladder(-7, -7), ST_POSITIVE);
+        assert_eq!(slopetype_ladder(7, -7), ST_NEGATIVE);
+        assert_eq!(slopetype_ladder(-7, 7), ST_NEGATIVE);
+    }
+
+    /// Baseline transcription of the `PadRejectArray` zone-header
+    /// initializer (`p_setup.rs:1133`), verbatim -- the vanilla
+    /// workaround row-4 formula: block size from `totallines` rounded up
+    /// to a 4-byte boundary plus the 24-byte header, user word `0`,
+    /// `PU_LEVEL` tag `50`, zone id `0x1d4a11`.
+    fn rejectpad_words(total_lines: c_int) -> [u32; 4]
+    {
+        [((total_lines * 4 + 3) & !3) as u32 + 24, 0, 50, 0x1d4a11]
+    }
+
+    /// Baseline vectors: zero lines (no rounding), one line (the `& !3`
+    /// rounding edge: `7 & !3 == 4`), the report's seven-line vector
+    /// (`31 & !3 == 28`), and an exact multiple (`32`, no rounding).
+    #[test]
+    fn baseline_reject_pad_words()
+    {
+        assert_eq!(rejectpad_words(0), [24, 0, 50, 0x1d4a11]);
+        assert_eq!(rejectpad_words(1), [28, 0, 50, 0x1d4a11]);
+        assert_eq!(rejectpad_words(7), [52, 0, 50, 0x1d4a11]);
+        assert_eq!(rejectpad_words(8), [56, 0, 50, 0x1d4a11]);
+    }
+
+    /// Baseline transcription of the `P_GroupLines` blockmap clamp
+    /// ladders (`p_setup.rs:1073-1095`), verbatim: TOP/RIGHT clamp HIGH
+    /// against the grid extent, BOTTOM/LEFT clamp LOW at zero. The
+    /// asymmetry is vanilla shape and is pinned separately -- never merge
+    /// the two ladders into one range clamp.
+    fn blockbox_high_clamp(v: c_int, org: c_int, max: c_int) -> c_int
+    {
+        let mut block = (v - org + MAXRADIUS) >> MAPBLOCKSHIFT;
+        block = if block >= max
+        {
+            max - 1
+        }
+        else
+        {
+            block
+        };
+        block
+    }
+
+    /// Baseline transcription of the BOTTOM/LEFT ladder, verbatim (the
+    /// `- MAXRADIUS` low side, clamped at zero, unbounded high).
+    fn blockbox_low_clamp(v: c_int, org: c_int) -> c_int
+    {
+        let block = (v - org - MAXRADIUS) >> MAPBLOCKSHIFT;
+        if block < 0
+        {
+            0
+        }
+        else
+        {
+            block
+        }
+    }
+
+    /// Baseline vectors over both ladder shapes: clamp-high, clamp-low,
+    /// in-range, a one-cell-up origin, and a sub-cell input where the
+    /// `+/- MAXRADIUS` term visibly bumps the quotient (`MAXRADIUS` is
+    /// `2 << (MAPBLOCKSHIFT - 2)`, i.e. a quarter cell, so a value in the
+    /// top quarter cell rounds up through the high ladder only). The
+    /// final pair feeds the SAME `v` through both ladders and pins the
+    /// one-cell divergence the `+/- MAXRADIUS` asymmetry produces.
+    #[test]
+    fn baseline_blockbox_clamp_ladders()
+    {
+        // clamp-high: raw 3 >= max 3 -> 2.
+        assert_eq!(blockbox_high_clamp(4 << 23, 1 << 23, 3), 2);
+        // in-range, nonzero origin: raw 2 stays 2.
+        assert_eq!(blockbox_high_clamp(3 << 23, 1 << 23, 16), 2);
+        // + MAXRADIUS bumps the quotient: 3 << 21 is exactly three
+        // quarters of a cell, so the high ladder rounds up to 1.
+        assert_eq!(blockbox_high_clamp(3 << 21, 0, 16), 1);
+        // clamp-low: raw -1 -> 0.
+        assert_eq!(blockbox_low_clamp(1 << 23, 1 << 23), 0);
+        // in-range low side: raw 2 stays 2.
+        assert_eq!(blockbox_low_clamp(4 << 23, 1 << 23), 2);
+        // - MAXRADIUS keeps the quotient down: the same `3 << 21` input
+        // lands at 0 through the low ladder (no bump, no clamp).
+        assert_eq!(blockbox_low_clamp(3 << 21, 0), 0);
+        // Same `v` through both ladders diverges by one full cell.
+        assert_eq!(blockbox_high_clamp(1 << 24, 0, 16), 2);
+        assert_eq!(blockbox_low_clamp(1 << 24, 0), 1);
+    }
 }
