@@ -4,7 +4,7 @@
 //! application with armor absorption and knockback (`P_DamageMobj`),
 //! over the ammo tables and the runtime DEHacked-tunable globals --
 //! bit-exact with `vendor/doomgeneric/p_inter.c`.
-
+//!
 //! ## Submodule Responsibility
 //!
 //! - `consts.rs` -- the numeric constants (`BONUSADD`, skill/power/
