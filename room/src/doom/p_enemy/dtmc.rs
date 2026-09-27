@@ -16,7 +16,7 @@ use super::consts::mobjtype_t;
 /// The pure weighted monster table of `A_SpawnFly`, extracted verbatim
 /// from the if-else chain that consumed the drawn byte (`r`, one
 /// `P_Random()` draw kept at the call site). Imp band 50/256 through
-/// the Baron of Hell top band; the eleven thresholds tile `0..=256`
+/// the Baron of Hell top band; the eleven thresholds tile `0..=255`
 /// exactly, so the drawn byte determines the spawned monster type
 /// one-to-one. This pick is demo-observable on every Icon of Sin
 /// arrival: the same byte must always select the same monster.

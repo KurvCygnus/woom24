@@ -535,7 +535,7 @@ Archvile attack's observable behavior) differs from the "obviously intended"
 
 ### Where we emulate it
 
-`room/src/doom/p_enemy/vile_fire.rs:125-131` in `action_vile_target`
+`room/src/doom/p_enemy/vile_fire.rs:124-129` in `action_vile_target`
 (`A_VileTarget`):
 
 ```rust
@@ -547,7 +547,7 @@ let fog: *mut mobj_t = P_SpawnMobj(
 );
 ```
 
-with the `//!`-style note at `vile_fire.rs:123-124` marking it as a faithful
+with the `//!`-style note at `vile_fire.rs:122-123` marking it as a faithful
 vanilla-bug reproduction.
 
 ### Semantics

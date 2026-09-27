@@ -113,6 +113,7 @@
 //! | `P_TryWalk` | `chase::try_walk` | dtmc (whole-body) | move-step success then `movecount = P_Random() & 15` (the per-walk RNG-init other AI reads); shim + pin; upstream `p_enemy.c:337` |
 //! | `P_NewChaseDir` | `chase::new_chase_dir` | dtmc (whole-body) | swap coin `P_Random() > 200`, sweep coin `P_Random() & 1`, try-walk attempt order; shim + pin; upstream `p_enemy.c:351` |
 //! | `P_LookForPlayers` | `chase::look_for_players` | dtmc (whole-body) | `lastlook & 3` cycle + two-player cap + 90-degree cone; shim + pin; upstream `p_enemy.c:486-487` |
+//! | `A_KeenDie` | `map_events::action_keen_die` | dtmc (whole-body) | corpse de-solidify via `A_Fall`-equivalent, then a thinkercap scan: when the last Keen of the type is gone it synthesises a `tag = 666` line and opens it through `EV_DoDoor` (`vld_open`); shim + pin; upstream `p_enemy.c:551` |
 //! | `A_Look` | `chase::action_look` | dtmc (whole-body) | seesound variant draws `P_Random() % 3` / `% 2` ordered before the seestate transition; pin LOAD-BEARING (info.rs extern); upstream `p_enemy.c:589` |
 //! | `A_Chase` | `chase::action_chase` | dtmc (whole-body) | the per-tic chase ladder (reactiontime/threshold/angle-snap/attack gates/movecount); pin LOAD-BEARING; upstream `p_enemy.c:657` |
 //! | `A_FaceTarget` | `attacks::action_face_target` | dtmc (whole-body) | shadow jitter `(P_Random() - P_Random()) << 21`; the shared first step of every attack; pin LOAD-BEARING; upstream `p_enemy.c:767` |
@@ -244,9 +245,9 @@ pub mod vile_fire;
 //* the name = symbol = pin conservatism rule. Shims die with the
 //* freeze zone.
 pub use chase::{
-    check_melee_range as P_CheckMeleeRange, check_missile_range as P_CheckMissileRange,
-    look_for_players as P_LookForPlayers, move_step as P_Move, new_chase_dir as P_NewChaseDir,
-    try_walk as P_TryWalk,
+    action_chase as A_Chase, action_look as A_Look, check_melee_range as P_CheckMeleeRange,
+    check_missile_range as P_CheckMissileRange, look_for_players as P_LookForPlayers,
+    move_step as P_Move, new_chase_dir as P_NewChaseDir, try_walk as P_TryWalk,
 };
 pub use noise::{noise_alert as P_NoiseAlert, recursive_sound as P_RecursiveSound};
 
