@@ -42,8 +42,9 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | 7 | episode-4 par-time off-by-one | `G_DoCompleted` reads `cpars[gamemap]` (not `[gamemap-1]`) for Doom 1 episode 4 -- an accidental adjacent-array read that statcheck depends on | complete | `room/src/doom/g_game.rs:G_DoCompleted` |
 | 8 | Archvile fire spawn coordinates | `A_VileTarget` passes `target->x` for both X and Y of `P_SpawnMobj` (vanilla typo) | complete | `room/src/doom/p_enemy.rs:A_VileTarget` |
 | 9 | commercial map33 par-time read | `G_DoCompleted` reads one `int` past `cpars[31]` for a map 33 exit; the read lands in the first four bytes of the adjacent `GAMMALVL0` rodata string | complete | `room/src/doom/g_game.rs:G_DoCompleted` / `ParTimeOverrun` |
-| 10 | playeringame[-1] overrun | `P_SpawnPlayer` gates the spawn on `playeringame[mthing->type - 1]`; a type-0 mapthing makes the index `-1`, which aliases `players[3].didsecret` in the DOS `.bss` | complete | `room/src/doom/p_mobj.rs:P_SpawnPlayer` / `PlayeringameOverrun` |
+| 10 | playeringame[-1] overrun | `P_SpawnPlayer` gates the spawn on `playeringame[mthing->type - 1]`; a type-0 mapthing makes the index `-1`, which aliases `players[3].didsecret` in the DOS `.bss` | complete | `room/src/doom/p_mobj/mapthings.rs:spawn_player` / `PlayeringameOverrun` |
 | 11 | door/plat `specialdata` aliasing | `EV_VerticalDoor` discriminates the thinker in an aliased `sector->specialdata` slot by `acp1` function-pointer compare and, for a plat, writes `plat->wait` through a `vldoor_t*` cast (the "When is a door not a door?" quirk) | complete | `room/src/doom/p_doors/events.rs:EV_VerticalDoor` |
+| 12 | null-target dereference substitution | weapon/monster code dereferences `target`/`tracer` pointers that can legitimately be NULL; vanilla read DOS address `0000:0000`-adjacent memory (low vector area) and "worked" for it | complete | `room/src/doom/p_mobj/spawn.rs:subst_null_mobj` |
 | G1 | tmbbox overrun family | `PIT_CheckLine`'s spechit-overrun emulated writes land in `tmbbox[0..3]`; every later collision check in the same move then consumes the trampled bbox -- the emulated writes are the complete trample model | complete | `room/src/doom/p_map/spechit.rs:spechit_overrun` (writes) + `p_map/move.rs:pit_check_line`/`check_position` (consumers) |
 | G2 | demo-window / ticdup=0 clobber | a browser-only OOB write zeroed `ticdup` mid-run (`panic_const_div_by_zero`); audit found the spechit store was the sole trampler | resolved (pending human browser re-test) | audit notes below; fix = entry 1 |
 
@@ -759,8 +760,8 @@ only):
 | `spechit[20]` push (`p_map/move.rs:264`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
 | `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy.rs:2093`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
-| `playerstarts[4]` (`p_mobj.rs:764-771`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
-| `deathmatchstarts[10]` (`p_mobj.rs:752-758`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
+| `playerstarts[4]` (`p_mobj/mapthings.rs:204-213`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
+| `deathmatchstarts[10]` (`p_mobj/mapthings.rs:190-197`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
 | `bodyque[32]` (`g_game.rs:1772-1777`) | bounded (`% 32` on both read and write) |
 | `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop.rs:276,362,678`) |
 | visplanes / openings / drawsegs growth | render-side; in Rust these fail loud (index panic), not silent -- limit-removal (F2) concerns, out of canary scope |
@@ -817,7 +818,7 @@ player-start dispatch path, so `P_SpawnPlayer` runs with
 The released linuxdoom-1.10 source the room port mirrors does not model
 this: room's `P_SpawnPlayer` added a plain `type == 0 -> return` guard at
 the same control-flow position, and `P_SpawnMapThing`'s `type <= 0 ->
-return` skip (`room/src/doom/p_mobj.rs:760`) matches dsda's own
+return` skip (`room/src/doom/p_mobj/mapthings.rs:200-202`) matches dsda's own
 `case 0: return NULL` (`reference/dsda-doom/prboom2/src/p_mobj.c:2385-2397`),
 so a type-0 mapthing never reaches the spawn machinery from level load in
 either port.
@@ -837,7 +838,7 @@ account; we did not independently disassemble doom2.exe for this entry.)
 
 ### Where we emulate it
 
-`room/src/doom/p_mobj.rs:668-687` in `P_SpawnPlayer` -- the same
+`room/src/doom/p_mobj/mapthings.rs:72-94` in `spawn_player` -- the same
 control-flow point dsda chose (`reference/dsda-doom/prboom2/src/
 p_mobj.c:2074`): the `type == 0` prologue guard records
 `VanillaViolation::PlayeringameOverrun` and returns without spawning. The
@@ -877,8 +878,8 @@ dsda.
   current vanilla-only semantics; complevel gating lands with F2 (no
   `Complevel` enum exists yet).
 - Regression pin:
-  `doom::p_mobj::tests::type0_mapthing_records_playeringame_overrun_and_spawns_nothing`
-  (`room/src/doom/p_mobj.rs:1107-1173`) drives the gate with the aliased
+  `doom::p_mobj::mapthings::tests::type0_mapthing_records_playeringame_overrun_and_spawns_nothing`
+  (`room/src/doom/p_mobj/mapthings.rs:303-380`) drives the gate with the aliased
   byte set and clear, asserting one census hit per arrival and that no
   `players[i].mo` ever becomes non-null.
 
@@ -974,6 +975,81 @@ from the
 p_plats graduate's mapping table (`room/src/doom/p_plats/mod.rs`,
 `T_PlatRaise` row). The upstream sliding-door family around it is `#if 0`
 ("abandoned to the mists of time") and correctly absent from the port.
+
+## 12. null-target dereference substitution (complete)
+
+### DOS-era root cause
+
+Several monster/weapon codepaths dereference a `target` (or tracer)
+pointer that can legitimately be NULL: `A_Fire` and the mancubus
+trio read `actor->target`, `A_SpawnFly` reads `mo->tracer`, and
+`P_LineAttack` re-reads the shoot-through `t1` -- all after logic that
+can leave the pointer unset (a monster firing with no target, a
+hair-trigger `A_Look` race, a hitscan whose shooter died mid-trace).
+The released source acknowledges the hazard in so many words
+(`vendor/doomgeneric/p_mobj.c:925-927`: "Doom did not crash because of
+the lack of proper memory protection") and funnels the reads through
+`P_SubstNullMobj` (`p_local.h:114`): a NULL becomes `&dummy_mobj`, a
+function-local `static` in DOS `.bss`, so the dereference lands on
+allocated (zero-initialized) memory instead of faulting. Vanilla's
+accidental safety net was the DOS arena's absent MMU plus `.bss`
+zero-fill -- not a correctness guarantee.
+
+### What the null dereference observably affected
+
+With the substitution, a target-less `A_Fire` proceeds through the
+puff/blood spawn path against a mobj at `(0, 0)` -- the shots still
+play their sound and draw their puff, and the tic still advances, so
+no demo ever desyncs from the "crash" vanilla never had. The model
+that matters for us is the shape of the degrade: every consumer that
+reaches a NULL target must observe a *zeroed* mobj (x/y/z/flags = 0)
+rather than a fault or an early return. Without any substitution the
+Rust port would dereference NULL and panic (wasm trap) on the same
+inputs vanilla played through.
+
+### Where we emulate it
+
+`room/src/doom/p_mobj/spawn.rs:274-289` in `subst_null_mobj` (export
+pinned as `P_SubstNullMobj`): null in -> pointer to a function-local
+`static mut DUMMY_MOBJ` whose `x`/`y`/`z`/`flags` fields are re-zeroed
+on every substitution (the exact four fields upstream writes),
+non-null in -> the pointer passes through unchanged. The call sites
+are the upstream set, unchanged by the p_mobj graduation:
+`A_Fire`/`A_FatAttack1`/`A_FatAttack2`/`A_FatAttack3`/`A_SpawnFly`
+(`room/src/doom/p_enemy.rs:1460`, `:1559`, `:1585`, `:1616`, `:2234`)
+and `P_LineAttack`'s `t1` substitution
+(`room/src/doom/p_map/attack.rs:394`).
+
+### Semantics
+
+Bit-exact with the vanilla helper: the null arm returns the zeroed
+dummy, the non-null arm is the identity, and the zeroing covers
+exactly `x`, `y`, `z`, `flags` (upstream `p_mobj.c:929-943` writes
+those four). Known modeling limit, documented deliberately: DOS's
+`&dummy_mobj` lives in `.bss` (zero-filled once) while the port
+re-zeroes the four fields per call -- observably identical because
+nothing between calls writes those fields on the dummy (no code takes
+the dummy's address for mutation), and any write would be a `.bss`
+trample we do not model. No census hook (pure replication, entry-8
+style). The dummy pointer is valid only until the next call from the
+same thread; callers must not store it across ticks (upstream has the
+same lifetime).
+
+### Status
+
+`complete`.
+
+### Reference derivation
+
+`vendor/doomgeneric/p_mobj.c:925-941` (the memory-protection comment
+and the full body) and `p_local.h:114`; callers
+`vendor/doomgeneric/p_enemy.c:1252` (`A_Fire`), `:1356`/`:1375`/`:1393`
+(`A_FatAttack1`/`2`/`3`), `:1945` (`A_SpawnFly`), and
+`vendor/doomgeneric/p_map.c:1076` (`P_LineAttack`); chocolate parity:
+`reference/chocolate-doom/src/doom/p_mobj.c:952-964` (identical comment
+and body) with the same call sites
+(`reference/chocolate-doom/src/doom/p_enemy.c:1267`/`:1371`/`:1390`/
+`:1408`/`:1963`, `reference/chocolate-doom/src/doom/p_map.c:1072`).
 
 ## Known gaps / intake
 

@@ -20,8 +20,9 @@ use super::actionf_t;
 /// compare reliably separates removal markers from live callbacks. The
 /// `transmute::<usize, _>` construction IS the contract -- the compiler
 /// would reject the same bit pattern written as a constant function
-/// pointer -- and it must keep agreeing bit-for-bit with the freeze-zone
-/// duplicate in `p_mobj.rs` (which reproduces the identical transmute);
+/// pointer -- and it is the single source for every consumer since the
+/// p_mobj graduation retired the freeze-zone duplicate (F10 wave B3a;
+/// `p_mobj`'s `mobj_thinker` now consumes `is_sentinel` from here);
 /// a different discriminant (e.g. an `Option::None`-based redesign)
 /// breaks mid-tic removal detection.
 ///
@@ -92,8 +93,9 @@ mod tests
     /// observable behavior belong to the demo synchronization
     /// surface?"): the sentinel pair -> dtmc -- the exact all-ones
     /// bit pattern gates when thinkers stop acting (`P_RunThinkers`'
-    /// lazy-removal compare) and must keep agreeing bit-for-bit with
-    /// the freeze-zone duplicate in `p_mobj.rs`; the sentinel store,
+    /// lazy-removal compare); since F10 wave B3a it is also the single
+    /// source for p_mobj's `mobj_thinker` (the freeze-zone duplicate
+    /// retired); the sentinel store,
     /// the list walk, and every `static mut` access stay behind at
     /// the call sites.
     #[test]

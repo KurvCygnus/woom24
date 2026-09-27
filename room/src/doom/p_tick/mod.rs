@@ -66,10 +66,11 @@
 //! `P_Ticker` (upstream `p_tick.c:149-150`) -- reordering it changes
 //! r_interp's latches and moves the frame_split goldens. The extracted
 //! `dtmc::{sentinel_ac, is_sentinel}` must keep the exact all-ones
-//! pattern (`usize::MAX` transmuted into the function pointer) so
-//! `P_RunThinkers` and the freeze-zone duplicate in `p_mobj.rs` agree
-//! bit-for-bit; a different discriminant (e.g. an `Option::None`-based
-//! redesign) breaks mid-tic removal detection. `P_RunThinkers`'
+//! pattern (`usize::MAX` transmuted into the function pointer): it is
+//! the single sentinel source for both `P_RunThinkers` and (since the
+//! F10 wave B3a p_mobj graduation retired the freeze-zone duplicate)
+//! p_mobj's `mobj_thinker`; a different discriminant (e.g. an
+//! `Option::None`-based redesign) breaks mid-tic removal detection. `P_RunThinkers`'
 //! documented deviation stands: `next` is saved before `Z_Free` (the C
 //! reads freed memory there) -- observably identical, never
 //! re-C-ified. The baseline vectors in `dtmc`'s test module were
