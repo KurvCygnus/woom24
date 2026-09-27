@@ -259,7 +259,7 @@ it.
 as the C `DonutOverrun`, doc-aliased): on first call parses
 `-donut <height> <pic>` (defaults 0 and 0x16, rejecting `pic >= numflats`),
 then returns the cached values. Hooked at `p_spec/donut.rs:167-174` in
-`do_donut` when `s3` is null; the warning at `p_spec/donut.rs:169` prints
+`do_donut` when `s3` is null; the warning at `p_spec/donut.rs:170` prints
 "emulating buffer overrun due to NULL back sector".
 
 ### Semantics

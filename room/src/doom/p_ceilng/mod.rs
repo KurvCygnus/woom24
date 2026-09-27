@@ -38,7 +38,7 @@
 //! | `P_AddActiveCeiling` | `events::P_AddActiveCeiling` | dtmc (whole-body; nothing extracts) | `activeceilings` slot write; the silent overflow discard is sim-observable and C-faithful (`p_ceilng.rs:309-311`); upstream `p_ceilng.c:240` |
 //! | `P_RemoveActiveCeiling` | `events::P_RemoveActiveCeiling` | dtmc (whole-body; nothing extracts) | clears `specialdata` + removes the thinker; upstream `p_ceilng.c:259` |
 //! | `P_ActivateInStasisCeiling` | `events::P_ActivateInStasisCeiling` | dtmc (whole-body; nothing extracts) | restores `direction` + reinstates `acp1` -- tick-order observable; upstream `p_ceilng.c:280` |
-//! | `EV_CeilingCrushStop` | `events::EV_CeilingCrushStop` | dtmc (whole-body; nothing extracts) | stasis transitions; the return flag is consumed by `P_CrossSpecialLine` (`p_spec.rs:813`); upstream `p_ceilng.c:303` |
+//! | `EV_CeilingCrushStop` | `events::EV_CeilingCrushStop` | dtmc (whole-body; nothing extracts) | stasis transitions; the return flag is consumed by `P_CrossSpecialLine` (`p_spec/crossline.rs:69`); upstream `p_ceilng.c:303` |
 //! | `P_Ceilng_Link_Anchor` | `anchor::P_Ceilng_Link_Anchor` | glue | link scaffolding, never runs in sim; keeps the `#[no_mangle]` set alive |
 //! | `ceiling_t` / `activeceilings` / `MAXCEILINGS` | `state` | data | layout-pinned (72 bytes: compile-time `layout_checks` plus the layout test moved with them); `ceiling_t` read field-wise by `p_saveg` through the module root; `activeceilings` keeps its `#[no_mangle]` C symbol and its module-root path (`p_saveg.rs:1854` scans it via `addr_of!(crate::doom::p_ceilng::activeceilings[0])`) |
 //! | `CEILSPEED`, `result_*`, `ceiling_e` values | `state` consts | data | speed/type/return-value constants (`p_ceilng.c:27-35`, `p_local.h`) |

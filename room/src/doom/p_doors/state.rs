@@ -3,7 +3,9 @@
 //! locked-door DeHacked message helpers -- bit-exact with the data
 //! half of `vendor/doomgeneric/p_doors.c` and `p_local.h`.
 
-#![allow(non_upper_case_globals, non_snake_case)]
+// Same belt-and-suspenders as p_spec/anims.rs: `vldoor_t` and the other
+// repr(C) type names here carry the allow regardless of toolchain probing.
+#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 use std::ffi::c_char;
 use std::os::raw::c_int;

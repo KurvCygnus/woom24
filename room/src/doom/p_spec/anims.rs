@@ -3,7 +3,11 @@
 //! `lastanim` end pointer, and the map-load resolver `init_pic_anims` --
 //! bit-exact with the animation half of `vendor/doomgeneric/p_spec.c`.
 
-#![allow(non_upper_case_globals, non_snake_case)]
+// Belt-and-suspenders: the plain `pub struct` names here (`anim_t`,
+// `animdef_t`) do not trip `non_camel_case_types` on the local toolchain,
+// but an isolated rustc probe does -- carry the allow so the gate never
+// depends on that toolchain difference.
+#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 use std::ffi::{c_char, c_int};
 use std::ptr;

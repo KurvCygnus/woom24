@@ -48,7 +48,7 @@
 //! | `fire_flicker_level` | `dtmc::fire_flicker_level` | dtmc (extracted) | the `(P_Random()&3)*16` amount + minlight clamp of `T_FireFlicker` (`:219`, `:222-226`) -- no named C function, so no `#[doc(alias)]` |
 //! | `sector_t` / `line_t` (partial mirrors) | `types::sector_t` / `types::line_t` | data | layout-pinned shared vocabulary: nine freeze-zone files read them through the module root; the five layout tests moved with them |
 //! | `fireflicker_t` / `lightflash_t` / `strobe_t` / `glow_t` | `effects` | data | layout-pinned thinker states (48/56/56/48 bytes; size tests live in `types.rs`) |
-//! | `GLOWSPEED` / `STROBEBRIGHT` / `FASTDARK` / `SLOWDARK` | `effects` consts | data | effect timing constants (`p_lights.c:25-27` region); `FASTDARK` has no in-tree Rust reader (`p_spec` reads the `c_ffi` twin at `p_spec.rs:1424-1436`) |
+//! | `GLOWSPEED` / `STROBEBRIGHT` / `FASTDARK` / `SLOWDARK` | `effects` consts | data | effect timing constants (`p_lights.c:25-27` region); `FASTDARK` has no in-tree Rust reader (`p_spec` reads the `c_ffi` twin at `p_spec/spawn.rs:83-97`) |
 //!
 //! No symbol was renamed, so there are no boundary shims and nothing
 //! qualified for a `#[no_mangle]` drop or an `#[export_name]` pin --
