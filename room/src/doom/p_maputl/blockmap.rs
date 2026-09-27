@@ -28,8 +28,10 @@ pub extern "C" fn P_BlockLinesIterator(
     x: c_int,
     y: c_int,
     func: Option<unsafe extern "C" fn(*mut line_t) -> c_uint>,
-) -> c_uint {
-    unsafe {
+) -> c_uint
+{
+    unsafe
+    {
         if x < 0
             || y < 0
             || x >= crate::doom::p_setup::bmapwidth
@@ -40,14 +42,17 @@ pub extern "C" fn P_BlockLinesIterator(
         let offset = (y * crate::doom::p_setup::bmapwidth + x) as isize;
         let offset = *crate::doom::p_setup::blockmap.offset(offset) as isize;
         let mut list = crate::doom::p_setup::blockmaplump.offset(offset);
-        while *list != -1 {
+        while *list != -1
+        {
             let ld = crate::doom::p_setup::lines.offset(*list as isize);
-            if (*ld).validcount == crate::doom::r_main::validcount {
+            if (*ld).validcount == crate::doom::r_main::validcount
+            {
                 list = list.offset(1);
                 continue;
             }
             (*ld).validcount = crate::doom::r_main::validcount;
-            if func.unwrap()(ld) == 0 {
+            if func.unwrap()(ld) == 0
+            {
                 return 0;
             }
             list = list.offset(1);
@@ -73,8 +78,10 @@ pub extern "C" fn P_BlockThingsIterator(
     x: c_int,
     y: c_int,
     func: Option<unsafe extern "C" fn(*mut mobj_t) -> c_uint>,
-) -> c_uint {
-    unsafe {
+) -> c_uint
+{
+    unsafe
+    {
         if x < 0
             || y < 0
             || x >= crate::doom::p_setup::bmapwidth
@@ -84,8 +91,10 @@ pub extern "C" fn P_BlockThingsIterator(
         }
         let idx = (y * crate::doom::p_setup::bmapwidth + x) as isize;
         let mut mobj = *crate::doom::p_setup::blocklinks.offset(idx) as *mut mobj_t;
-        while !mobj.is_null() {
-            if func.unwrap()(mobj) == 0 {
+        while !mobj.is_null()
+        {
+            if func.unwrap()(mobj) == 0
+            {
                 return 0;
             }
             mobj = (*mobj).bnext as *mut mobj_t;

@@ -40,14 +40,18 @@ use crate::doom::m_fixed::FRACUNIT;
 /// used plain integer arithmetic. Single-threaded sim use.
 pub fn armor_absorption(damage: c_int, armortype: c_int, armorpoints: c_int) -> (c_int, c_int, c_int)
 {
-    let saved = if armortype == 1 {
+    let saved = if armortype == 1
+    {
         damage / 3
-    } else {
+    }
+    else
+    {
         damage / 2
     };
     let mut saved_actual = saved;
     let mut armortype_after = armortype;
-    if armorpoints <= saved_actual {
+    if armorpoints <= saved_actual
+    {
         saved_actual = armorpoints;
         armortype_after = 0;
     }

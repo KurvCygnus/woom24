@@ -5,6 +5,7 @@ use super::P_CheckSight;
 
 /// Anchor function to ensure exports survive linker dead-code elimination.
 #[no_mangle]
-pub extern "C" fn P_Sight_Link_Anchor() {
+pub extern "C" fn P_Sight_Link_Anchor()
+{
     let _ = P_CheckSight as *const () as usize;
 }

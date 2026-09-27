@@ -120,7 +120,8 @@ pub(super) const INVERSECOLORMAP: c_int = 32;
 pub static mut onground: c_int = 0;
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use crate::doom::d_mode::{commercial, registered, retail, shareware};
     use crate::doom::d_player::{PspdefT, NUMPOWERS};
@@ -134,7 +135,8 @@ mod tests {
     /// the test predates the graduation and rides with the module that
     /// read the psprite state; kept where it landed per the B1 report.
     #[test]
-    fn pspdef_t_size_matches_c() {
+    fn pspdef_t_size_matches_c()
+    {
         assert_eq!(
             std::mem::size_of::<PspdefT>(),
             PSPDEF_T_SIZEOF,
@@ -149,15 +151,18 @@ mod tests {
     /// module-local mutex; the shared lock is the mandatory helper once
     /// any other test in the suite mutates the same static).
     #[test]
-    fn onground_defaults_to_zero() {
+    fn onground_defaults_to_zero()
+    {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        unsafe
+        {
             assert_eq!(onground, 0);
         }
     }
 
     #[test]
-    fn constants_match_c_header_values() {
+    fn constants_match_c_header_values()
+    {
         // Verify button constants match d_event.h
         assert_eq!(BT_SPECIAL, 128);
         assert_eq!(BT_CHANGE, 4);

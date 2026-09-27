@@ -140,7 +140,8 @@ pub unsafe extern "C" fn EV_DoCeiling(line: *mut line_t, ceilingtype: c_int) -> 
 #[no_mangle]
 pub extern "C" fn P_AddActiveCeiling(c: *mut ceiling_t)
 {
-    unsafe {
+    unsafe
+    {
         for i in 0..MAXCEILINGS
         {
             if activeceilings[i].is_null()
@@ -162,7 +163,8 @@ pub extern "C" fn P_AddActiveCeiling(c: *mut ceiling_t)
 #[no_mangle]
 pub extern "C" fn P_RemoveActiveCeiling(c: *mut ceiling_t)
 {
-    unsafe {
+    unsafe
+    {
         for i in 0..MAXCEILINGS
         {
             if activeceilings[i] == c
@@ -191,7 +193,8 @@ pub extern "C" fn P_RemoveActiveCeiling(c: *mut ceiling_t)
 #[no_mangle]
 pub extern "C" fn P_ActivateInStasisCeiling(line: *mut line_t)
 {
-    unsafe {
+    unsafe
+    {
         for i in 0..MAXCEILINGS
         {
             if !activeceilings[i].is_null()
@@ -225,7 +228,8 @@ pub extern "C" fn P_ActivateInStasisCeiling(line: *mut line_t)
 #[no_mangle]
 pub extern "C" fn EV_CeilingCrushStop(line: *mut line_t) -> c_int
 {
-    unsafe {
+    unsafe
+    {
         let mut rtn: c_int = 0;
         for i in 0..MAXCEILINGS
         {

@@ -29,32 +29,44 @@ use crate::doom::info::{MF_NOBLOCKMAP, MF_NOSECTOR};
 /// null or valid `mobj_t` pointers. The global blockmap arrays from
 /// `p_setup` must be initialised.
 #[no_mangle]
-pub extern "C" fn P_UnsetThingPosition(thing: *mut mobj_t) {
-    unsafe {
+pub extern "C" fn P_UnsetThingPosition(thing: *mut mobj_t)
+{
+    unsafe
+    {
         let thing = &mut *thing;
-        if (thing.flags & MF_NOSECTOR) == 0 {
-            if !thing.snext.is_null() {
+        if (thing.flags & MF_NOSECTOR) == 0
+        {
+            if !thing.snext.is_null()
+            {
                 let snext = thing.snext as *mut mobj_t;
                 (*snext).sprev = thing.sprev;
             }
-            if !thing.sprev.is_null() {
+            if !thing.sprev.is_null()
+            {
                 let sprev = thing.sprev as *mut mobj_t;
                 (*sprev).snext = thing.snext;
-            } else {
+            }
+            else
+            {
                 let subsector = thing.subsector as *mut subsector_t;
                 let sector = (*subsector).sector as *mut sector_t;
                 (*sector).thinglist = thing.snext;
             }
         }
-        if (thing.flags & MF_NOBLOCKMAP) == 0 {
-            if !thing.bnext.is_null() {
+        if (thing.flags & MF_NOBLOCKMAP) == 0
+        {
+            if !thing.bnext.is_null()
+            {
                 let bnext = thing.bnext as *mut mobj_t;
                 (*bnext).bprev = thing.bprev;
             }
-            if !thing.bprev.is_null() {
+            if !thing.bprev.is_null()
+            {
                 let bprev = thing.bprev as *mut mobj_t;
                 (*bprev).bnext = thing.bnext;
-            } else {
+            }
+            else
+            {
                 let blockx = (thing.x - crate::doom::p_setup::bmaporgx) >> MAPBLOCKSHIFT;
                 let blocky = (thing.y - crate::doom::p_setup::bmaporgy) >> MAPBLOCKSHIFT;
                 if blockx >= 0
@@ -86,22 +98,27 @@ pub extern "C" fn P_UnsetThingPosition(thing: *mut mobj_t) {
 /// `thing` must be a valid, non-null pointer to an initialised `mobj_t`. The
 /// global map data (sectors, blockmap) from `p_setup` must be loaded.
 #[no_mangle]
-pub extern "C" fn P_SetThingPosition(thing: *mut mobj_t) {
-    unsafe {
+pub extern "C" fn P_SetThingPosition(thing: *mut mobj_t)
+{
+    unsafe
+    {
         let thing = &mut *thing;
         let ss = crate::doom::r_main::R_PointInSubsector(thing.x, thing.y) as *mut subsector_t;
         thing.subsector = ss as *mut c_void;
-        if (thing.flags & MF_NOSECTOR) == 0 {
+        if (thing.flags & MF_NOSECTOR) == 0
+        {
             let sec = (*ss).sector as *mut sector_t;
             thing.sprev = ptr::null_mut();
             thing.snext = (*sec).thinglist;
-            if !(*sec).thinglist.is_null() {
+            if !(*sec).thinglist.is_null()
+            {
                 let thinglist = (*sec).thinglist as *mut mobj_t;
                 (*thinglist).sprev = thing as *mut mobj_t as *mut c_void;
             }
             (*sec).thinglist = thing as *mut mobj_t as *mut c_void;
         }
-        if (thing.flags & MF_NOBLOCKMAP) == 0 {
+        if (thing.flags & MF_NOBLOCKMAP) == 0
+        {
             let blockx = (thing.x - crate::doom::p_setup::bmaporgx) >> MAPBLOCKSHIFT;
             let blocky = (thing.y - crate::doom::p_setup::bmaporgy) >> MAPBLOCKSHIFT;
             if blockx >= 0
@@ -113,12 +130,15 @@ pub extern "C" fn P_SetThingPosition(thing: *mut mobj_t) {
                 let link = crate::doom::p_setup::blocklinks.offset(idx);
                 thing.bprev = ptr::null_mut();
                 thing.bnext = *link;
-                if !(*link).is_null() {
+                if !(*link).is_null()
+                {
                     let l = *link as *mut mobj_t;
                     (*l).bprev = thing as *mut mobj_t as *mut c_void;
                 }
                 *link = thing as *mut mobj_t as *mut c_void;
-            } else {
+            }
+            else
+            {
                 thing.bnext = ptr::null_mut();
                 thing.bprev = ptr::null_mut();
             }

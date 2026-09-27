@@ -42,7 +42,8 @@ use crate::i_error;
 #[no_mangle]
 pub extern "C" fn P_InitSwitchList()
 {
-    unsafe {
+    unsafe
+    {
         let episode: i16 = match gamemode
         {
             m if m == d_mode::registered || m == d_mode::retail => 2,

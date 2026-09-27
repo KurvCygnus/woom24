@@ -100,21 +100,28 @@ static mut earlyout: c_int = 0;
 /// Writes directly through raw pointers to module-level globals. Caller must
 /// ensure `location` is within the range covered by the table (0..=~300 bytes).
 #[allow(unused_assignments)]
-unsafe fn InterceptsMemoryOverrun(location: c_int, value: c_int) {
+unsafe fn InterceptsMemoryOverrun(location: c_int, value: c_int)
+{
     let mut offset: usize = 0;
     let loc = location as usize;
 
-    macro_rules! skip {
-        ($len:expr) => {
-            if offset + $len > loc {
+    macro_rules! skip
+    {
+        ($len:expr) =>
+        {
+            if offset + $len > loc
+            {
                 return;
             }
             offset += $len;
         };
     }
-    macro_rules! write_i32 {
-        ($len:expr, $ptr:expr) => {
-            if offset + $len > loc {
+    macro_rules! write_i32
+    {
+        ($len:expr, $ptr:expr) =>
+        {
+            if offset + $len > loc
+            {
                 let index = (loc - offset) / 4;
                 ($ptr as *mut c_int).add(index).write(value);
                 return;
@@ -122,9 +129,12 @@ unsafe fn InterceptsMemoryOverrun(location: c_int, value: c_int) {
             offset += $len;
         };
     }
-    macro_rules! write_i16_arr {
-        ($len:expr, $ptr:expr) => {
-            if offset + $len > loc {
+    macro_rules! write_i16_arr
+    {
+        ($len:expr, $ptr:expr) =>
+        {
+            if offset + $len > loc
+            {
                 let index = (loc - offset) / 2;
                 let p = ($ptr as *mut _ as *mut u8) as *mut i16;
                 p.add(index).write((value & 0xffff) as i16);
@@ -172,8 +182,10 @@ unsafe fn InterceptsMemoryOverrun(location: c_int, value: c_int) {
 /// # Safety
 /// `intercept` must be a valid, non-null pointer to an initialised
 /// `intercept_t`.
-unsafe fn InterceptsOverrun(num_intercepts: c_int, intercept: *mut intercept_t) {
-    if num_intercepts <= MAXINTERCEPTS_ORIGINAL as c_int {
+unsafe fn InterceptsOverrun(num_intercepts: c_int, intercept: *mut intercept_t)
+{
+    if num_intercepts <= MAXINTERCEPTS_ORIGINAL as c_int
+    {
         return;
     }
     violations::record(VanillaViolation::InterceptsOverrun);
@@ -203,8 +215,10 @@ unsafe fn InterceptsOverrun(num_intercepts: c_int, intercept: *mut intercept_t) 
 /// global `trace`, `intercepts`, and `intercept_p` must be set up by a
 /// preceding `P_PathTraverse` call.
 #[no_mangle]
-pub extern "C" fn PIT_AddLineIntercepts(ld: *mut line_t) -> c_uint {
-    unsafe {
+pub extern "C" fn PIT_AddLineIntercepts(ld: *mut line_t) -> c_uint
+{
+    unsafe
+    {
         let ld = &*ld;
         let (s1, s2) = if trace.dx > FRACUNIT * 16
             || trace.dy > FRACUNIT * 16
@@ -223,7 +237,9 @@ pub extern "C" fn PIT_AddLineIntercepts(ld: *mut line_t) -> c_uint {
                     &raw const trace as *const _ as *mut _,
                 ),
             )
-        } else {
+        }
+        else
+        {
             (
                 P_PointOnLineSide(trace.x, trace.y, ld as *const _ as *mut _),
                 P_PointOnLineSide(
@@ -233,7 +249,8 @@ pub extern "C" fn PIT_AddLineIntercepts(ld: *mut line_t) -> c_uint {
                 ),
             )
         };
-        if s1 == s2 {
+        if s1 == s2
+        {
             return 1;
         }
         let mut dl = divline_t {
@@ -244,10 +261,12 @@ pub extern "C" fn PIT_AddLineIntercepts(ld: *mut line_t) -> c_uint {
         };
         P_MakeDivline(ld as *const _ as *mut _, &mut dl);
         let frac = P_InterceptVector(&raw const trace as *const _ as *mut _, &mut dl);
-        if frac < 0 {
+        if frac < 0
+        {
             return 1;
         }
-        if earlyout != 0 && frac < FRACUNIT && ld.backsector.is_null() {
+        if earlyout != 0 && frac < FRACUNIT && ld.backsector.is_null()
+        {
             return 0;
         }
         (*intercept_p).frac = frac;
@@ -279,19 +298,24 @@ pub extern "C" fn PIT_AddLineIntercepts(ld: *mut line_t) -> c_uint {
 /// global `trace`, `intercepts`, and `intercept_p` must be set up by a
 /// preceding `P_PathTraverse` call.
 #[no_mangle]
-pub extern "C" fn PIT_AddThingIntercepts(thing: *mut mobj_t) -> c_uint {
-    unsafe {
+pub extern "C" fn PIT_AddThingIntercepts(thing: *mut mobj_t) -> c_uint
+{
+    unsafe
+    {
         let thing = &*thing;
         // C: tracepositive = (trace.dx ^ trace.dy)>0;
         let tracepositive = (trace.dx ^ trace.dy) > 0;
-        let (x1, y1, x2, y2) = if tracepositive {
+        let (x1, y1, x2, y2) = if tracepositive
+        {
             (
                 thing.x - thing.radius,
                 thing.y + thing.radius,
                 thing.x + thing.radius,
                 thing.y - thing.radius,
             )
-        } else {
+        }
+        else
+        {
             (
                 thing.x - thing.radius,
                 thing.y - thing.radius,
@@ -301,7 +325,8 @@ pub extern "C" fn PIT_AddThingIntercepts(thing: *mut mobj_t) -> c_uint {
         };
         let s1 = P_PointOnDivlineSide(x1, y1, &raw const trace as *const _ as *mut _);
         let s2 = P_PointOnDivlineSide(x2, y2, &raw const trace as *const _ as *mut _);
-        if s1 == s2 {
+        if s1 == s2
+        {
             return 1;
         }
         let mut dl = divline_t {
@@ -311,7 +336,8 @@ pub extern "C" fn PIT_AddThingIntercepts(thing: *mut mobj_t) -> c_uint {
             dy: y2 - y1,
         };
         let frac = P_InterceptVector(&raw const trace as *const _ as *mut _, &mut dl);
-        if frac < 0 {
+        if frac < 0
+        {
             return 1;
         }
         (*intercept_p).frac = frac;
@@ -346,28 +372,38 @@ pub extern "C" fn PIT_AddThingIntercepts(thing: *mut mobj_t) -> c_uint {
 pub extern "C" fn P_TraverseIntercepts(
     func: Option<unsafe extern "C" fn(*mut intercept_t) -> c_uint>,
     maxfrac: fixed_t,
-) -> c_uint {
-    unsafe {
-        let count = if intercept_p.is_null() {
+) -> c_uint
+{
+    unsafe
+    {
+        let count = if intercept_p.is_null()
+        {
             0
-        } else {
+        }
+        else
+        {
             intercept_p.offset_from(std::ptr::addr_of_mut!(intercepts[0])) as c_int
         };
-        for _ in 0..count {
+        for _ in 0..count
+        {
             let mut dist = c_int::MAX;
             let mut in_ptr: *mut intercept_t = ptr::null_mut();
             let mut scan = std::ptr::addr_of_mut!(intercepts[0]);
-            while scan < intercept_p {
-                if (*scan).frac < dist {
+            while scan < intercept_p
+            {
+                if (*scan).frac < dist
+                {
                     dist = (*scan).frac;
                     in_ptr = scan;
                 }
                 scan = scan.offset(1);
             }
-            if dist > maxfrac {
+            if dist > maxfrac
+            {
                 return 1;
             }
-            if func.unwrap()(in_ptr) == 0 {
+            if func.unwrap()(in_ptr) == 0
+            {
                 return 0;
             }
             (*in_ptr).frac = c_int::MAX;
@@ -403,17 +439,21 @@ pub extern "C" fn P_PathTraverse(
     y2: fixed_t,
     flags: c_int,
     trav: Option<unsafe extern "C" fn(*mut intercept_t) -> c_uint>,
-) -> c_uint {
-    unsafe {
+) -> c_uint
+{
+    unsafe
+    {
         earlyout = flags & PT_EARLYOUT;
         crate::doom::r_main::validcount = crate::doom::r_main::validcount.wrapping_add(1);
         intercept_p = std::ptr::addr_of_mut!(intercepts[0]);
         let mut x1 = x1;
         let mut y1 = y1;
-        if ((x1 - crate::doom::p_setup::bmaporgx) & (MAPBLOCKSIZE - 1)) == 0 {
+        if ((x1 - crate::doom::p_setup::bmaporgx) & (MAPBLOCKSIZE - 1)) == 0
+        {
             x1 += FRACUNIT;
         }
-        if ((y1 - crate::doom::p_setup::bmaporgy) & (MAPBLOCKSIZE - 1)) == 0 {
+        if ((y1 - crate::doom::p_setup::bmaporgy) & (MAPBLOCKSIZE - 1)) == 0
+        {
             y1 += FRACUNIT;
         }
         trace.x = x1;
@@ -428,41 +468,52 @@ pub extern "C" fn P_PathTraverse(
         let y2 = y2 - crate::doom::p_setup::bmaporgy;
         let xt2 = x2 >> MAPBLOCKSHIFT;
         let yt2 = y2 >> MAPBLOCKSHIFT;
-        let (mapxstep, partial, ystep) = if xt2 > xt1 {
+        let (mapxstep, partial, ystep) = if xt2 > xt1
+        {
             (
                 1,
                 FRACUNIT - ((x1 >> MAPBTOFRAC) & (FRACUNIT - 1)),
                 FixedDiv(y2 - y1, (x2 - x1).wrapping_abs()),
             )
-        } else if xt2 < xt1 {
+        }
+        else if xt2 < xt1
+        {
             (
                 -1,
                 (x1 >> MAPBTOFRAC) & (FRACUNIT - 1),
                 FixedDiv(y2 - y1, (x2 - x1).wrapping_abs()),
             )
-        } else {
+        }
+        else
+        {
             (0, FRACUNIT, 256 * FRACUNIT)
         };
         let mut yintercept = (y1 >> MAPBTOFRAC) + FixedMul(partial, ystep);
-        let (mapystep, partial, xstep) = if yt2 > yt1 {
+        let (mapystep, partial, xstep) = if yt2 > yt1
+        {
             (
                 1,
                 FRACUNIT - ((y1 >> MAPBTOFRAC) & (FRACUNIT - 1)),
                 FixedDiv(x2 - x1, (y2 - y1).wrapping_abs()),
             )
-        } else if yt2 < yt1 {
+        }
+        else if yt2 < yt1
+        {
             (
                 -1,
                 (y1 >> MAPBTOFRAC) & (FRACUNIT - 1),
                 FixedDiv(x2 - x1, (y2 - y1).wrapping_abs()),
             )
-        } else {
+        }
+        else
+        {
             (0, FRACUNIT, 256 * FRACUNIT)
         };
         let mut xintercept = (x1 >> MAPBTOFRAC) + FixedMul(partial, xstep);
         let mut mapx = xt1;
         let mut mapy = yt1;
-        for _ in 0..64 {
+        for _ in 0..64
+        {
             if flags & PT_ADDLINES != 0
                 && P_BlockLinesIterator(
                     mapx,
@@ -481,13 +532,17 @@ pub extern "C" fn P_PathTraverse(
             {
                 return 0;
             }
-            if mapx == xt2 && mapy == yt2 {
+            if mapx == xt2 && mapy == yt2
+            {
                 break;
             }
-            if (yintercept >> FRACBITS) == mapy {
+            if (yintercept >> FRACBITS) == mapy
+            {
                 yintercept += ystep;
                 mapx += mapxstep;
-            } else if (xintercept >> FRACBITS) == mapx {
+            }
+            else if (xintercept >> FRACBITS) == mapx
+            {
                 xintercept += xstep;
                 mapy += mapystep;
             }

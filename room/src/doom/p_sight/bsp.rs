@@ -36,11 +36,14 @@ const NF_SUBSECTOR: u32 = 0x8000;
 /// Returns `true` if the ray is unobstructed through this subsector.
 ///
 /// Matches `P_CrossSubsector` in `p_sight.c`.
-pub(super) fn P_CrossSubsector(num: c_int) -> bool {
-    unsafe {
+pub(super) fn P_CrossSubsector(num: c_int) -> bool
+{
+    unsafe
+    {
         let strace_copy = strace;
         let numsubsectors_val = *std::ptr::addr_of!(numsubsectors);
-        if num >= numsubsectors_val {
+        if num >= numsubsectors_val
+        {
             i_error!(
                 "P_CrossSubsector: ss {} with numss = {}",
                 num,
@@ -53,7 +56,8 @@ pub(super) fn P_CrossSubsector(num: c_int) -> bool {
         let mut count = sub.numlines as c_int;
         let mut seg_ptr = (p_setup_segs as *mut seg_t).add(sub.firstline as usize);
 
-        while count > 0 {
+        while count > 0
+        {
             let seg = &*seg_ptr;
             seg_ptr = seg_ptr.add(1);
             count -= 1;
@@ -61,7 +65,8 @@ pub(super) fn P_CrossSubsector(num: c_int) -> bool {
             let line = &mut *seg.linedef;
 
             // Already checked other side?
-            if line.validcount == validcount {
+            if line.validcount == validcount
+            {
                 continue;
             }
 
@@ -74,7 +79,8 @@ pub(super) fn P_CrossSubsector(num: c_int) -> bool {
             let s2 = divline_side(v2.x, v2.y, &strace_copy);
 
             // Line isn't crossed?
-            if s1 == s2 {
+            if s1 == s2
+            {
                 continue;
             }
 
@@ -89,20 +95,23 @@ pub(super) fn P_CrossSubsector(num: c_int) -> bool {
             let s2 = divline_side(t2x, t2y, &divl);
 
             // Line isn't crossed?
-            if s1 == s2 {
+            if s1 == s2
+            {
                 continue;
             }
 
             // Backsector may be NULL if this is an "impassible glass" hack line.
             // IMPORTANT: C uses line->backsector (the original linedef side), NOT
             // seg->backsector (which is the BSP-split sub-side and may differ).
-            if line.backsector.is_null() {
+            if line.backsector.is_null()
+            {
                 return false;
             }
 
             // Stop because it is not two sided anyway.
             // Also must use line->flags, not a re-read through seg->linedef.
-            if line.flags & LinedefFlag::TWOSIDED as i16 == 0 {
+            if line.flags & LinedefFlag::TWOSIDED as i16 == 0
+            {
                 return false;
             }
 
@@ -115,45 +124,58 @@ pub(super) fn P_CrossSubsector(num: c_int) -> bool {
             let back_ceil = (*back).ceilingheight;
 
             // No wall to block sight with?
-            if front_floor == back_floor && front_ceil == back_ceil {
+            if front_floor == back_floor && front_ceil == back_ceil
+            {
                 continue;
             }
 
             // Possible occluder.
-            let opentop = if front_ceil < back_ceil {
+            let opentop = if front_ceil < back_ceil
+            {
                 front_ceil
-            } else {
+            }
+            else
+            {
                 back_ceil
             };
 
-            let openbottom = if front_floor > back_floor {
+            let openbottom = if front_floor > back_floor
+            {
                 front_floor
-            } else {
+            }
+            else
+            {
                 back_floor
             };
 
             // Quick test for totally closed doors.
-            if openbottom >= opentop {
+            if openbottom >= opentop
+            {
                 return false;
             }
 
             let frac = intercept_vector2(&strace_copy, &divl);
 
-            if front_floor != back_floor {
+            if front_floor != back_floor
+            {
                 let slope = FixedDiv(openbottom - sightzstart, frac);
-                if slope > bottomslope {
+                if slope > bottomslope
+                {
                     bottomslope = slope;
                 }
             }
 
-            if front_ceil != back_ceil {
+            if front_ceil != back_ceil
+            {
                 let slope = FixedDiv(opentop - sightzstart, frac);
-                if slope < topslope {
+                if slope < topslope
+                {
                     topslope = slope;
                 }
             }
 
-            if topslope <= bottomslope {
+            if topslope <= bottomslope
+            {
                 return false;
             }
         }
@@ -167,7 +189,8 @@ pub(super) fn P_CrossSubsector(num: c_int) -> bool {
 /// since both structs share the same header layout (x, y, dx, dy),
 /// this produces identical results.
 #[inline]
-pub(super) fn node_as_divline(node: &node_t) -> divline_t {
+pub(super) fn node_as_divline(node: &node_t) -> divline_t
+{
     divline_t {
         x: node.x,
         y: node.y,
@@ -185,13 +208,19 @@ pub(super) fn node_as_divline(node: &node_t) -> divline_t {
 /// Returns `true` if the sight ray is unobstructed through `bspnum`.
 ///
 /// Matches `P_CrossBSPNode` in `p_sight.c`.
-pub(super) fn P_CrossBSPNode(bspnum: c_int) -> bool {
-    unsafe {
+pub(super) fn P_CrossBSPNode(bspnum: c_int) -> bool
+{
+    unsafe
+    {
         let strace_copy = strace;
-        if bspnum & NF_SUBSECTOR as c_int != 0 {
-            if bspnum == -1 {
+        if bspnum & NF_SUBSECTOR as c_int != 0
+        {
+            if bspnum == -1
+            {
                 return P_CrossSubsector(0);
-            } else {
+            }
+            else
+            {
                 return P_CrossSubsector(bspnum & !(NF_SUBSECTOR as c_int));
             }
         }
@@ -203,14 +232,16 @@ pub(super) fn P_CrossBSPNode(bspnum: c_int) -> bool {
         let side = if side == 2 { 0 } else { side };
 
         // Cross the starting side.
-        if !P_CrossBSPNode(bsp.children[side as usize] as c_int) {
+        if !P_CrossBSPNode(bsp.children[side as usize] as c_int)
+        {
             return false;
         }
 
         // The partition plane is crossed here.
         let bsp_div2 = node_as_divline(bsp);
         let t2_side = divline_side(t2x, t2y, &bsp_div2);
-        if side == t2_side {
+        if side == t2_side
+        {
             return true;
         }
 

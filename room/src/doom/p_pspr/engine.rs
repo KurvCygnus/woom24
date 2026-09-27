@@ -45,12 +45,15 @@ use super::state::{
 /// `position` must be in `0..NUMPSPRITES`.  `stnum` must be a valid state
 /// index or `S_NULL` (0).
 #[no_mangle]
-pub unsafe extern "C" fn P_SetPsprite(player: *mut PlayerT, position: c_int, stnum: c_int) {
+pub unsafe extern "C" fn P_SetPsprite(player: *mut PlayerT, position: c_int, stnum: c_int)
+{
     let psp = (*player).psprites.as_mut_ptr().add(position as usize);
 
     let mut stnum = stnum;
-    loop {
-        if stnum == 0 {
+    loop
+    {
+        if stnum == 0
+        {
             (*psp).state = std::ptr::null_mut();
             break;
         }
@@ -59,17 +62,20 @@ pub unsafe extern "C" fn P_SetPsprite(player: *mut PlayerT, position: c_int, stn
         (*psp).state = state as *mut crate::doom::d_player::state_t;
         (*psp).tics = (*state).tics;
 
-        if (*state).misc1 != 0 {
+        if (*state).misc1 != 0
+        {
             (*psp).sx = (*state).misc1 << FRACBITS;
             (*psp).sy = (*state).misc2 << FRACBITS;
         }
 
         // Call action routine.
-        if let Some(action) = (*state).action {
+        if let Some(action) = (*state).action
+        {
             let action: unsafe extern "C" fn(*mut PlayerT, *mut PspdefT) =
                 std::mem::transmute(action);
             action(player, psp);
-            if (*psp).state.is_null() {
+            if (*psp).state.is_null()
+            {
                 break;
             }
         }
@@ -77,7 +83,8 @@ pub unsafe extern "C" fn P_SetPsprite(player: *mut PlayerT, position: c_int, stn
         // Read nextstate from psp->state (action may have changed it).
         stnum = ((*psp).state as *mut State).read().nextstate;
 
-        if (*psp).tics != 0 {
+        if (*psp).tics != 0
+        {
             break;
         }
     }
@@ -93,7 +100,8 @@ pub unsafe extern "C" fn P_SetPsprite(player: *mut PlayerT, position: c_int, stn
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_CalcSwing(player: *mut PlayerT) {
+pub unsafe extern "C" fn P_CalcSwing(player: *mut PlayerT)
+{
     let swing = (*player).bob;
 
     let mut angle = (FINEANGLES as c_int / 70 * leveltime) & FINEMASK;
@@ -110,12 +118,15 @@ pub unsafe extern "C" fn P_CalcSwing(player: *mut PlayerT) {
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_BringUpWeapon(player: *mut PlayerT) {
-    if (*player).pendingweapon == wp_nochange {
+pub unsafe extern "C" fn P_BringUpWeapon(player: *mut PlayerT)
+{
+    if (*player).pendingweapon == wp_nochange
+    {
         (*player).pendingweapon = (*player).readyweapon;
     }
 
-    if (*player).pendingweapon == wp_chainsaw {
+    if (*player).pendingweapon == wp_chainsaw
+    {
         S_StartSound((*player).mo as *mut c_void, Sfx::Sawup as c_int);
     }
 
@@ -135,59 +146,79 @@ pub unsafe extern "C" fn P_BringUpWeapon(player: *mut PlayerT) {
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int {
+pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int
+{
     let ammo = weaponinfo[(*player).readyweapon as usize].ammo;
 
-    let count: c_int = if (*player).readyweapon == wp_bfg {
+    let count: c_int = if (*player).readyweapon == wp_bfg
+    {
         DEH_DEFAULT_BFG_CELLS_PER_SHOT
-    } else if (*player).readyweapon == wp_supershotgun {
+    }
+    else if (*player).readyweapon == wp_supershotgun
+    {
         2
-    } else {
+    }
+    else
+    {
         1
     };
 
-    if ammo == am_noammo || (*player).ammo[ammo as usize] >= count {
+    if ammo == am_noammo || (*player).ammo[ammo as usize] >= count
+    {
         return 1;
     }
 
     // Out of ammo, pick a weapon to change to.
-    loop {
+    loop
+    {
         if (*player).weaponowned[wp_plasma as usize] != 0
             && (*player).ammo[am_cell as usize] != 0
             && gamemode != shareware
         {
             (*player).pendingweapon = wp_plasma;
-        } else if (*player).weaponowned[wp_supershotgun as usize] != 0
+        }
+        else if(*player).weaponowned[wp_supershotgun as usize] != 0
             && (*player).ammo[am_shell as usize] > 2
             && gamemode == commercial
         {
             (*player).pendingweapon = wp_supershotgun;
-        } else if (*player).weaponowned[wp_chaingun as usize] != 0
+        }
+        else if(*player).weaponowned[wp_chaingun as usize] != 0
             && (*player).ammo[am_clip as usize] != 0
         {
             (*player).pendingweapon = wp_chaingun;
-        } else if (*player).weaponowned[wp_shotgun as usize] != 0
+        }
+        else if(*player).weaponowned[wp_shotgun as usize] != 0
             && (*player).ammo[am_shell as usize] != 0
         {
             (*player).pendingweapon = wp_shotgun;
-        } else if (*player).ammo[am_clip as usize] != 0 {
+        }
+        else if (*player).ammo[am_clip as usize] != 0
+        {
             (*player).pendingweapon = wp_pistol;
-        } else if (*player).weaponowned[wp_chainsaw as usize] != 0 {
+        }
+        else if (*player).weaponowned[wp_chainsaw as usize] != 0
+        {
             (*player).pendingweapon = wp_chainsaw;
-        } else if (*player).weaponowned[wp_missile as usize] != 0
+        }
+        else if(*player).weaponowned[wp_missile as usize] != 0
             && (*player).ammo[am_misl as usize] != 0
         {
             (*player).pendingweapon = wp_missile;
-        } else if (*player).weaponowned[wp_bfg as usize] != 0
+        }
+        else if(*player).weaponowned[wp_bfg as usize] != 0
             && (*player).ammo[am_cell as usize] > 40
             && gamemode != shareware
         {
             (*player).pendingweapon = wp_bfg;
-        } else {
+        }
+        else
+        {
             (*player).pendingweapon = wp_fist;
         }
 
-        if (*player).pendingweapon != wp_nochange {
+        if (*player).pendingweapon != wp_nochange
+        {
             break;
         }
     }
@@ -210,8 +241,10 @@ pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int {
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn P_FireWeapon(player: *mut PlayerT) {
-    if P_CheckAmmo(player) == 0 {
+pub unsafe extern "C" fn P_FireWeapon(player: *mut PlayerT)
+{
+    if P_CheckAmmo(player) == 0
+    {
         return;
     }
 
@@ -227,7 +260,8 @@ pub unsafe extern "C" fn P_FireWeapon(player: *mut PlayerT) {
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_DropWeapon(player: *mut PlayerT) {
+pub unsafe extern "C" fn P_DropWeapon(player: *mut PlayerT)
+{
     P_SetPsprite(
         player,
         0,
@@ -243,8 +277,10 @@ pub unsafe extern "C" fn P_DropWeapon(player: *mut PlayerT) {
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_SetupPsprites(player: *mut PlayerT) {
-    for i in 0..NUMPSPRITES {
+pub unsafe extern "C" fn P_SetupPsprites(player: *mut PlayerT)
+{
+    for i in 0..NUMPSPRITES
+    {
         (*player).psprites[i].state = std::ptr::null_mut();
     }
 
@@ -259,17 +295,22 @@ pub unsafe extern "C" fn P_SetupPsprites(player: *mut PlayerT) {
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_MovePsprites(player: *mut PlayerT) {
+pub unsafe extern "C" fn P_MovePsprites(player: *mut PlayerT)
+{
     let mut psp = (*player).psprites.as_mut_ptr();
 
-    for i in 0..NUMPSPRITES {
+    for i in 0..NUMPSPRITES
+    {
         let state = (*psp).state as *mut State;
-        if !state.is_null() {
+        if !state.is_null()
+        {
             // Drop tic count and possibly change state.
             // A -1 tic count never changes.
-            if (*psp).tics != -1 {
+            if (*psp).tics != -1
+            {
                 (*psp).tics -= 1;
-                if (*psp).tics == 0 {
+                if (*psp).tics == 0
+                {
                     P_SetPsprite(player, i as c_int, (*state).nextstate);
                 }
             }

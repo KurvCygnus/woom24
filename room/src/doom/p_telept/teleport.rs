@@ -52,7 +52,8 @@ type CffiSector = crate::doom::c_ffi::sector_t;
 #[no_mangle]
 pub extern "C" fn EV_Teleport(line: *mut line_t, side: c_int, thing: *mut mobj_t) -> c_int
 {
-    unsafe {
+    unsafe
+    {
         // Don't teleport missiles
         if (*thing).flags & MF_MISSILE != 0
         {

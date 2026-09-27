@@ -194,7 +194,8 @@ pub unsafe extern "C" fn EV_DoPlat(line: *mut line_t, plattype: c_int, amount: c
 #[no_mangle]
 pub extern "C" fn P_ActivateInStasis(tag: c_int)
 {
-    unsafe {
+    unsafe
+    {
         for i in 0..MAXPLATS
         {
             if !activeplats[i].is_null()
@@ -225,7 +226,8 @@ pub extern "C" fn P_ActivateInStasis(tag: c_int)
 #[no_mangle]
 pub extern "C" fn EV_StopPlat(line: *mut line_t)
 {
-    unsafe {
+    unsafe
+    {
         for j in 0..MAXPLATS
         {
             if !activeplats[j].is_null()
@@ -249,7 +251,8 @@ pub extern "C" fn EV_StopPlat(line: *mut line_t)
 #[no_mangle]
 pub extern "C" fn P_AddActivePlat(plat: *mut plat_t)
 {
-    unsafe {
+    unsafe
+    {
         for i in 0..MAXPLATS
         {
             if activeplats[i].is_null()
@@ -272,7 +275,8 @@ pub extern "C" fn P_AddActivePlat(plat: *mut plat_t)
 #[no_mangle]
 pub extern "C" fn P_RemoveActivePlat(plat: *mut plat_t)
 {
-    unsafe {
+    unsafe
+    {
         for i in 0..MAXPLATS
         {
             if plat == activeplats[i]

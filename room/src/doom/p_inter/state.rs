@@ -69,7 +69,8 @@ pub static mut maxammo: [c_int; NUMAMMO] = [200, 50, 300, 50];
 pub static mut clipammo: [c_int; NUMAMMO] = [10, 4, 20, 1];
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
 
@@ -79,9 +80,11 @@ mod tests {
     /// once any other test in the suite mutates the same statics
     /// family).
     #[test]
-    fn maxammo_defaults() {
+    fn maxammo_defaults()
+    {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        unsafe
+        {
             assert_eq!(maxammo, [200, 50, 300, 50]);
         }
     }
@@ -89,9 +92,11 @@ mod tests {
     /// Reads the `clipammo` engine static; see `maxammo_defaults` for
     /// the lock note.
     #[test]
-    fn clipammo_defaults() {
+    fn clipammo_defaults()
+    {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        unsafe
+        {
             assert_eq!(clipammo, [10, 4, 20, 1]);
         }
     }
@@ -99,9 +104,11 @@ mod tests {
     /// Reads the `deh_*` engine statics; see `maxammo_defaults` for
     /// the lock note.
     #[test]
-    fn deh_runtime_globals_default_to_deh_values() {
+    fn deh_runtime_globals_default_to_deh_values()
+    {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        unsafe
+        {
             assert_eq!(deh_max_health, DEH_DEFAULT_MAX_HEALTH);
             assert_eq!(deh_max_armor, DEH_DEFAULT_MAX_ARMOR);
             assert_eq!(deh_green_armor_class, DEH_DEFAULT_GREEN_ARMOR_CLASS);

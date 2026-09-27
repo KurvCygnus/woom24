@@ -92,7 +92,8 @@ pub static mut swingy: fixed_t = 0;
 pub static mut bulletslope: fixed_t = 0;
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use crate::doom::c_ffi::{LOWERSPEED, RAISESPEED, WEAPONBOTTOM, WEAPONTOP};
     use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
@@ -100,7 +101,8 @@ mod tests {
     /// Movement/range constants against the `c_ffi` mirrors and the
     /// `p_local.h` values (no engine statics touched; no lock).
     #[test]
-    fn constants_match_c() {
+    fn constants_match_c()
+    {
         assert_eq!(LOWERSPEED, FRACUNIT * 6);
         assert_eq!(RAISESPEED, FRACUNIT * 6);
         assert_eq!(WEAPONBOTTOM, 128 * FRACUNIT);
@@ -110,7 +112,8 @@ mod tests {
     }
 
     #[test]
-    fn weapon_constants_match() {
+    fn weapon_constants_match()
+    {
         assert_eq!(wp_fist, 0);
         assert_eq!(wp_pistol, 1);
         assert_eq!(wp_shotgun, 2);
@@ -126,9 +129,11 @@ mod tests {
     /// Reads the `swingx` / `swingy` engine statics; see
     /// `constants_match_c` for the lock note.
     #[test]
-    fn swing_defaults_to_zero() {
+    fn swing_defaults_to_zero()
+    {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        unsafe
+        {
             assert_eq!(swingx, 0);
             assert_eq!(swingy, 0);
         }
@@ -137,9 +142,11 @@ mod tests {
     /// Reads the `bulletslope` engine static; see
     /// `constants_match_c` for the lock note.
     #[test]
-    fn bulletslope_defaults_to_zero() {
+    fn bulletslope_defaults_to_zero()
+    {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        unsafe
+        {
             assert_eq!(bulletslope, 0);
         }
     }

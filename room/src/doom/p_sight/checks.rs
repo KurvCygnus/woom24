@@ -35,8 +35,10 @@ use super::types::{mobj_t, sector_t};
 /// `mobj_t` instances. Their `subsector` fields must point into the live
 /// subsector/sector arrays loaded by `p_setup`.
 #[no_mangle]
-pub extern "C" fn P_CheckSight(t1: *mut mobj_t, t2: *mut mobj_t) -> c_int {
-    unsafe {
+pub extern "C" fn P_CheckSight(t1: *mut mobj_t, t2: *mut mobj_t) -> c_int
+{
+    unsafe
+    {
         // Cast both pointers through *const u8 to sidestep the fact that
         // mobj_t (from p_telept) references a different sector_t type than
         // the one declared here. Sector size is the same in both.
@@ -52,7 +54,8 @@ pub extern "C" fn P_CheckSight(t1: *mut mobj_t, t2: *mut mobj_t) -> c_int {
         let bitnum = 1 << (pnum & 7);
 
         // Check in REJECT table.
-        if *rejectmatrix.add(bytenum as usize) & bitnum != 0 {
+        if *rejectmatrix.add(bytenum as usize) & bitnum != 0
+        {
             sightcounts[0] += 1;
             return 0;
         }

@@ -267,12 +267,14 @@ pub(super) const GOTSHOTGUN2: *mut c_char = c"You got the super shotgun!".as_ptr
 /// patched string replacement. Here it is a no-op identity shim because
 /// `FEATURE_DEHACKED` is not defined.
 #[inline(always)]
-pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char {
+pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char
+{
     s
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use crate::doom::d_player::CF_GODMODE;
     use crate::doom::info::{MF_COUNTITEM, MF_DROPPED, MF_SHOOTABLE, MF_SKULLFLY};
@@ -280,7 +282,8 @@ mod tests {
     use crate::doom::tables::{ANG180, ANGLETOFINESHIFT};
 
     #[test]
-    fn constants_match() {
+    fn constants_match()
+    {
         assert_eq!(BONUSADD, 6);
         assert_eq!(NUMAMMO, 4);
         assert_eq!(MAXHEALTH, 100);
@@ -306,7 +309,8 @@ mod tests {
     }
 
     #[test]
-    fn deh_defaults_match() {
+    fn deh_defaults_match()
+    {
         assert_eq!(DEH_DEFAULT_MAX_HEALTH, 200);
         assert_eq!(DEH_DEFAULT_MAX_ARMOR, 200);
         assert_eq!(DEH_DEFAULT_GREEN_ARMOR_CLASS, 1);

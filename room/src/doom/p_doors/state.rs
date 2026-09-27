@@ -85,13 +85,16 @@ const PD_YELLOWK: *mut c_char = c"You need a yellow key to open this door"
 /// string replacement. Here it is a no-op identity shim because
 /// `FEATURE_DEHACKED` is not defined.
 #[inline(always)]
-pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char {
+pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char
+{
     s
 }
 
 #[inline(always)]
-pub(super) unsafe fn locked_object_message(special: c_int) -> *mut c_char {
-    match special {
+pub(super) unsafe fn locked_object_message(special: c_int) -> *mut c_char
+{
+    match special
+    {
         99 | 133 => DEH_String(PD_BLUEO),
         134 | 135 => DEH_String(PD_REDO),
         136 | 137 => DEH_String(PD_YELLOWO),
@@ -100,8 +103,10 @@ pub(super) unsafe fn locked_object_message(special: c_int) -> *mut c_char {
 }
 
 #[inline(always)]
-pub(super) unsafe fn locked_door_message(special: c_int) -> *mut c_char {
-    match special {
+pub(super) unsafe fn locked_door_message(special: c_int) -> *mut c_char
+{
+    match special
+    {
         26 | 32 => DEH_String(PD_BLUEK),
         27 | 34 => DEH_String(PD_YELLOWK),
         28 | 33 => DEH_String(PD_REDK),
@@ -119,7 +124,8 @@ pub(super) unsafe fn locked_door_message(special: c_int) -> *mut c_char {
 /// - `2` = initial wait (used by `vld_raiseIn5Mins`)
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct vldoor_t {
+pub struct vldoor_t
+{
     /// Embedded thinker header; must be the first field.
     pub thinker: thinker_t,
     /// Door type (`vld_*` constant); controls behaviour at open/close limits.
@@ -141,7 +147,8 @@ pub struct vldoor_t {
 
 /// Compile-time layout checks for `vldoor_t` against the C struct on 64-bit.
 #[cfg(target_pointer_width = "64")]
-mod layout_checks {
+mod layout_checks
+{
     use super::*;
     const _: () = assert!(std::mem::size_of::<vldoor_t>() == 64);
     const _: () = assert!(std::mem::offset_of!(vldoor_t, thinker) == 0);
@@ -155,7 +162,8 @@ mod layout_checks {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use std::sync::Mutex;
 
@@ -172,7 +180,8 @@ mod tests {
     const VLDOOR_T_TOPCOUNTDOWN: usize = 56;
 
     #[test]
-    fn vldoor_t_layout_matches_c() {
+    fn vldoor_t_layout_matches_c()
+    {
         let _g = LOCK.lock().unwrap();
         assert_eq!(
             std::mem::size_of::<vldoor_t>(),
@@ -201,9 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn locked_object_specials_map_to_dehacked_messages() {
+    fn locked_object_specials_map_to_dehacked_messages()
+    {
         let _g = LOCK.lock().unwrap();
-        unsafe {
+        unsafe
+        {
             assert_eq!(locked_object_message(99), DEH_String(PD_BLUEO));
             assert_eq!(locked_object_message(133), DEH_String(PD_BLUEO));
             assert_eq!(locked_object_message(134), DEH_String(PD_REDO));
@@ -214,9 +225,11 @@ mod tests {
     }
 
     #[test]
-    fn vertical_door_specials_map_to_dehacked_messages() {
+    fn vertical_door_specials_map_to_dehacked_messages()
+    {
         let _g = LOCK.lock().unwrap();
-        unsafe {
+        unsafe
+        {
             assert_eq!(locked_door_message(26), DEH_String(PD_BLUEK));
             assert_eq!(locked_door_message(32), DEH_String(PD_BLUEK));
             assert_eq!(locked_door_message(27), DEH_String(PD_YELLOWK));

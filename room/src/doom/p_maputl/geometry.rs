@@ -22,7 +22,8 @@ use super::dtmc::{
 ///
 /// Matches `P_AproxDistance` in `p_maputl.c`.
 #[no_mangle]
-pub extern "C" fn P_AproxDistance(dx: fixed_t, dy: fixed_t) -> fixed_t {
+pub extern "C" fn P_AproxDistance(dx: fixed_t, dy: fixed_t) -> fixed_t
+{
     aprox_distance(dx, dy)
 }
 
@@ -38,7 +39,8 @@ pub extern "C" fn P_AproxDistance(dx: fixed_t, dy: fixed_t) -> fixed_t {
 /// `line` must be a valid, non-null pointer to an initialised `line_t` whose
 /// `v1` field points to a valid `vertex_t`.
 #[no_mangle]
-pub extern "C" fn P_PointOnLineSide(x: fixed_t, y: fixed_t, line: *mut line_t) -> c_int {
+pub extern "C" fn P_PointOnLineSide(x: fixed_t, y: fixed_t, line: *mut line_t) -> c_int
+{
     unsafe { point_on_line_side(x, y, &*line) }
 }
 
@@ -53,7 +55,8 @@ pub extern "C" fn P_PointOnLineSide(x: fixed_t, y: fixed_t, line: *mut line_t) -
 /// # Safety
 /// `line` must be a valid, non-null pointer to an initialised `divline_t`.
 #[no_mangle]
-pub extern "C" fn P_PointOnDivlineSide(x: fixed_t, y: fixed_t, line: *mut divline_t) -> c_int {
+pub extern "C" fn P_PointOnDivlineSide(x: fixed_t, y: fixed_t, line: *mut divline_t) -> c_int
+{
     unsafe { point_on_divline_side(x, y, &*line) }
 }
 
@@ -70,8 +73,10 @@ pub extern "C" fn P_PointOnDivlineSide(x: fixed_t, y: fixed_t, line: *mut divlin
 /// `v1` field points to a valid `vertex_t`. `dl` must be a valid, non-null,
 /// writable pointer to a `divline_t`.
 #[no_mangle]
-pub extern "C" fn P_MakeDivline(li: *mut line_t, dl: *mut divline_t) {
-    unsafe {
+pub extern "C" fn P_MakeDivline(li: *mut line_t, dl: *mut divline_t)
+{
+    unsafe
+    {
         let li = &*li;
         let dl = &mut *dl;
         *dl = make_divline(li);
@@ -93,7 +98,8 @@ pub extern "C" fn P_MakeDivline(li: *mut line_t, dl: *mut divline_t) {
 /// Both `v1` and `v2` must be valid, non-null pointers to initialised
 /// `divline_t` values.
 #[no_mangle]
-pub extern "C" fn P_InterceptVector(v2: *mut divline_t, v1: *mut divline_t) -> fixed_t {
+pub extern "C" fn P_InterceptVector(v2: *mut divline_t, v1: *mut divline_t) -> fixed_t
+{
     unsafe { intercept_vector(&*v2, &*v1) }
 }
 
@@ -113,8 +119,10 @@ pub extern "C" fn P_InterceptVector(v2: *mut divline_t, v1: *mut divline_t) -> f
 /// `tmbox` must point to at least 4 consecutive `c_int` values. `ld` must be
 /// a valid, non-null pointer to an initialised `line_t` with valid `v1`.
 #[no_mangle]
-pub extern "C" fn P_BoxOnLineSide(tmbox: *mut c_int, ld: *mut line_t) -> c_int {
-    unsafe {
+pub extern "C" fn P_BoxOnLineSide(tmbox: *mut c_int, ld: *mut line_t) -> c_int
+{
+    unsafe
+    {
         let tmbox = std::slice::from_raw_parts_mut(tmbox, 4);
         let ld = &*ld;
         box_on_line_side(tmbox, ld)

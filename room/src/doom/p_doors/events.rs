@@ -107,7 +107,8 @@ pub unsafe extern "C" fn EV_DoDoor(line: *mut line_t, r#type: c_int) -> c_int
     let mut secnum: c_int = -1;
     let mut rtn: c_int = 0;
 
-    while {
+    while
+    {
         secnum = P_FindSectorFromLineTag(line as *mut cffi::line_t, secnum);
         secnum
     } >= 0

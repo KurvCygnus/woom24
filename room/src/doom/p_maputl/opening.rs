@@ -45,24 +45,33 @@ pub static mut lowfloor: fixed_t = 0;
 /// If the line is two-sided, `frontsector` and `backsector` must also be
 /// valid non-null pointers to initialised `sector_t` values.
 #[no_mangle]
-pub extern "C" fn P_LineOpening(linedef: *mut line_t) {
-    unsafe {
+pub extern "C" fn P_LineOpening(linedef: *mut line_t)
+{
+    unsafe
+    {
         let linedef = &*linedef;
-        if linedef.sidenum[1] == -1 {
+        if linedef.sidenum[1] == -1
+        {
             openrange = 0;
             return;
         }
         let front = linedef.frontsector as *mut sector_t;
         let back = linedef.backsector as *mut sector_t;
-        if (*front).ceilingheight < (*back).ceilingheight {
+        if (*front).ceilingheight < (*back).ceilingheight
+        {
             opentop = (*front).ceilingheight;
-        } else {
+        }
+        else
+        {
             opentop = (*back).ceilingheight;
         }
-        if (*front).floorheight > (*back).floorheight {
+        if (*front).floorheight > (*back).floorheight
+        {
             openbottom = (*front).floorheight;
             lowfloor = (*back).floorheight;
-        } else {
+        }
+        else
+        {
             openbottom = (*back).floorheight;
             lowfloor = (*front).floorheight;
         }

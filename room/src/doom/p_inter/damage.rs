@@ -60,32 +60,41 @@ use super::dtmc;
 /// `source` may be null (environmental kill).  All global game-state
 /// statics must only be accessed from the game-logic thread.
 #[no_mangle]
-pub unsafe extern "C" fn P_KillMobj(source: *mut mobj_t, target: *mut mobj_t) {
+pub unsafe extern "C" fn P_KillMobj(source: *mut mobj_t, target: *mut mobj_t)
+{
     let info = (*target).info as *mut MobjInfo;
     (*target).flags &= !(MF_SHOOTABLE | MF_FLOAT | MF_SKULLFLY);
-    if (*target).mobjtype != MT_SKULL {
+    if (*target).mobjtype != MT_SKULL
+    {
         (*target).flags &= !MF_NOGRAVITY;
     }
     (*target).flags |= MF_CORPSE | MF_DROPOFF;
     (*target).height >>= 2;
 
-    if !source.is_null() && !(*source).player.is_null() {
+    if !source.is_null() && !(*source).player.is_null()
+    {
         let source_player = (*source).player as *mut PlayerT;
-        if (*target).flags & MF_COUNTKILL != 0 {
+        if (*target).flags & MF_COUNTKILL != 0
+        {
             (*source_player).killcount += 1;
         }
-        if !(*target).player.is_null() {
+        if !(*target).player.is_null()
+        {
             let target_player = (*target).player as *mut PlayerT;
             let idx = target_player.offset_from(std::ptr::addr_of_mut!(players[0])) as usize;
             (*source_player).frags[idx] += 1;
         }
-    } else if netgame == 0 && (*target).flags & MF_COUNTKILL != 0 {
+    }
+    else if netgame == 0 && (*target).flags & MF_COUNTKILL != 0
+    {
         players[0].killcount += 1;
     }
 
-    if !(*target).player.is_null() {
+    if !(*target).player.is_null()
+    {
         let target_player = (*target).player as *mut PlayerT;
-        if source.is_null() {
+        if source.is_null()
+        {
             let idx = target_player.offset_from(std::ptr::addr_of_mut!(players[0])) as usize;
             (*target_player).frags[idx] += 1;
         }
@@ -101,18 +110,23 @@ pub unsafe extern "C" fn P_KillMobj(source: *mut mobj_t, target: *mut mobj_t) {
         }
     }
 
-    if (*target).health < -(*info).spawnhealth && (*info).xdeathstate != 0 {
+    if (*target).health < -(*info).spawnhealth && (*info).xdeathstate != 0
+    {
         P_SetMobjState(target, (*info).xdeathstate);
-    } else {
+    }
+    else
+    {
         P_SetMobjState(target, (*info).deathstate);
     }
     (*target).tics = dtmc::death_tic_roll((*target).tics, P_Random());
 
-    if gameversion == exe_chex {
+    if gameversion == exe_chex
+    {
         return;
     }
 
-    let item: c_int = match (*target).mobjtype {
+    let item: c_int = match (*target).mobjtype
+    {
         MT_WOLFSS | MT_POSSESSED => MT_CLIP,
         MT_SHOTGUY => MT_SHOTGUN,
         MT_CHAINGUY => MT_CHAINGUN,
@@ -162,21 +176,26 @@ pub unsafe extern "C" fn P_DamageMobj(
     inflictor: *mut mobj_t,
     source: *mut mobj_t,
     mut damage: c_int,
-) {
-    if ((*target).flags & MF_SHOOTABLE) == 0 {
+)
+{
+    if ((*target).flags & MF_SHOOTABLE) == 0
+    {
         return;
     }
-    if (*target).health <= 0 {
+    if (*target).health <= 0
+    {
         return;
     }
-    if ((*target).flags & MF_SKULLFLY) != 0 {
+    if ((*target).flags & MF_SKULLFLY) != 0
+    {
         (*target).momx = 0;
         (*target).momy = 0;
         (*target).momz = 0;
     }
 
     let player = (*target).player as *mut PlayerT;
-    if !player.is_null() && gameskill == sk_baby {
+    if !player.is_null() && gameskill == sk_baby
+    {
         damage >>= 1;
     }
 
@@ -215,9 +234,11 @@ pub unsafe extern "C" fn P_DamageMobj(
         (*target).momy += FixedMul(thrust, finesine[ang as usize]);
     }
 
-    if !player.is_null() {
+    if !player.is_null()
+    {
         // end of game hell hack
-        if (*(*(*target).subsector).sector).special == 11 && damage >= (*target).health {
+        if (*(*(*target).subsector).sector).special == 11 && damage >= (*target).health
+        {
             damage = (*target).health - 1;
         }
 
@@ -227,7 +248,8 @@ pub unsafe extern "C" fn P_DamageMobj(
             return;
         }
 
-        if (*player).armortype != 0 {
+        if (*player).armortype != 0
+        {
             let (damage_after, armorpoints_after, armortype_after) =
                 dtmc::armor_absorption(damage, (*player).armortype, (*player).armorpoints);
             (*player).armorpoints = armorpoints_after;
@@ -235,31 +257,36 @@ pub unsafe extern "C" fn P_DamageMobj(
             damage = damage_after;
         }
         (*player).health -= damage;
-        if (*player).health < 0 {
+        if (*player).health < 0
+        {
             (*player).health = 0;
         }
         (*player).attacker = source as *mut crate::doom::d_player::mobj_t;
         (*player).damagecount += damage;
-        if (*player).damagecount > 100 {
+        if (*player).damagecount > 100
+        {
             (*player).damagecount = 100;
         }
         let temp = if damage < 100 { damage } else { 100 };
         if std::ptr::eq(
             player,
             std::ptr::addr_of_mut!(players[0]).add(consoleplayer as usize),
-        ) {
+        )
+        {
             I_Tactile(40, 10, 40 + temp * 2);
         }
     }
 
     (*target).health -= damage;
-    if (*target).health <= 0 {
+    if (*target).health <= 0
+    {
         P_KillMobj(source, target);
         return;
     }
 
     let info = (*target).info as *mut MobjInfo;
-    if P_Random() < (*info).painchance && ((*target).flags & MF_SKULLFLY) == 0 {
+    if P_Random() < (*info).painchance && ((*target).flags & MF_SKULLFLY) == 0
+    {
         (*target).flags |= MF_JUSTHIT;
         P_SetMobjState(target, (*info).painstate);
     }
@@ -275,7 +302,8 @@ pub unsafe extern "C" fn P_DamageMobj(
         (*target).threshold = BASETHRESHOLD;
         let state_ptr = (*target).state as *mut State;
         let spawnstate_ptr = &info::states[(*info).spawnstate as usize] as *const State;
-        if std::ptr::eq(state_ptr, spawnstate_ptr) && (*info).seestate != S_NULL {
+        if std::ptr::eq(state_ptr, spawnstate_ptr) && (*info).seestate != S_NULL
+        {
             P_SetMobjState(target, (*info).seestate);
         }
     }

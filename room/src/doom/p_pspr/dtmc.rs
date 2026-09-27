@@ -123,7 +123,8 @@ mod tests
     use std::ffi::c_int;
     use crate::doom::d_player::{players, PlayerT, PspdefT};
     use crate::doom::info::{S_CHAIN1, S_NULL};
-    use crate::doom::p_pspr::state::{
+    use crate::doom::p_pspr::state::
+    {
         am_clip, am_shell, wp_chaingun, wp_nochange, wp_pistol, wp_shotgun, wp_supershotgun,
         ANG90,
     };
@@ -193,7 +194,8 @@ mod tests
         (*player).health = 100;
         (*player).mo = mo as *mut _;
         (
-            RigGuard {
+            RigGuard
+            {
                 saved_channels,
                 saved_console_mo,
             },

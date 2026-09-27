@@ -50,11 +50,13 @@ use super::state::{
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_Punch(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_Punch(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
 
     let mut damage = dtmc::melee_roll(P_Random());
-    if (*player).powers[pw_strength] != 0 {
+    if (*player).powers[pw_strength] != 0
+    {
         damage *= 10;
     }
 
@@ -70,7 +72,8 @@ pub unsafe extern "C" fn A_Punch(player: *mut PlayerT, _psp: *mut PspdefT) {
     );
 
     // Turn to face target.
-    if !linetarget.is_null() {
+    if !linetarget.is_null()
+    {
         S_StartSound(mo as *mut c_void, Sfx::Punch as c_int);
         (*mo).angle = R_PointToAngle2((*mo).x, (*mo).y, (*linetarget).x, (*linetarget).y);
     }
@@ -86,7 +89,8 @@ pub unsafe extern "C" fn A_Punch(player: *mut PlayerT, _psp: *mut PspdefT) {
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_Saw(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_Saw(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
 
     let damage = dtmc::melee_roll(P_Random());
@@ -102,7 +106,8 @@ pub unsafe extern "C" fn A_Saw(player: *mut PlayerT, _psp: *mut PspdefT) {
         damage,
     );
 
-    if linetarget.is_null() {
+    if linetarget.is_null()
+    {
         S_StartSound(mo as *mut c_void, Sfx::Sawful as c_int);
         return;
     }
@@ -111,17 +116,26 @@ pub unsafe extern "C" fn A_Saw(player: *mut PlayerT, _psp: *mut PspdefT) {
     // Turn to face target.
     let angle = R_PointToAngle2((*mo).x, (*mo).y, (*linetarget).x, (*linetarget).y);
     let delta = angle.wrapping_sub((*mo).angle);
-    if delta > ANG180 {
+    if delta > ANG180
+    {
         let signed_delta = delta as i32;
-        if signed_delta < -(ANG90 as i32) / 20 {
+        if signed_delta < -(ANG90 as i32) / 20
+        {
             (*mo).angle = angle.wrapping_add(ANG90 / 21);
-        } else {
+        }
+        else
+        {
             (*mo).angle = (*mo).angle.wrapping_sub(ANG90 / 20);
         }
-    } else {
-        if delta > ANG90 / 20 {
+    }
+    else
+    {
+        if delta > ANG90 / 20
+        {
             (*mo).angle = angle.wrapping_sub(ANG90 / 21);
-        } else {
+        }
+        else
+        {
             (*mo).angle = (*mo).angle.wrapping_add(ANG90 / 20);
         }
     }
@@ -135,7 +149,8 @@ pub unsafe extern "C" fn A_Saw(player: *mut PlayerT, _psp: *mut PspdefT) {
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FireMissile(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FireMissile(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     DecreaseAmmo(player, weaponinfo[(*player).readyweapon as usize].ammo, 1);
     P_SpawnPlayerMissile(mo, MT_ROCKET);
@@ -149,7 +164,8 @@ pub unsafe extern "C" fn A_FireMissile(player: *mut PlayerT, _psp: *mut PspdefT)
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FireBFG(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FireBFG(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     DecreaseAmmo(
         player,
@@ -167,7 +183,8 @@ pub unsafe extern "C" fn A_FireBFG(player: *mut PlayerT, _psp: *mut PspdefT) {
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FirePlasma(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FirePlasma(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     DecreaseAmmo(player, weaponinfo[(*player).readyweapon as usize].ammo, 1);
 
@@ -188,14 +205,17 @@ pub unsafe extern "C" fn A_FirePlasma(player: *mut PlayerT, _psp: *mut PspdefT) 
 ///
 /// `mo` must be a valid, non-null pointer to an initialised `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn P_BulletSlope(mo: *mut mobj_t) {
+pub unsafe extern "C" fn P_BulletSlope(mo: *mut mobj_t)
+{
     let mut an = (*mo).angle;
     bulletslope = P_AimLineAttack(mo as *mut _ as *mut CffiMobj, an, 16 * 64 * FRACUNIT);
 
-    if linetarget.is_null() {
+    if linetarget.is_null()
+    {
         an = an.wrapping_add(1 << 26);
         bulletslope = P_AimLineAttack(mo as *mut _ as *mut CffiMobj, an, 16 * 64 * FRACUNIT);
-        if linetarget.is_null() {
+        if linetarget.is_null()
+        {
             an = an.wrapping_sub(2 << 26);
             bulletslope = P_AimLineAttack(mo as *mut _ as *mut CffiMobj, an, 16 * 64 * FRACUNIT);
         }
@@ -212,11 +232,13 @@ pub unsafe extern "C" fn P_BulletSlope(mo: *mut mobj_t) {
 /// `P_BulletSlope` must have been called before this function so that
 /// `bulletslope` is valid.
 #[no_mangle]
-pub unsafe extern "C" fn P_GunShot(mo: *mut mobj_t, accurate: c_int) {
+pub unsafe extern "C" fn P_GunShot(mo: *mut mobj_t, accurate: c_int)
+{
     let damage = dtmc::gunshot_roll(P_Random());
     let mut angle = (*mo).angle;
 
-    if accurate == 0 {
+    if accurate == 0
+    {
         angle = angle.wrapping_add(dtmc::spread_angle(P_Random(), P_Random(), 18));
     }
 
@@ -236,7 +258,8 @@ pub unsafe extern "C" fn P_GunShot(mo: *mut mobj_t, accurate: c_int) {
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FirePistol(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FirePistol(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     S_StartSound(mo as *mut c_void, Sfx::Pistol as c_int);
 
@@ -260,7 +283,8 @@ pub unsafe extern "C" fn A_FirePistol(player: *mut PlayerT, _psp: *mut PspdefT) 
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FireShotgun(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FireShotgun(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     S_StartSound(mo as *mut c_void, Sfx::Shotgn as c_int);
     P_SetMobjState(mo, S_PLAY_ATK2);
@@ -275,7 +299,8 @@ pub unsafe extern "C" fn A_FireShotgun(player: *mut PlayerT, _psp: *mut PspdefT)
 
     P_BulletSlope(mo);
 
-    for _ in 0..7 {
+    for _ in 0..7
+    {
         P_GunShot(mo, 0);
     }
 }
@@ -288,7 +313,8 @@ pub unsafe extern "C" fn A_FireShotgun(player: *mut PlayerT, _psp: *mut PspdefT)
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FireShotgun2(player: *mut PlayerT, _psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FireShotgun2(player: *mut PlayerT, _psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     S_StartSound(mo as *mut c_void, Sfx::Dshtgn as c_int);
     P_SetMobjState(mo, S_PLAY_ATK2);
@@ -303,7 +329,8 @@ pub unsafe extern "C" fn A_FireShotgun2(player: *mut PlayerT, _psp: *mut PspdefT
 
     P_BulletSlope(mo);
 
-    for _ in 0..20 {
+    for _ in 0..20
+    {
         let damage = dtmc::gunshot_roll(P_Random());
         let mut angle = (*mo).angle;
         angle = angle.wrapping_add(dtmc::spread_angle(P_Random(), P_Random(), 19));
@@ -327,11 +354,13 @@ pub unsafe extern "C" fn A_FireShotgun2(player: *mut PlayerT, _psp: *mut PspdefT
 /// weapon psprite slot which must currently be in state `S_CHAIN1` or
 /// `S_CHAIN2`.
 #[no_mangle]
-pub unsafe extern "C" fn A_FireCGun(player: *mut PlayerT, psp: *mut PspdefT) {
+pub unsafe extern "C" fn A_FireCGun(player: *mut PlayerT, psp: *mut PspdefT)
+{
     let mo = (*player).mo as *mut mobj_t;
     S_StartSound(mo as *mut c_void, Sfx::Pistol as c_int);
 
-    if (*player).ammo[weaponinfo[(*player).readyweapon as usize].ammo as usize] == 0 {
+    if (*player).ammo[weaponinfo[(*player).readyweapon as usize].ammo as usize] == 0
+    {
         return;
     }
 
@@ -360,8 +389,10 @@ pub unsafe extern "C" fn A_FireCGun(player: *mut PlayerT, psp: *mut PspdefT) {
 /// `mo` must be a valid, non-null pointer to an `mobj_t` whose `target` field
 /// points to a valid player `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t) {
-    for i in 0..40 {
+pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t)
+{
+    for i in 0..40
+    {
         let an = (*mo).angle - ANG90 / 2 + (ANG90 / 40) * i as u32;
 
         P_AimLineAttack(
@@ -370,7 +401,8 @@ pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t) {
             16 * 64 * FRACUNIT,
         );
 
-        if linetarget.is_null() {
+        if linetarget.is_null()
+        {
             continue;
         }
 
@@ -385,7 +417,8 @@ pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t) {
         //* The 15-draw ladder bound has no unit vector (a hit target needs
         //* a blockmap world); it is guarded by the demo goldens alone -- do
         //* not retune `0..15` casually.
-        for _ in 0..15 {
+        for _ in 0..15
+        {
             damage = dtmc::spray_step(damage, P_Random());
         }
 
@@ -399,7 +432,8 @@ pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t) {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
 
     /// Regression tests for mobjtype constants used by weapon fire functions.
@@ -408,7 +442,8 @@ mod tests {
     /// of rockets (which then crashed on the missing PLSS sprite in the
     /// shareware WAD).
     #[test]
-    fn mobjtype_constants_match_info() {
+    fn mobjtype_constants_match_info()
+    {
         assert_eq!(MT_ROCKET, 33);
         assert_eq!(MT_PLASMA, 34);
         assert_eq!(MT_BFG, 35);
@@ -419,8 +454,10 @@ mod tests {
     /// Verify that the mobjinfo table entries at the projectile indices
     /// have the expected spawnstates.  This catches index-vs-table drift.
     #[test]
-    fn projectile_mobjinfo_entries() {
-        unsafe {
+    fn projectile_mobjinfo_entries()
+    {
+        unsafe
+        {
             assert_eq!(
                 info::mobjinfo[MT_ROCKET as usize].spawnstate,
                 S_ROCKET,

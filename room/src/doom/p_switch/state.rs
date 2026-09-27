@@ -444,7 +444,8 @@ mod tests
     fn globals_are_zero_initialized()
     {
         let _g = LOCK.lock().unwrap();
-        unsafe {
+        unsafe
+        {
             assert_eq!(std::ptr::addr_of!(numswitches).read(), 0);
             let switches = std::ptr::addr_of!(switchlist);
             for (i, &v) in (*switches).iter().enumerate()
@@ -463,7 +464,8 @@ mod tests
     #[test]
     fn switchlist_length_is_maxswitches_times_2()
     {
-        unsafe {
+        unsafe
+        {
             let switches = std::ptr::addr_of!(switchlist);
             assert_eq!((*switches).len(), MAXSWITCHES * 2);
             assert_eq!((*switches).len(), 100);

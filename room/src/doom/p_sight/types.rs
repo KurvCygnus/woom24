@@ -28,7 +28,8 @@ pub use crate::doom::p_telept::mobj_t;
 /// Corresponds to `divline_t` in `p_local.h`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct divline_t {
+pub struct divline_t
+{
     /// X coordinate of the ray origin (fixed-point map units).
     pub x: c_int,
     /// Y coordinate of the ray origin (fixed-point map units).
@@ -44,7 +45,8 @@ pub struct divline_t {
 /// Corresponds to `vertex_t` in `r_defs.h`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct vertex_t {
+pub struct vertex_t
+{
     /// X coordinate (fixed-point map units).
     pub x: c_int,
     /// Y coordinate (fixed-point map units).
@@ -57,7 +59,8 @@ pub struct vertex_t {
 /// `firstline` matches the C struct's natural alignment on 64-bit targets.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct subsector_t {
+pub struct subsector_t
+{
     /// The sector this subsector belongs to.
     pub sector: *mut sector_t,
     /// Number of segs in this subsector.
@@ -72,7 +75,8 @@ pub struct subsector_t {
 /// Corresponds to `seg_t` in `r_defs.h`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct seg_t {
+pub struct seg_t
+{
     /// Start vertex of this segment.
     pub v1: *mut vertex_t,
     /// End vertex of this segment.
@@ -103,7 +107,8 @@ pub struct seg_t {
 /// Corresponds to `node_t` in `r_defs.h`.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct node_t {
+pub struct node_t
+{
     /// X coordinate of the partition line origin.
     pub x: c_int,
     /// Y coordinate of the partition line origin.
@@ -126,7 +131,8 @@ pub struct node_t {
 /// `sector_t_layout` unit test.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct sector_t {
+pub struct sector_t
+{
     /// Floor height (fixed-point map units).
     pub floorheight: c_int,
     /// Ceiling height (fixed-point map units).
@@ -168,7 +174,8 @@ pub struct sector_t {
 /// `line_t_layout` unit test.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct line_t {
+pub struct line_t
+{
     /// Start vertex.
     pub v1: *mut vertex_t,
     /// End vertex.
@@ -201,7 +208,8 @@ pub struct line_t {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
     use std::sync::Mutex;
 
@@ -216,35 +224,41 @@ mod tests {
     const LINE_T_SIZEOF: usize = 88;
 
     #[test]
-    fn divline_t_size() {
+    fn divline_t_size()
+    {
         assert_eq!(std::mem::size_of::<divline_t>(), DIVLINE_T_SIZEOF);
     }
 
     #[test]
-    fn vertex_t_size() {
+    fn vertex_t_size()
+    {
         assert_eq!(std::mem::size_of::<vertex_t>(), VERTEX_T_SIZEOF);
     }
 
     #[test]
-    fn subsector_t_size() {
+    fn subsector_t_size()
+    {
         let _g = LOCK.lock().unwrap();
         assert_eq!(std::mem::size_of::<subsector_t>(), SUBSECTOR_T_SIZEOF,);
     }
 
     #[test]
-    fn seg_t_size() {
+    fn seg_t_size()
+    {
         let _g = LOCK.lock().unwrap();
         assert_eq!(std::mem::size_of::<seg_t>(), SEG_T_SIZEOF,);
     }
 
     #[test]
-    fn node_t_size() {
+    fn node_t_size()
+    {
         let _g = LOCK.lock().unwrap();
         assert_eq!(std::mem::size_of::<node_t>(), NODE_T_SIZEOF,);
     }
 
     #[test]
-    fn sector_t_layout() {
+    fn sector_t_layout()
+    {
         let _g = LOCK.lock().unwrap();
         assert_eq!(std::mem::size_of::<sector_t>(), SECTOR_T_SIZEOF);
         assert_eq!(std::mem::offset_of!(sector_t, floorheight), 0);
@@ -266,7 +280,8 @@ mod tests {
     }
 
     #[test]
-    fn line_t_layout() {
+    fn line_t_layout()
+    {
         let _g = LOCK.lock().unwrap();
         assert_eq!(std::mem::size_of::<line_t>(), LINE_T_SIZEOF);
         assert_eq!(std::mem::offset_of!(line_t, v1), 0);
