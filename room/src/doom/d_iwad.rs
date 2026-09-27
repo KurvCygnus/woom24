@@ -580,3 +580,143 @@ pub unsafe extern "C" fn D_SuggestGameName(mission: c_int, mode: c_int) -> *mut 
 pub extern "C" fn D_CheckCorrectIWAD(_mission: c_int) {
     // Not implemented in original C codebase.
 }
+
+/// Baseline vectors for the two pure string helpers of IWAD discovery,
+/// written against the pre-move bodies (F10 wave C1). They pin the
+/// trailing-component match of `DirIsFile` (case-insensitive, separator
+/// required, partial names rejected) and the three branches of
+/// `CheckDirectoryHasIWAD` (the `dir == "."` elision probes the bare
+/// name, the join branch builds `dir/name`, and the `DirIsFile` +
+/// `M_FileExists` branch returns a copy of the directory itself).
+#[cfg(test)]
+mod tests {
+    use std::ffi::{CStr, CString};
+
+    use super::*;
+
+    /// Creates an empty probe file and returns its full path with
+    /// forward-slash separators (the separator this module hardcodes),
+    /// so the vectors behave identically on Windows and Unix hosts.
+    fn make_probe_path(tag: &str) -> String
+    {
+        let mut path = std::env::temp_dir();
+        path.push(format!("woom24_c1_probe_{tag}.wad"));
+        std::fs::write(&path, b"").unwrap();
+        path.to_str().unwrap().replace('\\', "/")
+    }
+
+    /// Converts a Rust string to an owned C string pointer.
+    fn cstr(s: &str) -> CString
+    {
+        CString::new(s).unwrap()
+    }
+
+    /// The trailing path component matches case-insensitively.
+    #[test]
+    fn dir_is_file_trailing_component_matches()
+    {
+        unsafe
+        {
+            let path = cstr("/games/doom.wad");
+            let name = cstr("doom.wad");
+            assert_eq!(
+                DirIsFile(path.as_ptr().cast_mut(), name.as_ptr().cast_mut()),
+                1
+            );
+        }
+    }
+
+    /// A shared prefix that does not end at a path separator must not
+    /// count as a match (`mydoom.wad` is not `doom.wad`).
+    #[test]
+    fn dir_is_file_partial_name_no_match()
+    {
+        unsafe
+        {
+            let path = cstr("/games/mydoom.wad");
+            let name = cstr("doom.wad");
+            assert_eq!(
+                DirIsFile(path.as_ptr().cast_mut(), name.as_ptr().cast_mut()),
+                0
+            );
+        }
+    }
+
+    /// A bare filename (no directory separator before the final
+    /// component) never matches, even against itself.
+    #[test]
+    fn dir_is_file_bare_name_no_separator_no_match()
+    {
+        unsafe
+        {
+            let path = cstr("doom.wad");
+            let name = cstr("doom.wad");
+            assert_eq!(
+                DirIsFile(path.as_ptr().cast_mut(), name.as_ptr().cast_mut()),
+                0
+            );
+        }
+    }
+
+    /// With `dir == "."` the directory prefix is elided: the candidate
+    /// probed is the bare name, so an absolute existing path passed as
+    /// `iwadname` comes back verbatim (never `./`-joined).
+    #[test]
+    fn check_directory_elides_dot_prefix()
+    {
+        let probe = make_probe_path("elide");
+        unsafe
+        {
+            let dir = cstr(".");
+            let name = cstr(&probe);
+            let result =
+                CheckDirectoryHasIWAD(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
+            assert!(!result.is_null());
+            assert_eq!(CStr::from_ptr(result).to_str().unwrap(), probe);
+            free(result as *mut c_void);
+        }
+    }
+
+    /// A real directory joins `dir/name` with the hardcoded `/`
+    /// separator and returns the existing path.
+    #[test]
+    fn check_directory_joins_dir_and_name()
+    {
+        let probe_file = make_probe_path("join");
+        let dir = std::path::Path::new(&probe_file)
+            .parent()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        let joined = format!("{dir}/woom24_c1_probe_join.wad");
+        unsafe
+        {
+            let dir = cstr(&dir);
+            let name = cstr("woom24_c1_probe_join.wad");
+            let result =
+                CheckDirectoryHasIWAD(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
+            assert!(!result.is_null());
+            assert_eq!(CStr::from_ptr(result).to_str().unwrap(), joined);
+            free(result as *mut c_void);
+        }
+    }
+
+    /// When `dir` itself is the IWAD file, a copy of `dir` is returned
+    /// (the `DirIsFile` + `M_FileExists` first branch).
+    #[test]
+    fn check_directory_dir_is_file_branch_returns_copy_of_dir()
+    {
+        let probe = make_probe_path("self");
+        unsafe
+        {
+            let dir = cstr(&probe);
+            let name = cstr("woom24_c1_probe_self.wad");
+            let result =
+                CheckDirectoryHasIWAD(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
+            assert!(!result.is_null());
+            assert_eq!(CStr::from_ptr(result).to_str().unwrap(), probe);
+            free(result as *mut c_void);
+        }
+    }
+}
