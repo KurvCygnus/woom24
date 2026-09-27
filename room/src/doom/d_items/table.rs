@@ -1,13 +1,14 @@
-//! Rust port of `vendor/doomgeneric/d_items.c`.
-//!
-//! Weapon animation state table (`weaponinfo`) and the supporting
-//! `weaponinfo_t` struct.  Each entry describes the ammo type and the
-//! state-machine indices for raise, lower, idle, attack, and muzzle-flash
-//! animations of one weapon.
+//! The weapon table itself: `weaponinfo_t`, the `am_*` ammo-type consts,
+//! `NUMWEAPONS`, and the `weaponinfo` array. Copied byte-identically from
+//! the pre-graduation `d_items.rs` (and `vendor/doomgeneric/d_items.c`);
+//! the off-by-one history note below is the module's institutional
+//! memory and moves with the data.
 
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 use std::ffi::c_int;
+
+use crate::doom::statenum::*;
 
 // ---------------------------------------------------------------------------
 // Ammo type enum values (from doomdef.h)
@@ -36,8 +37,6 @@ const am_noammo: c_int = 5;
 // ran A_Lower instead of A_Raise, eventually driving readyweapon to
 // wp_nochange (= NUMWEAPONS) and segfaulting on weaponinfo[9].
 
-use crate::doom::statenum::*;
-
 // ---------------------------------------------------------------------------
 // Weapon info table
 // ---------------------------------------------------------------------------
@@ -45,7 +44,8 @@ use crate::doom::statenum::*;
 /// Weapon info: sprite frames, ammunition use.
 /// Matches `weaponinfo_t` from `d_items.h`.
 #[repr(C)]
-pub struct weaponinfo_t {
+pub struct weaponinfo_t
+{
     /// Ammo type consumed by this weapon (`am_*`).
     pub ammo: c_int,
     /// State index for the raise (weapon-up) animation.
@@ -153,32 +153,37 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
 ];
 
 #[cfg(test)]
-mod tests {
+mod tests
+{
     use super::*;
 
     /// Verify the weapon table has exactly nine entries.
     #[test]
-    fn test_weaponinfo_length() {
+    fn test_weaponinfo_length()
+    {
         assert_eq!(weaponinfo.len(), 9);
     }
 
     /// Verify the fist entry uses no ammo and has the correct ready state.
     #[test]
-    fn test_fist_entry() {
+    fn test_fist_entry()
+    {
         assert_eq!(weaponinfo[0].ammo, am_noammo);
         assert_eq!(weaponinfo[0].readystate, S_PUNCH);
     }
 
     /// Verify the super-shotgun entry uses shells and has the correct flash state.
     #[test]
-    fn test_super_shotgun_entry() {
+    fn test_super_shotgun_entry()
+    {
         assert_eq!(weaponinfo[8].ammo, am_shell);
         assert_eq!(weaponinfo[8].flashstate, S_DSGUNFLASH1);
     }
 
     /// Verify `weaponinfo_t` is 24 bytes (six `c_int` fields, 4 bytes each).
     #[test]
-    fn test_weaponinfo_t_size() {
+    fn test_weaponinfo_t_size()
+    {
         assert_eq!(size_of::<weaponinfo_t>(), 24);
     }
 }
