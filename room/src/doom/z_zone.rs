@@ -656,3 +656,209 @@ pub unsafe extern "C" fn Z_Zone_Link_Anchor() {
     Z_FreeMemory();
     Z_ZoneSize();
 }
+
+/// Baseline vectors for the Zone allocator, written against the
+/// pre-move `Z_*` bodies (F10 wave B5). They pin the free-list
+/// behaviours the graduation must preserve: the alloc/free
+/// round-trip, the coalescing invariant, tag-range release, purge
+/// eviction, and the zone-size report.
+#[cfg(test)]
+mod tests
+{
+    use std::ffi::c_void;
+    use std::sync::Mutex;
+
+    use super::*;
+
+    //* Serialises every test that boots the Zone: `mainzone` is a
+    //* process-global and `Z_Init` swaps it, so allocator tests must
+    //* not interleave with each other (per-module lock, r_draw
+    //* precedent).
+    static LOCK: Mutex<()> = Mutex::new(());
+
+    //* Coalescing is asserted structurally (free-block count), not via
+    //* `Z_CheckHeapQuiet`: its 10 MB size heuristic flags the
+    //* legitimately merged ~32 MiB tail free block as invalid on a
+    //* fresh zone, so it can never return true here.
+    unsafe fn count_free_blocks() -> usize
+    {
+        let zone = mainzone;
+        let sentinel = std::ptr::addr_of_mut!((*zone).blocklist);
+        let mut block = (*zone).blocklist.next;
+        let mut count = 0;
+        while block != sentinel
+        {
+            if (*block).tag == PU_FREE
+            {
+                count += 1;
+            }
+            block = (*block).next;
+        }
+        count
+    }
+
+    /// Alloc/free round-trip: a fresh allocation arrives zeroed (the
+    /// documented Rust-port addition), the owner back-pointer is
+    /// filled and cleared on free, and a both-sides-merge free order
+    /// keeps the coalescing invariant (`Z_CheckHeapQuiet` stays true:
+    /// two consecutive free blocks never coexist).
+    #[test]
+    fn alloc_free_roundtrip_and_coalesce()
+    {
+        let _g = LOCK.lock().unwrap();
+        unsafe
+        {
+            Z_Init();
+            assert!(!mainzone.is_null());
+
+            let mut u1: *mut c_void = std::ptr::null_mut();
+            let mut u2: *mut c_void = std::ptr::null_mut();
+            let mut u3: *mut c_void = std::ptr::null_mut();
+
+            let p1 = Z_Malloc(128, PU_STATIC, &mut u1 as *mut _ as *mut c_void);
+            let p2 = Z_Malloc(128, PU_STATIC, &mut u2 as *mut _ as *mut c_void);
+            let p3 = Z_Malloc(128, PU_STATIC, &mut u3 as *mut _ as *mut c_void);
+            assert!(!p1.is_null() && !p2.is_null() && !p3.is_null());
+            assert!(p1 != p2 && p2 != p3 && p1 != p3);
+
+            //* Port addition pinned here on purpose: upstream C does
+            //* NOT zero; consumers may (unverifiably) rely on it.
+            assert_eq!(*p1.cast::<u8>().add(127), 0);
+
+            assert_eq!(u1, p1);
+
+            // Free in an order that forces left+right merging around
+            // the middle block's neighbours; everything after the
+            // sentinel coalesces into ONE free block.
+            Z_Free(p2);
+            Z_Free(p1);
+            Z_Free(p3);
+
+            assert_eq!(u1, std::ptr::null_mut());
+            assert_eq!(u2, std::ptr::null_mut());
+            assert_eq!(u3, std::ptr::null_mut());
+
+            assert_eq!(count_free_blocks(), 1);
+        }
+    }
+
+    /// Tag-range release: `Z_FreeTags(PU_LEVEL, PU_PURGELEVEL - 1)`
+    /// (the level-shutdown call shape in `p_setup`) frees
+    /// `PU_LEVEL` and `PU_LEVSPEC` blocks and leaves `PU_CACHE`
+    /// blocks live.
+    #[test]
+    fn free_tags_releases_level_range()
+    {
+        let _g = LOCK.lock().unwrap();
+        unsafe
+        {
+            Z_Init();
+
+            let mut ul: *mut c_void = std::ptr::null_mut();
+            let mut us: *mut c_void = std::ptr::null_mut();
+            let mut uc: *mut c_void = std::ptr::null_mut();
+
+            let pl = Z_Malloc(64, PU_LEVEL, &mut ul as *mut _ as *mut c_void);
+            let ps = Z_Malloc(64, PU_LEVSPEC, &mut us as *mut _ as *mut c_void);
+            let pc = Z_Malloc(64, PU_CACHE, &mut uc as *mut _ as *mut c_void);
+            assert!(!pl.is_null() && !ps.is_null() && !pc.is_null());
+
+            Z_FreeTags(PU_LEVEL, PU_PURGELEVEL - 1);
+
+            assert_eq!(ul, std::ptr::null_mut());
+            assert_eq!(us, std::ptr::null_mut());
+            assert_eq!(uc, pc);
+            // The two freed blocks coalesce with each other and with
+            // the zone tail; the live `PU_CACHE` block keeps its own
+            // entry.
+            assert_eq!(count_free_blocks(), 2);
+        }
+    }
+
+    /// Purge eviction: when free space cannot satisfy a pinned
+    /// request, `Z_Malloc` reclaims purgeable blocks
+    /// (`tag >= PU_PURGELEVEL`) and clears their user back-pointer.
+    /// The entry rover is placed ON the purgeable victim -- the
+    /// canonical entry state a fragmented cache-filled zone produces
+    /// (the walk only adopts the freed block when `base` starts on
+    /// it; every other layout errors exactly as upstream does).
+    #[test]
+    fn malloc_evicts_purgeable_blocks_when_full()
+    {
+        let _g = LOCK.lock().unwrap();
+        unsafe
+        {
+            Z_Init();
+
+            let avail = Z_FreeMemory();
+            assert!(avail > 1 << 20);
+
+            let mut uv: *mut c_void = std::ptr::null_mut();
+            // Purgeable victim taking nearly the whole Zone, then a
+            // small pinned block after it.
+            let victim = Z_Malloc(avail - 16384, PU_CACHE, &mut uv as *mut _ as *mut c_void);
+            let pin = Z_Malloc(64, PU_STATIC, std::ptr::null_mut());
+            assert!(!victim.is_null());
+            assert_eq!(uv, victim);
+            assert!(!pin.is_null());
+
+            //* White-box entry state: point the rover at the victim's
+            //* block header, the position a wandering rover holds in
+            //* a real cache-filled zone when the walk must evict.
+            (*mainzone).rover = (victim as *mut u8).sub(std::mem::size_of::<memblock_t>())
+                as *mut memblock_t;
+
+            // Fits in the victim but not without evicting it (it is
+            // still tagged PU_CACHE here).
+            let probe = Z_Malloc(avail - 32768, PU_STATIC, std::ptr::null_mut());
+            assert!(!probe.is_null());
+            assert_eq!(uv, std::ptr::null_mut(), "evicted block's owner must be cleared");
+        }
+    }
+
+    /// Retag via `Z_ChangeTag2`: a `PU_STATIC` block retagged to
+    /// `PU_CACHE` becomes releasable by the `PU_CACHE` tag range
+    /// (the `w_wad` cache call shape). The
+    /// purgable-without-owner `I_Error` corner is a process-exit
+    /// surface (`std::process::exit`, not a panic) and stays
+    /// untested by design.
+    #[test]
+    fn change_tag2_retag_makes_block_releasable()
+    {
+        let _g = LOCK.lock().unwrap();
+        unsafe
+        {
+            Z_Init();
+
+            let mut u: *mut c_void = std::ptr::null_mut();
+            let p = Z_Malloc(64, PU_STATIC, &mut u as *mut _ as *mut c_void);
+            assert!(!p.is_null());
+
+            Z_ChangeTag2(p, PU_CACHE, std::ptr::null(), 0);
+            Z_FreeTags(PU_CACHE, PU_CACHE);
+
+            assert_eq!(u, std::ptr::null_mut());
+            // The freed block coalesced into the single tail block.
+            assert_eq!(count_free_blocks(), 1);
+        }
+    }
+
+    /// `Z_ZoneSize` reports exactly the buffer size `I_ZoneBase`
+    /// handed to `Z_Init` (zone sizing is ruled not demo-observable
+    /// in `docs/vanilla-workarounds.md`; this pins consistency, not
+    /// the size itself).
+    #[test]
+    fn zone_size_matches_i_zone_base()
+    {
+        let _g = LOCK.lock().unwrap();
+        unsafe
+        {
+            Z_Init();
+
+            let mut size: c_int = 0;
+            let base = I_ZoneBase(&mut size);
+            assert!(!base.is_null());
+            assert_eq!(Z_ZoneSize(), size as u32);
+        }
+    }
+}
