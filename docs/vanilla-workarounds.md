@@ -33,7 +33,7 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 
 | # | Item | Vanilla root cause (one-liner) | Status | Where (file:function) |
 |---|------|-------------------------------|--------|-----------------------|
-| 1 | spechit array overrun | `PIT_CheckLine` stores crossed special lines into a fixed `spechit[]` past its 8-slot vanilla bound; the stores trample DOS `.bss` neighbors (`tmbbox`, `crushchange`, `nofit`) | complete | `room/src/doom/p_map.rs:PIT_CheckLine` / `SpechitOverrun`; drains in `P_TryMove`, `P_Move` |
+| 1 | spechit array overrun | `PIT_CheckLine` stores crossed special lines into a fixed `spechit[]` past its 8-slot vanilla bound; the stores trample DOS `.bss` neighbors (`tmbbox`, `crushchange`, `nofit`) | complete | `room/src/doom/p_map/move.rs:pit_check_line` / `p_map/spechit.rs:spechit_overrun`; drains in `p_map/move.rs:try_move` (`P_TryMove`), `p_enemy.rs:P_Move` |
 | 2 | intercepts array overrun | `P_PathTraverse` stores ray/line and ray/thing hits into `intercepts[]` past 128 entries; stores land on `lowfloor`, `bmapwidth`, `playerstarts`, ... | complete | `room/src/doom/p_maputl/intercepts.rs:InterceptsOverrun` |
 | 3 | donut NULL-backsector read | `EV_DoDonut` dereferences a null `s3` sector on malformed maps; vanilla reads DOS address `0000:0000`-adjacent memory | complete | `room/src/doom/p_spec.rs:DonutOverrun` |
 | 4 | REJECT undersized-lump read | `P_LoadReject` reads a REJECT lump shorter than `ceil(numsectors^2/8)` bytes; the tail falls into the `Z_Malloc` zone block header | complete | `room/src/doom/p_setup.rs:PadRejectArray` |
@@ -44,7 +44,7 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | 9 | commercial map33 par-time read | `G_DoCompleted` reads one `int` past `cpars[31]` for a map 33 exit; the read lands in the first four bytes of the adjacent `GAMMALVL0` rodata string | complete | `room/src/doom/g_game.rs:G_DoCompleted` / `ParTimeOverrun` |
 | 10 | playeringame[-1] overrun | `P_SpawnPlayer` gates the spawn on `playeringame[mthing->type - 1]`; a type-0 mapthing makes the index `-1`, which aliases `players[3].didsecret` in the DOS `.bss` | complete | `room/src/doom/p_mobj.rs:P_SpawnPlayer` / `PlayeringameOverrun` |
 | 11 | door/plat `specialdata` aliasing | `EV_VerticalDoor` discriminates the thinker in an aliased `sector->specialdata` slot by `acp1` function-pointer compare and, for a plat, writes `plat->wait` through a `vldoor_t*` cast (the "When is a door not a door?" quirk) | complete | `room/src/doom/p_doors/events.rs:EV_VerticalDoor` |
-| G1 | tmbbox overrun family | `PIT_CheckLine`'s spechit-overrun emulated writes land in `tmbbox[0..3]`; every later collision check in the same move then consumes the trampled bbox -- the emulated writes are the complete trample model | complete | `room/src/doom/p_map.rs:SpechitOverrun` (writes) + `PIT_CheckLine`/`P_CheckPosition` (consumers) |
+| G1 | tmbbox overrun family | `PIT_CheckLine`'s spechit-overrun emulated writes land in `tmbbox[0..3]`; every later collision check in the same move then consumes the trampled bbox -- the emulated writes are the complete trample model | complete | `room/src/doom/p_map/spechit.rs:spechit_overrun` (writes) + `p_map/move.rs:pit_check_line`/`check_position` (consumers) |
 | G2 | demo-window / ticdup=0 clobber | a browser-only OOB write zeroed `ticdup` mid-run (`panic_const_div_by_zero`); audit found the spechit store was the sole trampler | resolved (pending human browser re-test) | audit notes below; fix = entry 1 |
 
 Reference clones cited below are read-only under `reference/` (see `AGENTS.md`,
@@ -77,37 +77,44 @@ corrupt a *non-vanilla* memory layout (see G2 for what that did in wasm).
 
 Three sites, all in `room/src/doom/`:
 
-- `p_map.rs:391-397` in `PIT_CheckLine` (guarded store + emulation trigger):
+- `p_map/move.rs:262-270` in `pit_check_line` (`PIT_CheckLine`; guarded store
+  + emulation trigger):
 
 ```rust
-if numspechit >= 0 && (numspechit as usize) < MAXSPECIALCROSS {
+if numspechit >= 0 && (numspechit as usize) < MAXSPECIALCROSS
+{
     spechit[numspechit as usize] = ld as *const _ as *mut _;
 }
 numspechit += 1;
-if numspechit > MAXSPECIALCROSS_ORIGINAL {
-    SpechitOverrun(ld as *const _ as *mut _);
+if numspechit > MAXSPECIALCROSS_ORIGINAL
+{
+    spechit_overrun(ld as *const _ as *mut _);
 }
 ```
 
-- `p_map.rs:624-626` in `P_TryMove` and `p_enemy.rs:428-430` in `P_Move`
-  (bounded drain reads; both loops decrement `numspechit` first and must skip
-  indices the guarded push never stored):
+- `p_map/move.rs:574-577` in `try_move` (`P_TryMove`) and `p_enemy.rs:428-430`
+  in `P_Move` (bounded drain reads; both loops decrement `numspechit` first
+  and must skip indices the guarded push never stored):
 
 ```rust
-if numspechit as usize >= MAXSPECIALCROSS {
+if numspechit as usize >= MAXSPECIALCROSS
+{
     continue;
 }
 ```
 
-- `p_map.rs:1518-1550`, `SpechitOverrun`: computes
+- `p_map/spechit.rs:59-89`, `spechit_overrun` (`SpechitOverrun`): computes
   `addr = baseaddr + (ld - lines) * 0x3e` and, per `numspechit`, writes the
   address into `tmbbox[(numspechit - 9)]` for 9..=12, `crushchange` for 13,
   and `nofit` for 14. `baseaddr` defaults to `DEFAULT_SPECHIT_MAGIC`
   (`0x01C09C98`, `room/src/doom/c_ffi.rs:680-683`) overridable with
-  `-spechit <n>`.
+  `-spechit <n>`. The pure halves are extracted to `p_map/dtmc.rs:48`
+  (`spechit_trample_addr`, the addr formula) and `:73` (`trample_target`,
+  the case-table target selection); the whole-body baseline drives are
+  `p_map/spechit.rs:328` / `:354`.
 
-Constants: `MAXSPECIALCROSS = 20` (`p_map.rs:50`), the room-upstream array
-size; `MAXSPECIALCROSS_ORIGINAL = 8` (`p_map.rs:56`), the vanilla bound that
+Constants: `MAXSPECIALCROSS = 20` (`p_map/consts.rs:16`), the room-upstream array
+size; `MAXSPECIALCROSS_ORIGINAL = 8` (`p_map/consts.rs:23`), the vanilla bound that
 gates the emulation.
 
 ### Semantics
@@ -135,9 +142,9 @@ Hybrid, deliberately assembled from two references:
 - Census: every emulation trigger records a
   `violations::VanillaViolation::SpechitOverrun` hit
   (`room/src/doom/violations.rs`); the hook test
-  `spechit_emulation_records_census_hit` (`p_map.rs:1683`) proves the shared
+  `spechit_emulation_records_census_hit` (`p_map/spechit.rs:246`) proves the shared
   fixture below actually drives it.
-- Regression pin: `p_map.rs:1676`
+- Regression pin: `p_map/spechit.rs:239`
   (`pit_check_line_push_stays_in_bounds_beyond_the_array`) drives
   `PIT_CheckLine` at `numspechit` 20 and 25 and asserts the 8 words after
   `spechit` are untouched. It failed (process killed by the overflow) on the
@@ -667,14 +674,15 @@ post-move special-line processing. Known demo families: compet-n
 ### Where we emulate it
 
 No additional site: the writes are entry 1's
-(`p_map.rs:1518-1550`, `SpechitOverrun`), and the consumption is implied by
+(`p_map/spechit.rs:59-89`, `spechit_overrun`), and the consumption is implied by
 construction. Our `tmbbox`, `crushchange`, and `nofit` are live engine globals
 written at the identical control-flow point with the identical values
 (`baseaddr + (ld - lines) * 0x3e`), so every subsequent consumer in our engine
 reads the same trampled values vanilla read. Verified against the reference
-control flow: our `PIT_CheckLine` reads `tmbbox` before the push
-(`p_map.rs:349-356` vs `:383-398`) and `P_CheckPosition` re-initializes it
-(`p_map.rs:526-529`), matching chocolate line for line.
+control flow: our `pit_check_line` (`PIT_CheckLine`) reads `tmbbox` before the
+push (`p_map/move.rs:212-219` vs `:253-271`) and `check_position`
+(`P_CheckPosition`) re-initializes it
+(`p_map/move.rs:443-446`), matching chocolate line for line.
 
 Panic safety of the corrupted values: every consumer is integer fixed-point
 arithmetic (`P_PointOnLineSide` `p_maputl/dtmc.rs:72-106` (core, wrapper
@@ -748,7 +756,7 @@ only):
 
 | Store | Classification |
 |---|---|
-| `spechit[20]` push (`p_map.rs:391`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
+| `spechit[20]` push (`p_map/move.rs:264`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
 | `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy.rs:2093`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
 | `playerstarts[4]` (`p_mobj.rs:764-771`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
@@ -1050,7 +1058,7 @@ of them and no guard was stripped. Per-guard rationale:
 - Engine-created frame-entry latch (`doomgeneric.rs:214-222`) -- KEEP:
   host-lifecycle platform work; the `ticdup == 0` it fences comes from
   pre-init zeroing, not from any remaining OOB writer.
-- Guarded spechit store + bounded drains (`p_map.rs:391-397`, `:624-626`,
+- Guarded spechit store + bounded drains (`p_map/move.rs:262-270`, `:574-577`,
   `p_enemy.rs:428-430`) -- KEEP: they are entry 1's emulation surface itself;
   stripping them would reintroduce the G2 silent trampler.
 
