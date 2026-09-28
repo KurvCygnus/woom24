@@ -768,8 +768,8 @@ only):
 | `heightlist[20]` stores (`p_spec/geometry.rs:277-287`) | vanilla adjoining-sector overrun, catalog entry 13: writes at `h == 20`/`h == 21` are in-bounds of the `MAX+2` window, the `h == MAX+1` arm's write lands on `height` (emulated verbatim), and `h == MAX+2` is chocolate's `I_Error`; 20/21/22-boundary baseline-pinned in `geometry::tests` |
 | `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy/brain.rs:71`, `action_brain_awake`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
-| `playerstarts[4]` (`p_mobj/mapthings.rs:204-213`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
-| `deathmatchstarts[10]` (`p_mobj/mapthings.rs:190-197`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
+| `playerstarts[4]` (`p_mobj/mapthings.rs:187-193`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
+| `deathmatchstarts[10]` (`p_mobj/mapthings.rs:175-182`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
 | `bodyque[32]` (`g_game/spawn.rs:check_spot`) | bounded (`% 32` on both read and write) |
 | `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop/tic_pump.rs:102`, `d_loop/net_stub.rs:77-78`, `d_loop/tic_pump.rs:424`) |
 | visplanes / openings / drawsegs growth | render-side; in Rust these fail loud (index panic), not silent -- limit-removal (F2) concerns, out of canary scope |
@@ -826,7 +826,7 @@ player-start dispatch path, so `P_SpawnPlayer` runs with
 The released linuxdoom-1.10 source the room port mirrors does not model
 this: room's `P_SpawnPlayer` added a plain `type == 0 -> return` guard at
 the same control-flow position, and `P_SpawnMapThing`'s `type <= 0 ->
-return` skip (`room/src/doom/p_mobj/mapthings.rs:200-202`) matches dsda's own
+return` skip (`room/src/doom/p_mobj/mapthings.rs:185`) matches dsda's own
 `case 0: return NULL` (`reference/dsda-doom/prboom2/src/p_mobj.c:2385-2397`),
 so a type-0 mapthing never reaches the spawn machinery from level load in
 either port.
@@ -888,7 +888,7 @@ dsda.
   `Complevel` enum exists yet).
 - Regression pin:
   `doom::p_mobj::mapthings::tests::type0_mapthing_records_playeringame_overrun_and_spawns_nothing`
-  (`room/src/doom/p_mobj/mapthings.rs:303-380`) drives the gate with the aliased
+  (`room/src/doom/p_mobj/mapthings.rs:262-329`) drives the gate with the aliased
   byte set and clear, asserting one census hit per arrival and that no
   `players[i].mo` ever becomes non-null.
 
@@ -1018,7 +1018,7 @@ inputs vanilla played through.
 
 ### Where we emulate it
 
-`room/src/doom/p_mobj/spawn.rs:274-289` in `subst_null_mobj` (export
+`room/src/doom/p_mobj/spawn.rs:253-267` in `subst_null_mobj` (export
 pinned as `P_SubstNullMobj`): null in -> pointer to a function-local
 `static mut DUMMY_MOBJ` whose `x`/`y`/`z`/`flags` fields are re-zeroed
 on every substitution (the exact four fields upstream writes),

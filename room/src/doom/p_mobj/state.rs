@@ -68,10 +68,7 @@ pub unsafe extern "C" fn set_mobj_state(mobj: *mut mobj_t, state: c_int) -> c_in
             action(mobj as *mut mobj_t as *mut c_void);
         }
         state = (*st).nextstate;
-        if mobj.tics != 0
-        {
-            break;
-        }
+        if mobj.tics != 0 { break; }
     }
     1
 }

@@ -36,10 +36,7 @@ use crate::doom::tables::ANG45;
 /// exactly as in the pre-split bodies. Pure computation over no state;
 /// never debug-assert on the multiply (the wrap is the behavior demo
 /// playback depends on).
-pub fn mapthing_angle_quantize(angle: u32) -> u32
-{
-    ANG45.wrapping_mul(angle / 45)
-}
+pub fn mapthing_angle_quantize(angle: u32) -> u32 { ANG45.wrapping_mul(angle / 45) }
 
 /// Advance one step around the item-respawn ring buffer -- the pure
 /// half of the `(i + 1) & (ITEMQUESIZE - 1)` index updates in
@@ -60,10 +57,7 @@ pub fn mapthing_angle_quantize(angle: u32) -> u32
 /// Pass a current queue index (`0..ITEMQUESIZE`); out-of-range inputs
 /// are not modeled and never occur (both writers mask through this
 /// step). Pure computation over no state.
-pub fn respawn_queue_step(index: c_int) -> c_int
-{
-    (index + 1) & (ITEMQUESIZE as c_int - 1)
-}
+pub fn respawn_queue_step(index: c_int) -> c_int { (index + 1) & (ITEMQUESIZE as c_int - 1) }
 
 /// Map a skill level to the THINGS-lump skill-bit filter -- the pure
 /// half of the ladder in `P_SpawnMapThing`
@@ -96,10 +90,7 @@ pub fn spawn_skill_bit(skill_level: c_int) -> c_int
         // sk_nightmare
         4
     }
-    else
-    {
-        1 << (skill_level - 1)
-    }
+    else { 1 << (skill_level - 1) }
 }
 
 /// Apply the spawn-tic jitter to a freshly transitioned or spawned
@@ -127,14 +118,8 @@ pub fn spawn_skill_bit(skill_level: c_int) -> c_int
 pub fn tics_jitter_clamp(tics: c_int, draw: c_int) -> c_int
 {
     let tics = tics - (draw & 3);
-    if tics < 1
-    {
-        1
-    }
-    else
-    {
-        tics
-    }
+    if tics < 1 { 1 }
+    else { tics }
 }
 
 #[cfg(test)]

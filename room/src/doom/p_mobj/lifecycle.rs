@@ -104,18 +104,12 @@ pub unsafe extern "C" fn mobj_thinker(mobj: *mut mobj_t)
     if mobj.momx != 0 || mobj.momy != 0 || mobj.flags & MF_SKULLFLY != 0
     {
         xy_movement(mobj as *mut mobj_t);
-        if is_sentinel(mobj.thinker.function)
-        {
-            return;
-        }
+        if is_sentinel(mobj.thinker.function) { return; }
     }
     if mobj.z != mobj.floorz || mobj.momz != 0
     {
         z_movement(mobj as *mut mobj_t);
-        if is_sentinel(mobj.thinker.function)
-        {
-            return;
-        }
+        if is_sentinel(mobj.thinker.function) { return; }
     }
 
     if mobj.tics != -1
@@ -129,27 +123,12 @@ pub unsafe extern "C" fn mobj_thinker(mobj: *mut mobj_t)
     }
     else
     {
-        if mobj.flags & MF_COUNTKILL == 0
-        {
-            return;
-        }
-        if respawnmonsters == 0
-        {
-            return;
-        }
+        if mobj.flags & MF_COUNTKILL == 0 { return; }
+        if respawnmonsters == 0 { return; }
         mobj.movecount += 1;
-        if mobj.movecount < 12 * TICRATE
-        {
-            return;
-        }
-        if leveltime & 31 != 0
-        {
-            return;
-        }
-        if P_Random() > 4
-        {
-            return;
-        }
+        if mobj.movecount < 12 * TICRATE { return; }
+        if leveltime & 31 != 0 { return; }
+        if P_Random() > 4 { return; }
         nightmare_respawn(mobj as *mut mobj_t);
     }
 }
@@ -187,10 +166,7 @@ pub unsafe extern "C" fn nightmare_respawn(mobj: *mut mobj_t)
     let mobj = &mut *mobj;
     let x = (mobj.spawnpoint.x as c_int) << FRACBITS;
     let y = (mobj.spawnpoint.y as c_int) << FRACBITS;
-    if P_CheckPosition(mobj as *mut _ as *mut CffiMobj, x, y) == 0
-    {
-        return;
-    }
+    if P_CheckPosition(mobj as *mut _ as *mut CffiMobj, x, y) == 0 { return; }
 
     let mut mo = spawn_mobj(
         mobj.x,
@@ -210,18 +186,12 @@ pub unsafe extern "C" fn nightmare_respawn(mobj: *mut mobj_t)
     {
         ONCEILINGZ
     }
-    else
-    {
-        ONFLOORZ
-    };
+    else { ONFLOORZ };
 
     mo = spawn_mobj(x, y, z, mobj.mobjtype);
     (*mo).spawnpoint = mobj.spawnpoint;
     (*mo).angle = mapthing_angle_quantize(mthing.angle as u32);
-    if mthing.options & MTF_AMBUSH as i16 != 0
-    {
-        (*mo).flags |= MF_AMBUSH;
-    }
+    if mthing.options & MTF_AMBUSH as i16 != 0 { (*mo).flags |= MF_AMBUSH; }
     (*mo).reactiontime = 18;
     remove_mobj(mobj as *mut mobj_t);
 }
@@ -269,10 +239,7 @@ pub unsafe extern "C" fn remove_mobj(mobj: *mut mobj_t)
         itemrespawnque[iquehead as usize] = mobj.spawnpoint;
         itemrespawntime[iquehead as usize] = leveltime;
         iquehead = respawn_queue_step(iquehead);
-        if iquehead == iquetail
-        {
-            iquetail = respawn_queue_step(iquetail);
-        }
+        if iquehead == iquetail { iquetail = respawn_queue_step(iquetail); }
     }
 
     P_UnsetThingPosition(mobj as *mut mobj_t as *mut crate::doom::c_ffi::mobj_t);
@@ -310,18 +277,9 @@ pub unsafe extern "C" fn remove_mobj(mobj: *mut mobj_t)
 #[export_name = "P_RespawnSpecials"]
 pub unsafe extern "C" fn respawn_specials()
 {
-    if deathmatch != 2
-    {
-        return;
-    }
-    if iquehead == iquetail
-    {
-        return;
-    }
-    if leveltime - itemrespawntime[iquetail as usize] < 30 * TICRATE
-    {
-        return;
-    }
+    if deathmatch != 2 { return; }
+    if iquehead == iquetail { return; }
+    if leveltime - itemrespawntime[iquetail as usize] < 30 * TICRATE { return; }
 
     let mthing = &itemrespawnque[iquetail as usize];
     let x = (mthing.x as c_int) << FRACBITS;
@@ -334,10 +292,7 @@ pub unsafe extern "C" fn respawn_specials()
     let mut i = 0;
     while i < NUMMOBJTYPES
     {
-        if mthing.r#type as c_int == info::mobjinfo[i].doomednum
-        {
-            break;
-        }
+        if mthing.r#type as c_int == info::mobjinfo[i].doomednum { break; }
         i += 1;
     }
 
@@ -345,10 +300,7 @@ pub unsafe extern "C" fn respawn_specials()
     {
         ONCEILINGZ
     }
-    else
-    {
-        ONFLOORZ
-    };
+    else { ONFLOORZ };
 
     mo = spawn_mobj(x, y, z, i as c_int);
     (*mo).spawnpoint = *mthing;
@@ -404,10 +356,7 @@ mod tests
     {
         unsafe
         {
-            for (i, &t) in itemrespawntime.iter().enumerate()
-            {
-                assert_eq!(t, 0, "itemrespawntime[{i}] should be 0 before level load");
-            }
+            for (i, &t) in itemrespawntime.iter().enumerate() { assert_eq!(t, 0, "itemrespawntime[{i}] should be 0 before level load"); }
         }
     }
 

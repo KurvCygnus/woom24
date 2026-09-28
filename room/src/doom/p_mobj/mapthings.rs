@@ -93,27 +93,18 @@ pub unsafe extern "C" fn spawn_player(mthing: *mut mapthing_t)
         violations::record(VanillaViolation::PlayeringameOverrun);
         return;
     }
-    if playeringame[(mthing.r#type - 1) as usize] == 0
-    {
-        return;
-    }
+    if playeringame[(mthing.r#type - 1) as usize] == 0 { return; }
 
     let p = &mut players[(mthing.r#type - 1) as usize] as *mut PlayerT;
 
-    if (*p).playerstate == PST_REBORN
-    {
-        G_PlayerReborn(mthing.r#type as c_int - 1);
-    }
+    if(*p).playerstate == PST_REBORN { G_PlayerReborn(mthing.r#type as c_int - 1); }
 
     let x = (mthing.x as c_int) << FRACBITS;
     let y = (mthing.y as c_int) << FRACBITS;
     let z = ONFLOORZ;
     let mobj = spawn_mobj(x, y, z, MT_PLAYER);
 
-    if mthing.r#type > 1
-    {
-        (*mobj).flags |= ((mthing.r#type - 1) as c_int) << MF_TRANSSHIFT;
-    }
+    if mthing.r#type > 1 { (*mobj).flags |= ((mthing.r#type - 1) as c_int) << MF_TRANSSHIFT; }
 
     (*mobj).angle = mapthing_angle_quantize(mthing.angle as u32);
     (*mobj).player = p as *mut crate::doom::p_telept::player_s;
@@ -131,13 +122,7 @@ pub unsafe extern "C" fn spawn_player(mthing: *mut mapthing_t)
 
     P_SetupPsprites(p);
 
-    if deathmatch != 0
-    {
-        for i in 0..crate::doom::d_player::NUMCARDS
-        {
-            (*p).cards[i] = 1;
-        }
-    }
+    if deathmatch != 0 { for i in 0..crate::doom::d_player::NUMCARDS { (*p).cards[i] = 1; } }
 
     if mthing.r#type as c_int - 1 == consoleplayer
     {
@@ -197,41 +182,26 @@ pub unsafe extern "C" fn spawn_map_thing(mthing: *mut mapthing_t)
         return;
     }
 
-    if mthing.r#type as c_int <= 0
-    {
-        return;
-    }
+    if mthing.r#type as c_int <= 0 { return; }
 
     if mthing.r#type as c_int <= 4
     {
         let ps = std::ptr::addr_of_mut!(playerstarts[0]) as *mut mapthing_t;
         *ps.add((mthing.r#type - 1) as usize) = *mthing;
-        if deathmatch == 0
-        {
-            spawn_player(mthing as *mut mapthing_t);
-        }
+        if deathmatch == 0 { spawn_player(mthing as *mut mapthing_t); }
         return;
     }
 
-    if netgame == 0 && mthing.options & 16i16 != 0
-    {
-        return;
-    }
+    if netgame == 0 && mthing.options & 16i16 != 0 { return; }
 
     let bit = spawn_skill_bit(gameskill);
 
-    if mthing.options & bit as i16 == 0
-    {
-        return;
-    }
+    if mthing.options & bit as i16 == 0 { return; }
 
     i = 0;
     while i < NUMMOBJTYPES
     {
-        if mthing.r#type as c_int == info::mobjinfo[i].doomednum
-        {
-            break;
-        }
+        if mthing.r#type as c_int == info::mobjinfo[i].doomednum { break; }
         i += 1;
     }
 
@@ -245,15 +215,9 @@ pub unsafe extern "C" fn spawn_map_thing(mthing: *mut mapthing_t)
         );
     }
 
-    if deathmatch != 0 && info::mobjinfo[i].flags & MF_NOTDMATCH != 0
-    {
-        return;
-    }
+    if deathmatch != 0 && info::mobjinfo[i].flags & MF_NOTDMATCH != 0 { return; }
 
-    if nomonsters != 0 && (i == MT_SKULL as usize || info::mobjinfo[i].flags & MF_COUNTKILL != 0)
-    {
-        return;
-    }
+    if nomonsters != 0 && (i == MT_SKULL as usize || info::mobjinfo[i].flags & MF_COUNTKILL != 0) { return; }
 
     let x = (mthing.x as c_int) << FRACBITS;
     let y = (mthing.y as c_int) << FRACBITS;
@@ -262,32 +226,17 @@ pub unsafe extern "C" fn spawn_map_thing(mthing: *mut mapthing_t)
     {
         ONCEILINGZ
     }
-    else
-    {
-        ONFLOORZ
-    };
+    else { ONFLOORZ };
 
     let mobj = spawn_mobj(x, y, z, i as c_int);
     (*mobj).spawnpoint = *mthing;
 
-    if (*mobj).tics > 0
-    {
-        (*mobj).tics = 1 + (P_Random() % (*mobj).tics);
-    }
-    if (*mobj).flags & MF_COUNTKILL != 0
-    {
-        totalkills += 1;
-    }
-    if (*mobj).flags & MF_COUNTITEM != 0
-    {
-        totalitems += 1;
-    }
+    if(*mobj).tics > 0 { (*mobj).tics = 1 + (P_Random() % (*mobj).tics); }
+    if(*mobj).flags & MF_COUNTKILL != 0 { totalkills += 1; }
+    if(*mobj).flags & MF_COUNTITEM != 0 { totalitems += 1; }
 
     (*mobj).angle = mapthing_angle_quantize(mthing.angle as u32);
-    if mthing.options & MTF_AMBUSH as i16 != 0
-    {
-        (*mobj).flags |= MF_AMBUSH;
-    }
+    if mthing.options & MTF_AMBUSH as i16 != 0 { (*mobj).flags |= MF_AMBUSH; }
 }
 
 #[cfg(test)]

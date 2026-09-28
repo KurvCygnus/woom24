@@ -106,10 +106,7 @@ pub unsafe extern "C" fn xy_movement(mo: *mut mobj_t)
 
         if P_TryMove(mo as *mut _ as *mut CffiMobj, ptryx, ptryy) == 0
         {
-            if !mo.player.is_null()
-            {
-                P_SlideMove(mo as *mut _ as *mut CffiMobj);
-            }
+            if !mo.player.is_null() { P_SlideMove(mo as *mut _ as *mut CffiMobj); }
             else if mo.flags & MF_MISSILE != 0
             {
                 let cl = ceilingline;
@@ -131,10 +128,7 @@ pub unsafe extern "C" fn xy_movement(mo: *mut mobj_t)
                 mo.momy = 0;
             }
         }
-        if xmove == 0 && ymove == 0
-        {
-            break;
-        }
+        if xmove == 0 && ymove == 0 { break; }
     }
 
     if !player.is_null() && (*player).cheats & CF_NOMOMENTUM != 0
@@ -144,15 +138,9 @@ pub unsafe extern "C" fn xy_movement(mo: *mut mobj_t)
         return;
     }
 
-    if mo.flags & (MF_MISSILE | MF_SKULLFLY) != 0
-    {
-        return;
-    }
+    if mo.flags & (MF_MISSILE | MF_SKULLFLY) != 0 { return; }
 
-    if mo.z > mo.floorz
-    {
-        return;
-    }
+    if mo.z > mo.floorz { return; }
 
     if mo.flags & MF_CORPSE != 0
         && (mo.momx > FRACUNIT / 4
@@ -176,10 +164,7 @@ pub unsafe extern "C" fn xy_movement(mo: *mut mobj_t)
             let states_ptr = std::ptr::addr_of!(info::states) as *const State;
             let state_idx = (state_ptr as usize - states_ptr as usize) / std::mem::size_of::<State>();
             let run_offset = state_idx as c_int - S_PLAY_RUN1;
-            if (0..4).contains(&run_offset)
-            {
-                set_mobj_state(mo as *mut mobj_t, S_PLAY);
-            }
+            if(0..4).contains(&run_offset) { set_mobj_state(mo as *mut mobj_t, S_PLAY); }
         }
         mo.momx = 0;
         mo.momy = 0;
@@ -242,23 +227,14 @@ pub unsafe extern "C" fn z_movement(mo: *mut mobj_t)
         let target = mo.target;
         dist = P_AproxDistance(mo.x - (*target).x, mo.y - (*target).y);
         delta = ((*target).z + (mo.height >> 1)) - mo.z;
-        if delta < 0 && dist < -(delta * 3)
-        {
-            mo.z -= FLOATSPEED;
-        }
-        else if delta > 0 && dist < delta * 3
-        {
-            mo.z += FLOATSPEED;
-        }
+        if delta < 0 && dist < -(delta * 3) { mo.z -= FLOATSPEED; }
+        else if delta > 0 && dist < delta * 3 { mo.z += FLOATSPEED; }
     }
 
     if mo.z <= mo.floorz
     {
         let correct_lost_soul_bounce = gameversion >= exe_ultimate;
-        if correct_lost_soul_bounce && mo.flags & MF_SKULLFLY != 0
-        {
-            mo.momz = -mo.momz;
-        }
+        if correct_lost_soul_bounce && mo.flags & MF_SKULLFLY != 0 { mo.momz = -mo.momz; }
         if mo.momz < 0
         {
             if !mo.player.is_null() && mo.momz < -GRAVITY * 8
@@ -270,10 +246,7 @@ pub unsafe extern "C" fn z_movement(mo: *mut mobj_t)
             mo.momz = 0;
         }
         mo.z = mo.floorz;
-        if !correct_lost_soul_bounce && mo.flags & MF_SKULLFLY != 0
-        {
-            mo.momz = -mo.momz;
-        }
+        if !correct_lost_soul_bounce && mo.flags & MF_SKULLFLY != 0 { mo.momz = -mo.momz; }
         if mo.flags & MF_MISSILE != 0 && mo.flags & MF_NOCLIP == 0
         {
             explode_missile(mo as *mut mobj_t);
@@ -282,30 +255,15 @@ pub unsafe extern "C" fn z_movement(mo: *mut mobj_t)
     }
     else if mo.flags & MF_NOGRAVITY == 0
     {
-        if mo.momz == 0
-        {
-            mo.momz = -GRAVITY * 2;
-        }
-        else
-        {
-            mo.momz -= GRAVITY;
-        }
+        if mo.momz == 0 { mo.momz = -GRAVITY * 2; }
+        else { mo.momz -= GRAVITY; }
     }
 
     if mo.z + mo.height > mo.ceilingz
     {
-        if mo.momz > 0
-        {
-            mo.momz = 0;
-        }
+        if mo.momz > 0 { mo.momz = 0; }
         mo.z = mo.ceilingz - mo.height;
-        if mo.flags & MF_SKULLFLY != 0
-        {
-            mo.momz = -mo.momz;
-        }
-        if mo.flags & MF_MISSILE != 0 && mo.flags & MF_NOCLIP == 0
-        {
-            explode_missile(mo as *mut mobj_t);
-        }
+        if mo.flags & MF_SKULLFLY != 0 { mo.momz = -mo.momz; }
+        if mo.flags & MF_MISSILE != 0 && mo.flags & MF_NOCLIP == 0 { explode_missile(mo as *mut mobj_t); }
     }
 }

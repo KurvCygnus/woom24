@@ -107,18 +107,9 @@ pub unsafe extern "C" fn spawn_mobj(x: c_int, y: c_int, z: c_int, type_: c_int) 
     mobj_ref.floorz = (*(*mobj_ref.subsector).sector).floorheight;
     mobj_ref.ceilingz = (*(*mobj_ref.subsector).sector).ceilingheight;
 
-    if z == ONFLOORZ
-    {
-        mobj_ref.z = mobj_ref.floorz;
-    }
-    else if z == ONCEILINGZ
-    {
-        mobj_ref.z = mobj_ref.ceilingz - (*info).height;
-    }
-    else
-    {
-        mobj_ref.z = z;
-    }
+    if z == ONFLOORZ { mobj_ref.z = mobj_ref.floorz; }
+    else if z == ONCEILINGZ { mobj_ref.z = mobj_ref.ceilingz - (*info).height; }
+    else { mobj_ref.z = z; }
 
     mobj_ref.thinker.function.acp1 = Some(core::mem::transmute::<
         unsafe extern "C" fn(*mut mobj_t),
@@ -159,10 +150,7 @@ pub unsafe extern "C" fn spawn_puff(x: c_int, y: c_int, z: c_int)
     let th = spawn_mobj(x, y, z, MT_PUFF);
     (*th).momz = FRACUNIT;
     (*th).tics = tics_jitter_clamp((*th).tics, P_Random());
-    if attackrange == MELEERANGE
-    {
-        set_mobj_state(th, S_PUFF3);
-    }
+    if attackrange == MELEERANGE { set_mobj_state(th, S_PUFF3); }
 }
 
 /// Spawn a blood-splat visual effect at (`x`, `y`, `z`).
@@ -195,14 +183,8 @@ pub unsafe extern "C" fn spawn_blood(x: c_int, y: c_int, z: c_int, damage: c_int
     let th = spawn_mobj(x, y, z, MT_BLOOD);
     (*th).momz = FRACUNIT * 2;
     (*th).tics = tics_jitter_clamp((*th).tics, P_Random());
-    if (9..=12).contains(&damage)
-    {
-        set_mobj_state(th, S_BLOOD2);
-    }
-    else if damage < 9
-    {
-        set_mobj_state(th, S_BLOOD3);
-    }
+    if(9..=12).contains(&damage) { set_mobj_state(th, S_BLOOD2); }
+    else if damage < 9 { set_mobj_state(th, S_BLOOD3); }
 }
 
 /// Validate a newly spawned missile: jitter its tic count, nudge it half a
@@ -238,10 +220,7 @@ pub unsafe extern "C" fn check_missile_spawn(th: *mut mobj_t)
     th.x += th.momx >> 1;
     th.y += th.momy >> 1;
     th.z += th.momz >> 1;
-    if P_TryMove(th as *mut _ as *mut CffiMobj, th.x, th.y) == 0
-    {
-        explode_missile(th as *mut mobj_t);
-    }
+    if P_TryMove(th as *mut _ as *mut CffiMobj, th.x, th.y) == 0 { explode_missile(th as *mut mobj_t); }
 }
 
 /// Return `mobj` unchanged, or a pointer to a zeroed dummy `mobj_t` if
@@ -327,16 +306,10 @@ pub unsafe extern "C" fn spawn_missile(
     let dest = &*dest;
     let th = spawn_mobj(source.x, source.y, source.z + 4 * 8 * FRACUNIT, type_);
     let info = (*th).info as *mut MobjInfo;
-    if (*info).seesound != Sfx::None
-    {
-        S_StartSound(th as *mut c_void, (*info).seesound as c_int);
-    }
+    if(*info).seesound != Sfx::None { S_StartSound(th as *mut c_void, (*info).seesound as c_int); }
     (*th).target = source as *const mobj_t as *mut mobj_t;
     let mut an = R_PointToAngle2(source.x, source.y, dest.x, dest.y);
-    if dest.flags & MF_SHADOW != 0
-    {
-        an = an.wrapping_add(((P_Random() - P_Random()) << 20) as u32);
-    }
+    if dest.flags & MF_SHADOW != 0 { an = an.wrapping_add(((P_Random() - P_Random()) << 20) as u32); }
     (*th).angle = an;
     an >>= ANGLETOFINESHIFT;
     (*th).momx = FixedMul((*info).speed, *finecosine.0.add(an as usize));
@@ -344,10 +317,7 @@ pub unsafe extern "C" fn spawn_missile(
 
     let mut dist = P_AproxDistance(dest.x - source.x, dest.y - source.y);
     dist /= (*info).speed;
-    if dist < 1
-    {
-        dist = 1;
-    }
+    if dist < 1 { dist = 1; }
     (*th).momz = (dest.z - source.z) / dist;
     check_missile_spawn(th);
     th
@@ -407,10 +377,7 @@ pub unsafe extern "C" fn spawn_player_missile(source: *mut mobj_t, type_: c_int)
 
     let th = spawn_mobj(x, y, z, type_);
     let info = (*th).info as *mut MobjInfo;
-    if (*info).seesound != Sfx::None
-    {
-        S_StartSound(th as *mut c_void, (*info).seesound as c_int);
-    }
+    if(*info).seesound != Sfx::None { S_StartSound(th as *mut c_void, (*info).seesound as c_int); }
     (*th).target = source as *const mobj_t as *mut mobj_t;
     (*th).angle = an;
     let fine_idx = (an >> ANGLETOFINESHIFT) as usize;
