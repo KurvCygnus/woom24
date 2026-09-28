@@ -35,7 +35,8 @@ use std::ffi::c_int;
 /// struct's -- read the `//?` record at the top of this file before
 /// reasoning about what a captured snapshot contains.
 #[repr(C)]
-pub struct wbstartstruct_t {
+pub struct wbstartstruct_t
+{
     /// Episode number (0-based).
     pub epsd: c_int,
     /// Index of the level just completed.
@@ -54,7 +55,8 @@ pub struct wbstartstruct_t {
 /// Note the `//?` record at the top of this file: the C struct carries
 /// an additional `score` field this port omits.
 #[repr(C)]
-pub struct wbplayerstruct_t {
+pub struct wbplayerstruct_t
+{
     /// "in game" flag - non-zero if this player slot was active. Named
     /// `in` in C; renamed `in_` here to dodge the Rust keyword.
     pub in_: c_int,

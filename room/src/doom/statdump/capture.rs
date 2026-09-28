@@ -18,7 +18,8 @@ const MAX_CAPTURES: usize = 32;
 /// via the `DEFAULT_WB` constant below. Mirrors the C `captured_stats`
 /// array.
 static mut captured_stats: [wbstartstruct_t; MAX_CAPTURES] = {
-    const DEFAULT: wbplayerstruct_t = wbplayerstruct_t {
+    const DEFAULT: wbplayerstruct_t = wbplayerstruct_t
+    {
         in_: 0,
         skills: 0,
         sitems: 0,
@@ -26,7 +27,8 @@ static mut captured_stats: [wbstartstruct_t; MAX_CAPTURES] = {
         stime: 0,
         frags: [0; 4],
     };
-    const DEFAULT_WB: wbstartstruct_t = wbstartstruct_t {
+    const DEFAULT_WB: wbstartstruct_t = wbstartstruct_t
+    {
         epsd: 0,
         last: 0,
         partime: 0,
@@ -40,7 +42,8 @@ static mut captured_stats: [wbstartstruct_t; MAX_CAPTURES] = {
 /// the C `num_captured_stats` static.
 static mut num_captured_stats: c_int = 0;
 
-extern "C" {
+extern "C"
+{
     /// C `memcpy` from libc. Used for the bulk struct copy below; an
     /// `std::ptr::copy_nonoverlapping` would do equally well but the
     /// direct FFI call keeps the code byte-identical to the C source.
@@ -109,8 +112,5 @@ mod tests
 
     /// StatDump must not panic (it is currently a no-op stub).
     #[test]
-    fn stat_dump_does_not_panic()
-    {
-        StatDump();
-    }
+    fn stat_dump_does_not_panic() { StatDump(); }
 }
