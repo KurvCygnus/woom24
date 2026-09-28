@@ -3400,6 +3400,126 @@ mod tests {
         assert_eq!(BTS_SAVESHIFT, 2);
     }
 
+    // --- Low-resolution turn rounding (G_BuildTiccmd dtmc-extraction baseline) ---
+
+    //* Verbatim transcription of the pre-extraction `lowres_turn` block
+    //* inside `G_BuildTiccmd` (this file, "Low-resolution turning"
+    //* section). This helper is the F10 wave C3 baseline oracle; once
+    //* `dtmc::lowres_turn_round` is extracted it is deleted and the
+    //* vectors below re-point at the graduated function -- same
+    //* vectors, same results.
+    ///
+    /// Transcription of the inline body: `desired =
+    /// angleturn.wrapping_add(carry)`, `rounded = ((desired as i32 +
+    /// 128) & 0xff00) as i16`, residual `desired.wrapping_sub(rounded)`
+    /// carried into the next tic. (The first parameter is named `turn`
+    /// only because `use super::*` below imports the `angleturn`
+    /// static into this module -- E0530; the graduated function keeps
+    /// the report's `angleturn` parameter name.)
+    fn lowres_turn_round_pre_move(turn: i16, carry: i16) -> (i16, i16)
+    {
+        let desired: i16 = turn.wrapping_add(carry);
+        let rounded = ((desired as i32 + 128) & 0xff00) as i16;
+        (rounded, desired.wrapping_sub(rounded))
+    }
+
+    /// Baseline vectors for the lowres-turn rounding core, captured
+    /// against the pre-move inline body (F10 wave C3, §2.3 of the
+    /// process spec). Small turns accumulate: two consecutive 100-BAM
+    /// pushes must round to a single 256-BAM step with the residual
+    /// carried; the `0x7FFF + 0x7FFF` pair must wrap through
+    /// `wrapping_add` without panicking.
+    #[test]
+    fn lowres_turn_round_baseline_vectors()
+    {
+        assert_eq!(lowres_turn_round_pre_move(100, 0), (0, 100));
+        assert_eq!(lowres_turn_round_pre_move(200, 0), (256, -56));
+        // Two-tic accumulation: 100 + 100 rounds to one 256-BAM step.
+        assert_eq!(lowres_turn_round_pre_move(100, 100), (256, -56));
+        // Already-aligned value passes through with zero carry.
+        assert_eq!(lowres_turn_round_pre_move(256, 0), (256, 0));
+        // Negative turns accumulate downward without rounding up.
+        assert_eq!(lowres_turn_round_pre_move(-100, 0), (0, -100));
+        // i16 wrap edges: no panic, wrap semantics preserved.
+        assert_eq!(lowres_turn_round_pre_move(0x7FFF, 0x7FFF), (0, -2));
+        assert_eq!(lowres_turn_round_pre_move(0x7FFF, 1), (-32768, 0));
+    }
+
+    /// The live `G_BuildTiccmd` lowres path produces exactly the
+    /// transcription above -- pre-extraction evidence that the helper
+    /// matches the inline body (same drive re-run against the
+    /// graduated `build_ticcmd` after the split). The pre-rounding
+    /// `angleturn` entering the block is driven two ways: zero (no
+    /// input; the carry alone reaches the report's `desired` values
+    /// 100/200) and one held `key_right` tic (`-angleturn[2] = -320`
+    /// at `TURNHELD < 6` with `ticdup == 0`).
+    #[test]
+    fn lowres_turn_live_build_ticcmd_matches_vectors()
+    {
+        //* Serialises mutation of the shared input-latch statics.
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe
+        {
+            let saved_lowres = lowres_turn;
+            let saved_carry = LOWRES_TURN_CARRY;
+            lowres_turn = 1;
+            // No input at all: keys, mouse deltas and latches zeroed so
+            // the only angleturn contributor is the rounding block.
+            GAMEKEYDOWN = [0; NUMKEYS];
+            MOUSEX = 0;
+            MOUSEY = 0;
+            NEXT_WEAPON = 0;
+
+            // Anchor vectors: with angleturn entering at 0, the carry
+            // alone reproduces the report's (100, 0) / (200, 0) sums.
+            LOWRES_TURN_CARRY = 0;
+            let mut cmd = zeroed_cmd();
+            G_BuildTiccmd(&mut cmd, 0);
+            assert_eq!(cmd.angleturn, 0);
+            assert_eq!(LOWRES_TURN_CARRY, 0);
+
+            LOWRES_TURN_CARRY = 100;
+            let mut cmd = zeroed_cmd();
+            G_BuildTiccmd(&mut cmd, 0);
+            assert_eq!(cmd.angleturn, 0);
+            assert_eq!(LOWRES_TURN_CARRY, 100);
+
+            LOWRES_TURN_CARRY = 200;
+            let mut cmd = zeroed_cmd();
+            G_BuildTiccmd(&mut cmd, 0);
+            assert_eq!(cmd.angleturn, 256);
+            assert_eq!(LOWRES_TURN_CARRY, -56);
+
+            // Wrap edge through the live body, oracle-checked.
+            LOWRES_TURN_CARRY = 0x7FFF;
+            let mut cmd = zeroed_cmd();
+            G_BuildTiccmd(&mut cmd, 0);
+            assert_eq!(
+                (cmd.angleturn, LOWRES_TURN_CARRY),
+                lowres_turn_round_pre_move(0, 0x7FFF)
+            );
+
+            // One held key_right tic: pre-rounding angleturn is
+            // -angleturn[2] = -320 (tspeed 2 while TURNHELD < 6), and
+            // the live post-rounding result must equal the pure
+            // transcription applied to that input.
+            GAMEKEYDOWN[key_right as usize] = 1;
+            LOWRES_TURN_CARRY = 0;
+            let mut cmd = zeroed_cmd();
+            G_BuildTiccmd(&mut cmd, 0);
+            assert_eq!(
+                (cmd.angleturn, LOWRES_TURN_CARRY),
+                lowres_turn_round_pre_move(-320, 0)
+            );
+
+            GAMEKEYDOWN = [0; NUMKEYS];
+            lowres_turn = saved_lowres;
+            LOWRES_TURN_CARRY = saved_carry;
+        }
+    }
+
     // --- G_CheckSpot teleport-fog offset (docs/vanilla-workarounds.md #6) ---
 
     /// For every legal mapthing angle the fog offset pair must come from the
