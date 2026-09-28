@@ -55,25 +55,16 @@ pub extern "C" fn EV_Teleport(line: *mut line_t, side: c_int, thing: *mut mobj_t
     unsafe
     {
         // Don't teleport missiles
-        if (*thing).flags & MF_MISSILE != 0
-        {
-            return 0;
-        }
+        if(*thing).flags & MF_MISSILE != 0 { return 0; }
 
         // Don't teleport if hit back of line
-        if side == 1
-        {
-            return 0;
-        }
+        if side == 1 { return 0; }
 
         let tag = (*line).tag;
 
         for i in 0..numsectors as usize
         {
-            if (*sectors.add(i)).tag != tag
-            {
-                continue;
-            }
+            if(*sectors.add(i)).tag != tag { continue; }
 
             let mut thinker = thinkercap.next;
             while !std::ptr::eq(thinker, &raw const thinkercap)
@@ -92,11 +83,7 @@ pub extern "C" fn EV_Teleport(line: *mut line_t, side: c_int, thing: *mut mobj_t
                 let m = thinker as *mut mobj_t;
 
                 // Not a teleportman
-                if (*m).mobjtype != MT_TELEPORTMAN
-                {
-                    thinker = (*thinker).next;
-                    continue;
-                }
+                if(*m).mobjtype != MT_TELEPORTMAN { thinker = (*thinker).next; continue; }
 
                 let sector = (*(*m).subsector).sector;
                 // Wrong sector
@@ -110,16 +97,10 @@ pub extern "C" fn EV_Teleport(line: *mut line_t, side: c_int, thing: *mut mobj_t
                 let oldy = (*thing).y;
                 let oldz = (*thing).z;
 
-                if P_TeleportMove(thing as *mut CffiMobj, (*m).x, (*m).y) == 0
-                {
-                    return 0;
-                }
+                if P_TeleportMove(thing as *mut CffiMobj, (*m).x, (*m).y) == 0 { return 0; }
 
                 // Final Doom quirk: don't set z
-                if gameversion != EXE_FINAL
-                {
-                    (*thing).z = (*thing).floorz;
-                }
+                if gameversion != EXE_FINAL { (*thing).z = (*thing).floorz; }
 
                 if !(*thing).player.is_null()
                 {
@@ -142,10 +123,7 @@ pub extern "C" fn EV_Teleport(line: *mut line_t, side: c_int, thing: *mut mobj_t
                 S_StartSound(fog as *mut c_void, Sfx::Telept as c_int);
 
                 // Don't move for a bit
-                if !(*thing).player.is_null()
-                {
-                    (*thing).reactiontime = 18;
-                }
+                if !(*thing).player.is_null() { (*thing).reactiontime = 18; }
 
                 (*thing).angle = (*m).angle;
                 (*thing).momx = 0;
