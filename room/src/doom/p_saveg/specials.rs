@@ -243,10 +243,7 @@ pub unsafe extern "C" fn unarchive_specials()
                 read_ceiling_record(ceiling);
                 (*ceiling).sector.as_mut().unwrap().specialdata = ceiling as *mut c_void;
 
-                if ceiling.as_ref().unwrap().thinker.function.acp1.is_some()
-                {
-                    ceiling.as_mut().unwrap().thinker.function = actionf_of_move_ceiling();
-                }
+                if ceiling.as_ref().unwrap().thinker.function.acp1.is_some() { ceiling.as_mut().unwrap().thinker.function = actionf_of_move_ceiling(); }
 
                 P_AddThinker(&mut (*ceiling).thinker);
                 P_AddActiveCeiling(ceiling);
@@ -288,10 +285,7 @@ pub unsafe extern "C" fn unarchive_specials()
                 read_plat_record(plat);
                 (*plat).sector.as_mut().unwrap().specialdata = plat as *mut c_void;
 
-                if plat.as_ref().unwrap().thinker.function.acp1.is_some()
-                {
-                    plat.as_mut().unwrap().thinker.function = actionf_of_plat_raise();
-                }
+                if plat.as_ref().unwrap().thinker.function.acp1.is_some() { plat.as_mut().unwrap().thinker.function = actionf_of_plat_raise(); }
 
                 P_AddThinker(&mut (*plat).thinker);
                 P_AddActivePlat(plat);

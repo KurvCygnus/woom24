@@ -41,7 +41,8 @@ macro_rules! make_actionf_p1 {
     ($fn_name:ident, $arg_ty:ty, $c_fn:expr) => {
         pub(super) fn $fn_name() -> actionf_t
         {
-            actionf_t {
+            actionf_t
+            {
                 acp1: Some(unsafe {
                     core::mem::transmute::<
                         unsafe extern "C" fn(*mut $arg_ty),
@@ -270,15 +271,9 @@ pub(super) unsafe fn read_mobj_record(mobj: *mut c_void)
     {
         (*mo).player = read_player_index(pl) as *mut c_void;
         let player = (*mo).player as *mut PlayerT;
-        if !player.is_null()
-        {
-            (*player).mo = mobj as *mut crate::doom::d_player::mobj_t;
-        }
+        if !player.is_null() { (*player).mo = mobj as *mut crate::doom::d_player::mobj_t; }
     }
-    else
-    {
-        (*mo).player = std::ptr::null_mut();
-    }
+    else { (*mo).player = std::ptr::null_mut(); }
 
     // lastlook
     (*mo).lastlook = read_le32() as c_int;
@@ -362,14 +357,8 @@ pub(super) unsafe fn write_mobj_record(mobj: *const c_void)
 
     // state (index)
     let state = (*mo).state as *const State;
-    if state.is_null()
-    {
-        write_le32(0);
-    }
-    else
-    {
-        write_le32(write_state_index(state));
-    }
+    if state.is_null() { write_le32(0); }
+    else { write_le32(write_state_index(state)); }
 
     // flags
     write_le32((*mo).flags as u32);
@@ -390,14 +379,8 @@ pub(super) unsafe fn write_mobj_record(mobj: *const c_void)
 
     // player
     let player = (*mo).player as *const PlayerT;
-    if player.is_null()
-    {
-        write_le32(0);
-    }
-    else
-    {
-        write_le32(write_player_index(player));
-    }
+    if player.is_null() { write_le32(0); }
+    else { write_le32(write_player_index(player)); }
 
     // lastlook
     write_le32((*mo).lastlook as u32);
@@ -469,10 +452,7 @@ pub(super) unsafe fn read_pspdef(psp: *mut PspdefT)
     {
         std::ptr::null_mut()
     }
-    else
-    {
-        read_state_index(state_idx) as *mut crate::doom::d_player::state_t
-    };
+    else { read_state_index(state_idx) as *mut crate::doom::d_player::state_t };
     s.tics = read_le32() as c_int;
     s.sx = read_le32() as c_int;
     s.sy = read_le32() as c_int;
@@ -487,14 +467,8 @@ pub(super) unsafe fn read_pspdef(psp: *mut PspdefT)
 pub(super) unsafe fn write_pspdef(psp: *const PspdefT)
 {
     let s = &*psp;
-    if s.state.is_null()
-    {
-        write_le32(0);
-    }
-    else
-    {
-        write_le32(write_state_index(s.state as *const State));
-    }
+    if s.state.is_null() { write_le32(0); }
+    else { write_le32(write_state_index(s.state as *const State)); }
     write_le32(s.tics as u32);
     write_le32(s.sx as u32);
     write_le32(s.sy as u32);
@@ -544,47 +518,29 @@ pub(super) unsafe fn read_player_record(pl: *mut PlayerT)
     s.armortype = read_le32() as c_int;
 
     // powers[NUMPOWERS]
-    for i in 0..NUMPOWERS
-    {
-        s.powers[i] = read_le32() as c_int;
-    }
+    for i in 0..NUMPOWERS { s.powers[i] = read_le32() as c_int; }
 
     // cards[NUMCARDS]
-    for i in 0..NUMCARDS
-    {
-        s.cards[i] = read_le32() as c_int;
-    }
+    for i in 0..NUMCARDS { s.cards[i] = read_le32() as c_int; }
 
     // backpack
     s.backpack = read_le32() as c_int;
 
     // frags[MAXPLAYERS]
-    for i in 0..MAXPLAYERS
-    {
-        s.frags[i] = read_le32() as c_int;
-    }
+    for i in 0..MAXPLAYERS { s.frags[i] = read_le32() as c_int; }
 
     // readyweapon, pendingweapon
     s.readyweapon = read_enum32() as c_int;
     s.pendingweapon = read_enum32() as c_int;
 
     // weaponowned[NUMWEAPONS]
-    for i in 0..NUMWEAPONS
-    {
-        s.weaponowned[i] = read_le32() as c_int;
-    }
+    for i in 0..NUMWEAPONS { s.weaponowned[i] = read_le32() as c_int; }
 
     // ammo[NUMAMMO]
-    for i in 0..NUMAMMO
-    {
-        s.ammo[i] = read_le32() as c_int;
-    }
+    for i in 0..NUMAMMO { s.ammo[i] = read_le32() as c_int; }
 
     // maxammo[NUMAMMO]
-    for i in 0..NUMAMMO
-    {
-        s.maxammo[i] = read_le32() as c_int;
-    }
+    for i in 0..NUMAMMO { s.maxammo[i] = read_le32() as c_int; }
 
     // attackdown, usedown
     s.attackdown = read_le32() as c_int;
@@ -615,10 +571,7 @@ pub(super) unsafe fn read_player_record(pl: *mut PlayerT)
     s.colormap = read_le32() as c_int;
 
     // psprites[NUMPSPRITES]
-    for i in 0..NUMPSPRITES
-    {
-        read_pspdef(&mut s.psprites[i]);
-    }
+    for i in 0..NUMPSPRITES { read_pspdef(&mut s.psprites[i]); }
 
     // didsecret
     s.didsecret = read_le32() as c_int;
@@ -645,33 +598,15 @@ pub(super) unsafe fn write_player_record(pl: *const PlayerT)
     write_le32(s.health as u32);
     write_le32(s.armorpoints as u32);
     write_le32(s.armortype as u32);
-    for i in 0..NUMPOWERS
-    {
-        write_le32(s.powers[i] as u32);
-    }
-    for i in 0..NUMCARDS
-    {
-        write_le32(s.cards[i] as u32);
-    }
+    for i in 0..NUMPOWERS { write_le32(s.powers[i] as u32); }
+    for i in 0..NUMCARDS { write_le32(s.cards[i] as u32); }
     write_le32(s.backpack as u32);
-    for i in 0..MAXPLAYERS
-    {
-        write_le32(s.frags[i] as u32);
-    }
+    for i in 0..MAXPLAYERS { write_le32(s.frags[i] as u32); }
     write_enum32(s.readyweapon as u32);
     write_enum32(s.pendingweapon as u32);
-    for i in 0..NUMWEAPONS
-    {
-        write_le32(s.weaponowned[i] as u32);
-    }
-    for i in 0..NUMAMMO
-    {
-        write_le32(s.ammo[i] as u32);
-    }
-    for i in 0..NUMAMMO
-    {
-        write_le32(s.maxammo[i] as u32);
-    }
+    for i in 0..NUMWEAPONS { write_le32(s.weaponowned[i] as u32); }
+    for i in 0..NUMAMMO { write_le32(s.ammo[i] as u32); }
+    for i in 0..NUMAMMO { write_le32(s.maxammo[i] as u32); }
     write_le32(s.attackdown as u32);
     write_le32(s.usedown as u32);
     write_le32(s.cheats as u32);
@@ -686,10 +621,7 @@ pub(super) unsafe fn write_player_record(pl: *const PlayerT)
     write_le32(s.extralight as u32);
     write_le32(s.fixedcolormap as u32);
     write_le32(s.colormap as u32);
-    for i in 0..NUMPSPRITES
-    {
-        write_pspdef(&s.psprites[i]);
-    }
+    for i in 0..NUMPSPRITES { write_pspdef(&s.psprites[i]); }
     write_le32(s.didsecret as u32);
 }
 
@@ -745,10 +677,14 @@ mod tests
         let mut data = [0u8; 12];
         unsafe
         {
-            let mut th = thinker_t {
+            let mut th = thinker_t
+            {
                 prev: ptr::null_mut(),
                 next: ptr::null_mut(),
-                function: actionf_t { acp1: None },
+                function: actionf_t
+                {
+                    acp1: None
+                },
             };
             with_mem_stream(&mut data, || {
                 super::read_thinker_header(&raw mut th as *mut thinker_t);

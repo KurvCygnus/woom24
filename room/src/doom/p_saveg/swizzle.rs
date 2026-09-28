@@ -26,14 +26,8 @@ use super::sectors;
 #[doc(alias = "saveg_write_sector_ptr")]
 pub(super) unsafe fn write_sector_index(sector: *const sector_t) -> u32
 {
-    if sector.is_null()
-    {
-        0
-    }
-    else
-    {
-        sector.offset_from(sectors) as u32
-    }
+    if sector.is_null() { 0 }
+    else { sector.offset_from(sectors) as u32 }
 }
 
 /// Deserializes a sector index from the save stream into a `*mut sector_t`.
@@ -42,10 +36,7 @@ pub(super) unsafe fn write_sector_index(sector: *const sector_t) -> u32
 /// performed; callers must trust that the index was written by a valid
 /// `saveg_write_sector_ptr` call.
 #[doc(alias = "saveg_read_sector_ptr")]
-pub(super) unsafe fn read_sector_index(index: u32) -> *mut sector_t
-{
-    sectors.add(index as usize)
-}
+pub(super) unsafe fn read_sector_index(index: u32) -> *mut sector_t { sectors.add(index as usize) }
 
 /// Serializes a `State` pointer as a zero-based index into the global `states`
 /// array.
@@ -54,14 +45,8 @@ pub(super) unsafe fn read_sector_index(index: u32) -> *mut sector_t
 #[doc(alias = "saveg_write_state_ptr")]
 pub(super) unsafe fn write_state_index(state: *const State) -> u32
 {
-    if state.is_null()
-    {
-        0
-    }
-    else
-    {
-        state.offset_from(std::ptr::addr_of!(states[0])) as u32
-    }
+    if state.is_null() { 0 }
+    else { state.offset_from(std::ptr::addr_of!(states[0])) as u32 }
 }
 
 /// Deserializes a state index into a `*mut State`.
@@ -89,14 +74,8 @@ pub(super) unsafe fn read_state_index(index: u32) -> *mut State
 #[doc(alias = "saveg_write_player_ptr")]
 pub(super) unsafe fn write_player_index(player: *const PlayerT) -> u32
 {
-    if player.is_null()
-    {
-        0
-    }
-    else
-    {
-        (player.offset_from(std::ptr::addr_of!(players[0])) as u32) + 1
-    }
+    if player.is_null() { 0 }
+    else { (player.offset_from(std::ptr::addr_of!(players[0])) as u32) + 1 }
 }
 
 /// Deserializes a 1-based player index into a `*mut PlayerT`.
@@ -106,12 +85,6 @@ pub(super) unsafe fn write_player_index(player: *const PlayerT) -> u32
 #[doc(alias = "saveg_read_player_ptr")]
 pub(super) unsafe fn read_player_index(value: u32) -> *mut PlayerT
 {
-    if value == 0
-    {
-        std::ptr::null_mut()
-    }
-    else
-    {
-        std::ptr::addr_of_mut!(players[0]).add((value - 1) as usize)
-    }
+    if value == 0 { std::ptr::null_mut() }
+    else { std::ptr::addr_of_mut!(players[0]).add((value - 1) as usize) }
 }

@@ -28,10 +28,7 @@ use crate::doom::c_ffi::VERSIONSIZE;
 /// `pos` is the current stream position (`libc::ftell(save_stream)`).
 /// Pure function -- no state, no threading assumptions. Never inline a
 /// second copy of the formula: drift here desyncs every padded record.
-pub(super) fn pad_len(pos: i64) -> i64
-{
-    (4 - (pos & 3)) & 3
-}
+pub(super) fn pad_len(pos: i64) -> i64 { (4 - (pos & 3)) & 3 }
 
 /// The 3-byte big-endian `leveltime` write codec, extracted verbatim
 /// from the three shifted `write_byte` calls in
@@ -51,20 +48,14 @@ pub(super) fn pad_len(pos: i64) -> i64
 ///
 /// Pure function of the 32-bit tic count; [`leveltime_unpack3`] must
 /// stay its exact inverse over the serialized 24-bit domain.
-pub(super) fn leveltime_pack3(lt: u32) -> [u8; 3]
-{
-    [((lt >> 16) & 0xff) as u8, ((lt >> 8) & 0xff) as u8, (lt & 0xff) as u8]
-}
+pub(super) fn leveltime_pack3(lt: u32) -> [u8; 3] { [((lt >> 16) & 0xff) as u8, ((lt >> 8) & 0xff) as u8, (lt & 0xff) as u8] }
 
 /// The 3-byte big-endian `leveltime` read codec, extracted verbatim
 /// from the three `read_byte` shifts in `read_save_game_header`
 /// (`p_saveg.rs:1394-1398`; upstream C `P_ReadSaveGameHeader`).
 /// Counterpart to [`leveltime_pack3`]; see there for the determinism
 /// notes.
-pub(super) fn leveltime_unpack3(bytes: [u8; 3]) -> u32
-{
-    ((bytes[0] as u32) << 16) | ((bytes[1] as u32) << 8) | (bytes[2] as u32)
-}
+pub(super) fn leveltime_unpack3(bytes: [u8; 3]) -> u32 { ((bytes[0] as u32) << 16) | ((bytes[1] as u32) << 8) | (bytes[2] as u32) }
 
 /// The NUL-padded `"version N\0"` header version buffer, extracted
 /// verbatim from the write side of `write_save_game_header`
@@ -90,10 +81,7 @@ pub(super) fn version_bytes(version_code: c_int) -> [u8; VERSIONSIZE]
     let expected = format!("version {}\0", version_code);
     let expected_bytes = expected.as_bytes();
     let mut expected_padded = [0u8; VERSIONSIZE];
-    for (i, &b) in expected_bytes.iter().enumerate().take(VERSIONSIZE)
-    {
-        expected_padded[i] = b;
-    }
+    for (i, &b) in expected_bytes.iter().enumerate().take(VERSIONSIZE) { expected_padded[i] = b; }
     expected_padded
 }
 

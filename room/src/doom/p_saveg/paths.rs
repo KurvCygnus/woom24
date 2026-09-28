@@ -98,10 +98,7 @@ pub unsafe extern "C" fn save_game_file(slot: c_int) -> *mut c_char
     {
         let layout = std::alloc::Layout::from_size_align(alloc_size, 1).unwrap();
         let ptr = std::alloc::alloc(layout);
-        if ptr.is_null()
-        {
-            std::alloc::handle_alloc_error(layout);
-        }
+        if ptr.is_null() { std::alloc::handle_alloc_error(layout); }
         SAVE_FILENAME = ptr as *mut c_char;
     }
 

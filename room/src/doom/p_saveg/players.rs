@@ -33,10 +33,7 @@ pub unsafe extern "C" fn archive_players()
 {
     for i in 0..MAXPLAYERS
     {
-        if playeringame[i] == 0
-        {
-            continue;
-        }
+        if playeringame[i] == 0 { continue; }
         write_padding();
         write_player_record(&players[i]);
     }
@@ -63,10 +60,7 @@ pub unsafe extern "C" fn unarchive_players()
 {
     for i in 0..MAXPLAYERS
     {
-        if playeringame[i] == 0
-        {
-            continue;
-        }
+        if playeringame[i] == 0 { continue; }
         read_padding();
         read_player_record(&mut players[i]);
 

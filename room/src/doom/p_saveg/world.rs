@@ -63,10 +63,7 @@ pub unsafe extern "C" fn archive_world()
         write_le16((*li).tag as u16);
         for j in 0..2
         {
-            if (*li).sidenum[j as usize] == -1
-            {
-                continue;
-            }
+            if(*li).sidenum[j as usize] == -1 { continue; }
             let si = sides.add((*li).sidenum[j as usize] as usize);
             write_le16(((*si).textureoffset >> 16) as u16);
             write_le16(((*si).rowoffset >> 16) as u16);
@@ -128,10 +125,7 @@ pub unsafe extern "C" fn unarchive_world()
         (*li).tag = read_le16() as i16;
         for j in 0..2
         {
-            if (*li).sidenum[j as usize] == -1
-            {
-                continue;
-            }
+            if(*li).sidenum[j as usize] == -1 { continue; }
             let si = sides.add((*li).sidenum[j as usize] as usize);
             (*si).textureoffset = (read_le16() as i16 as c_int) << 16;
             (*si).rowoffset = (read_le16() as i16 as c_int) << 16;

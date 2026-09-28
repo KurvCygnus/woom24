@@ -41,10 +41,7 @@ pub(super) unsafe fn read_byte() -> u8
 {
     let mut result: u8 = 0;
     let n = libc::fread(&raw mut result as *mut c_void, 1, 1, save_stream);
-    if n < 1 && savegame_error == 0
-    {
-        savegame_error = 1;
-    }
+    if n < 1 && savegame_error == 0 { savegame_error = 1; }
     result
 }
 
@@ -59,10 +56,7 @@ pub(super) unsafe fn read_byte() -> u8
 pub(super) unsafe fn write_byte(value: u8)
 {
     let n = libc::fwrite(&value as *const u8 as *const c_void, 1, 1, save_stream);
-    if n < 1 && savegame_error == 0
-    {
-        savegame_error = 1;
-    }
+    if n < 1 && savegame_error == 0 { savegame_error = 1; }
     savegamelength += 1;
 }
 
@@ -126,10 +120,7 @@ pub(super) unsafe fn read_padding()
 {
     let pos = libc::ftell(save_stream) as c_long;
     let padding = dtmc::pad_len(pos as i64);
-    for _ in 0..padding
-    {
-        read_byte();
-    }
+    for _ in 0..padding { read_byte(); }
 }
 
 /// Writes NUL padding bytes to align the stream to the next 4-byte boundary.
@@ -141,10 +132,7 @@ pub(super) unsafe fn write_padding()
 {
     let pos = libc::ftell(save_stream) as c_long;
     let padding = dtmc::pad_len(pos as i64);
-    for _ in 0..padding
-    {
-        write_byte(0);
-    }
+    for _ in 0..padding { write_byte(0); }
 }
 
 /// Reads a 32-bit enum value from the stream as a `u32`.
@@ -152,19 +140,13 @@ pub(super) unsafe fn write_padding()
 /// Enum values are always stored as 32-bit little-endian integers.
 /// C origin: the `saveg_read_enum` macro (alias for `saveg_read32`).
 #[doc(alias = "saveg_read_enum")]
-pub(super) unsafe fn read_enum32() -> u32
-{
-    read_le32()
-}
+pub(super) unsafe fn read_enum32() -> u32 { read_le32() }
 
 /// Writes a 32-bit enum value to the stream.
 ///
 /// C origin: the `saveg_write_enum` macro (alias for `saveg_write32`).
 #[doc(alias = "saveg_write_enum")]
-pub(super) unsafe fn write_enum32(value: u32)
-{
-    write_le32(value);
-}
+pub(super) unsafe fn write_enum32(value: u32) { write_le32(value); }
 
 #[cfg(test)]
 mod tests

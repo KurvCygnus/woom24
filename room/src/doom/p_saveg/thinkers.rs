@@ -122,19 +122,10 @@ pub unsafe extern "C" fn unarchive_thinkers()
         let func = (*currentthinker).function.acp1;
         if let Some(fn_ptr) = func
         {
-            if fn_ptr as usize == P_MobjThinker as *const () as usize
-            {
-                P_RemoveMobj(currentthinker as *mut c_void);
-            }
-            else
-            {
-                Z_Free(currentthinker as *mut c_void);
-            }
+            if fn_ptr as usize == P_MobjThinker as *const () as usize { P_RemoveMobj(currentthinker as *mut c_void); }
+            else { Z_Free(currentthinker as *mut c_void); }
         }
-        else
-        {
-            Z_Free(currentthinker as *mut c_void);
-        }
+        else { Z_Free(currentthinker as *mut c_void); }
 
         currentthinker = next;
     }
@@ -190,10 +181,7 @@ pub unsafe extern "C" fn unarchive_thinkers()
 
                 P_AddThinker(&mut (*thinker_ptr));
             }
-            _ =>
-            {
-                i_error!("Unknown tclass {} in savegame", tclass as c_int);
-            }
+            _ => { i_error!("Unknown tclass {} in savegame", tclass as c_int); }
         }
     }
 }

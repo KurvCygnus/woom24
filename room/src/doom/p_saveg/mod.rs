@@ -232,7 +232,8 @@ use crate::doom::p_lights::{line_t, sector_t};
 // zone exists.
 // ---------------------------------------------------------------------------
 
-extern "C" {
+extern "C"
+{
     /// C-side mobj thinker; used for type dispatch when reading/writing the
     /// thinker chain.
     fn P_MobjThinker(mobj: *mut c_void);
@@ -261,7 +262,8 @@ extern "C" {
     static mut savegamedir: *mut c_char;
 }
 
-extern "C" {
+extern "C"
+{
     /// Current skill level (0-4); serialized into the save header.
     static mut gameskill: c_int;
     /// Current episode number (1-based); serialized into the save header.
