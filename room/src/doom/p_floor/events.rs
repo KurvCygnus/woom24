@@ -71,10 +71,7 @@ pub unsafe extern "C" fn EV_DoFloor(line: *mut line_t, floortype: c_int) -> c_in
     {
         let sec = sectors.add(secnum as usize);
 
-        if !(*sec).specialdata.is_null()
-        {
-            continue;
-        }
+        if !(*sec).specialdata.is_null() { continue; }
 
         rtn = 1;
         let floor = Z_Malloc(
@@ -113,10 +110,7 @@ pub unsafe extern "C" fn EV_DoFloor(line: *mut line_t, floortype: c_int) -> c_in
                 (*floor).sector = sec as *mut sector_t;
                 (*floor).speed = FLOORSPEED * 4;
                 (*floor).floordestheight = P_FindHighestFloorSurrounding(sec);
-                if (*floor).floordestheight != (*sec).floorheight
-                {
-                    (*floor).floordestheight += 8 * FRACUNIT;
-                }
+                if(*floor).floordestheight != (*sec).floorheight { (*floor).floordestheight += 8 * FRACUNIT; }
             }
             floor_raiseFloorCrush =>
             {
@@ -132,12 +126,8 @@ pub unsafe extern "C" fn EV_DoFloor(line: *mut line_t, floortype: c_int) -> c_in
                 (*floor).sector = sec as *mut sector_t;
                 (*floor).speed = FLOORSPEED;
                 (*floor).floordestheight = P_FindLowestCeilingSurrounding(sec);
-                if (*floor).floordestheight > (*sec).ceilingheight
-                {
-                    (*floor).floordestheight = (*sec).ceilingheight;
-                }
-                (*floor).floordestheight -=
-                    (8 * FRACUNIT) * ((floortype == floor_raiseFloorCrush) as c_int);
+                if(*floor).floordestheight > (*sec).ceilingheight { (*floor).floordestheight = (*sec).ceilingheight; }
+                (*floor).floordestheight -= (8 * FRACUNIT) * ((floortype == floor_raiseFloorCrush) as c_int);
             }
             floor_raiseFloorTurbo =>
             {
@@ -160,8 +150,7 @@ pub unsafe extern "C" fn EV_DoFloor(line: *mut line_t, floortype: c_int) -> c_in
                 (*floor).speed = FLOORSPEED;
                 // FIXME: the next line is a dead assignment (offset_from produces the wrong type
                 // and the value is immediately overwritten); it should be removed.
-                (*floor).floordestheight =
-                    (*floor).sector.offset_from(sec as *mut sector_t) as fixed_t;
+                (*floor).floordestheight = (*floor).sector.offset_from(sec as *mut sector_t) as fixed_t;
                 (*floor).floordestheight = (*sec).floorheight + 24 * FRACUNIT;
             }
             floor_raiseFloor512 =>
@@ -194,19 +183,13 @@ pub unsafe extern "C" fn EV_DoFloor(line: *mut line_t, floortype: c_int) -> c_in
                         if (*side).bottomtexture >= 0
                         {
                             let th = *textureheight.offset((*side).bottomtexture as isize);
-                            if th < minsize
-                            {
-                                minsize = th;
-                            }
+                            if th < minsize { minsize = th; }
                         }
                         let side = getSide(secnum, i as c_int, 1);
                         if (*side).bottomtexture >= 0
                         {
                             let th = *textureheight.offset((*side).bottomtexture as isize);
-                            if th < minsize
-                            {
-                                minsize = th;
-                            }
+                            if th < minsize { minsize = th; }
                         }
                     }
                 }
@@ -248,8 +231,7 @@ pub unsafe extern "C" fn EV_DoFloor(line: *mut line_t, floortype: c_int) -> c_in
                     }
                 }
             }
-            _ =>
-            {}
+            _ => {}
         }
     }
     rtn
@@ -283,10 +265,7 @@ pub unsafe extern "C" fn EV_BuildStairs(line: *mut line_t, stype: c_int) -> c_in
     {
         let mut sec = sectors.add(secnum as usize);
 
-        if !(*sec).specialdata.is_null()
-        {
-            continue;
-        }
+        if !(*sec).specialdata.is_null() { continue; }
 
         rtn = 1;
         let mut floor = Z_Malloc(
@@ -323,33 +302,21 @@ pub unsafe extern "C" fn EV_BuildStairs(line: *mut line_t, stype: c_int) -> c_in
             for i in 0..(*sec).linecount as c_int
             {
                 let l = *(*sec).lines.offset(i as isize) as *mut line_t;
-                if (*l).flags & LinedefFlag::TWOSIDED as i16 == 0
-                {
-                    continue;
-                }
+                if(*l).flags & LinedefFlag::TWOSIDED as i16 == 0 { continue; }
 
                 let mut tsec = (*l).frontsector;
                 let newsecnum = tsec.offset_from(sectors as *mut sector_t) as c_int;
 
-                if secnum != newsecnum
-                {
-                    continue;
-                }
+                if secnum != newsecnum { continue; }
 
                 tsec = (*l).backsector;
                 let newsecnum = tsec.offset_from(sectors as *mut sector_t) as c_int;
 
-                if (*tsec).floorpic != texture
-                {
-                    continue;
-                }
+                if(*tsec).floorpic != texture { continue; }
 
                 height += stairsize;
 
-                if !(*tsec).specialdata.is_null()
-                {
-                    continue;
-                }
+                if !(*tsec).specialdata.is_null() { continue; }
 
                 sec = tsec as *mut cffi::sector_t;
                 let _secnum_new = newsecnum;
@@ -373,10 +340,7 @@ pub unsafe extern "C" fn EV_BuildStairs(line: *mut line_t, stype: c_int) -> c_in
                 ok = 1;
                 break;
             }
-            if ok == 0
-            {
-                break;
-            }
+            if ok == 0 { break; }
         }
     }
     rtn

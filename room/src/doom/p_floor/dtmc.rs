@@ -42,25 +42,13 @@ pub fn step_toward(pos: fixed_t, speed: fixed_t, dest: fixed_t, direction: c_int
     {
         -1 =>
         {
-            if pos - speed < dest
-            {
-                (dest, true)
-            }
-            else
-            {
-                (pos - speed, false)
-            }
+            if pos - speed < dest { (dest, true) }
+            else { (pos - speed, false) }
         }
         1 =>
         {
-            if pos + speed > dest
-            {
-                (dest, true)
-            }
-            else
-            {
-                (pos + speed, false)
-            }
+            if pos + speed > dest { (dest, true) }
+            else { (pos + speed, false) }
         }
         _ => (pos, false),
     }

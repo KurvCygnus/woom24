@@ -51,8 +51,7 @@ pub extern "C" fn T_MovePlane(
                     -1 =>
                     {
                         // DOWN
-                        let (new_height, reached) =
-                            dtmc::step_toward(sec.floorheight, speed, dest, -1);
+                        let (new_height, reached) = dtmc::step_toward(sec.floorheight, speed, dest, -1);
                         if reached
                         {
                             let lastpos = sec.floorheight;
@@ -78,8 +77,7 @@ pub extern "C" fn T_MovePlane(
                     1 =>
                     {
                         // UP
-                        let (new_height, reached) =
-                            dtmc::step_toward(sec.floorheight, speed, dest, 1);
+                        let (new_height, reached) = dtmc::step_toward(sec.floorheight, speed, dest, 1);
                         if reached
                         {
                             let lastpos = sec.floorheight;
@@ -97,17 +95,13 @@ pub extern "C" fn T_MovePlane(
                         let flag = P_ChangeSector(sector as *mut cffi::sector_t, crush);
                         if flag != 0
                         {
-                            if crush != 0
-                            {
-                                return result_crushed;
-                            }
+                            if crush != 0 { return result_crushed; }
                             sec.floorheight = lastpos;
                             P_ChangeSector(sector as *mut cffi::sector_t, crush);
                             return result_crushed;
                         }
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
             1 =>
@@ -118,8 +112,7 @@ pub extern "C" fn T_MovePlane(
                     -1 =>
                     {
                         // DOWN
-                        let (new_height, reached) =
-                            dtmc::step_toward(sec.ceilingheight, speed, dest, -1);
+                        let (new_height, reached) = dtmc::step_toward(sec.ceilingheight, speed, dest, -1);
                         if reached
                         {
                             let lastpos = sec.ceilingheight;
@@ -137,10 +130,7 @@ pub extern "C" fn T_MovePlane(
                         let flag = P_ChangeSector(sector as *mut cffi::sector_t, crush);
                         if flag != 0
                         {
-                            if crush != 0
-                            {
-                                return result_crushed;
-                            }
+                            if crush != 0 { return result_crushed; }
                             sec.ceilingheight = lastpos;
                             P_ChangeSector(sector as *mut cffi::sector_t, crush);
                             return result_crushed;
@@ -149,8 +139,7 @@ pub extern "C" fn T_MovePlane(
                     1 =>
                     {
                         // UP
-                        let (new_height, reached) =
-                            dtmc::step_toward(sec.ceilingheight, speed, dest, 1);
+                        let (new_height, reached) = dtmc::step_toward(sec.ceilingheight, speed, dest, 1);
                         if reached
                         {
                             let lastpos = sec.ceilingheight;
@@ -168,12 +157,10 @@ pub extern "C" fn T_MovePlane(
                         let _flag = P_ChangeSector(sector as *mut cffi::sector_t, crush);
                         // The original C code has #if 0 here, so no crush check.
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
-            _ =>
-            {}
+            _ => {}
         }
         result_ok
     }

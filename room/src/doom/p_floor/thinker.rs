@@ -37,7 +37,7 @@ pub unsafe extern "C" fn T_MoveFloor(floor: *mut floormove_t)
         (*floor).direction,
     );
 
-    if (leveltime & 7) == 0
+    if(leveltime & 7) == 0
     {
         S_StartSound(
             &(*(*floor).sector).soundorg as *const [u8; 40] as *mut c_void,
