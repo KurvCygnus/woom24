@@ -117,13 +117,7 @@ pub extern "C" fn P_AddThinker(thinker: *mut thinker_t)
 /// `thinker` must be a valid, non-null pointer to a thinker that is currently
 /// linked into the global thinker list.
 #[no_mangle]
-pub extern "C" fn P_RemoveThinker(thinker: *mut thinker_t)
-{
-    unsafe
-    {
-        (*thinker).function.acv = sentinel_ac();
-    }
-}
+pub extern "C" fn P_RemoveThinker(thinker: *mut thinker_t) { unsafe { (*thinker).function.acv = sentinel_ac(); } }
 
 /// No-op stub matching the C `P_AllocateThinker` signature.
 ///
@@ -167,10 +161,7 @@ pub extern "C" fn P_RunThinkers()
             }
             else
             {
-                if let Some(fn_ptr) = (*current).function.acp1
-                {
-                    fn_ptr(current as *mut c_void);
-                }
+                if let Some(fn_ptr) = (*current).function.acp1 { fn_ptr(current as *mut c_void); }
                 current = (*current).next;
             }
         }

@@ -36,26 +36,11 @@ pub extern "C" fn P_Ticker()
 {
     unsafe
     {
-        if paused != 0
-        {
-            return;
-        }
+        if paused != 0 { return; }
 
-        if netgame == 0
-            && menuactive != 0
-            && demoplayback == 0
-            && (*std::ptr::addr_of!(players[0]).offset(consoleplayer as isize)).viewz != 1
-        {
-            return;
-        }
+        if netgame == 0 && menuactive != 0 && demoplayback == 0 && (*std::ptr::addr_of!(players[0]).offset(consoleplayer as isize)).viewz != 1 { return; }
 
-        for i in 0..MAXPLAYERS
-        {
-            if playeringame[i] != 0
-            {
-                P_PlayerThink(&mut players[i]);
-            }
-        }
+        for i in 0..MAXPLAYERS { if playeringame[i] != 0 { P_PlayerThink(&mut players[i]); } }
 
         P_RunThinkers();
         P_UpdateSpecials();
@@ -79,9 +64,6 @@ mod tests
     fn globals_default()
     {
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        unsafe
-        {
-            assert_eq!(std::ptr::addr_of!(leveltime).read(), 0);
-        }
+        unsafe { assert_eq!(std::ptr::addr_of!(leveltime).read(), 0); }
     }
 }

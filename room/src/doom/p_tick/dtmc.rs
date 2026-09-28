@@ -60,10 +60,7 @@ pub fn sentinel_ac() -> Option<unsafe extern "C" fn()>
 /// `unsafe` inside, performed on the `acv` variant only. Same
 /// single-threaded tick assumption as upstream -- the sentinel is
 /// stored and checked within one `P_RunThinkers` pass.
-pub fn is_sentinel(f: actionf_t) -> bool
-{
-    unsafe { f.acv == sentinel_ac() }
-}
+pub fn is_sentinel(f: actionf_t) -> bool { unsafe { f.acv == sentinel_ac() } }
 
 #[cfg(test)]
 mod tests
