@@ -748,8 +748,8 @@ Shipped interim mitigations (guards, not root-cause emulations; see also the
 (entry 1), `ticdup < 1` -> `I_Error` (`d_loop/net_stub.rs:132-138`), `I_Error` also
 emits through the log facade (`room/src/doom/i_system.rs:329`; wasm has no
 stderr), the pre-creation frame-entry latch
-(`room/src/doom/doomgeneric.rs:214-222`, consulted at `d_main.rs:923` and
-`d_main.rs:977`), the web panic hook (`shells/web/src/console_log.rs:52`), and
+(`room/src/doom/doomgeneric.rs:214-222`, consulted at
+`d_main/entries.rs:41`/`:97`), the web panic hook (`shells/web/src/console_log.rs:52`), and
 the headless tick harness (`shells/web/scripts/node-tick-smoke.mjs`).
 
 ### The 2026-09-23 audit (task 2 of the vanilla-violations plan)
@@ -1171,7 +1171,7 @@ state for compatible inputs.
   constraint 3), vanilla path unaffected at the default 0. Not a vanilla
   defect workaround.
 - **Engine-created frame-entry latch** (`doomgeneric.rs:214-222`,
-  `d_main.rs:923`/`:977`): no-op frames before `doomgeneric_Create`
+  `d_main/entries.rs:41`/`:97`): no-op frames before `doomgeneric_Create`
   completes, because calling into a zero-initialized engine divides by
   `ticdup == 0`. Host-lifecycle platform work, not vanilla emulation (the
   ticdup=0 there comes from pre-init zeroing, not an OOB write).
