@@ -44,63 +44,30 @@ use super::state::clipammo;
 /// Global mutable statics `maxammo`, `clipammo`, `gameskill` must only be
 /// accessed from the game-logic thread.
 #[no_mangle]
-pub unsafe extern "C" fn P_GiveAmmo(player: *mut PlayerT, ammo: c_int, num: c_int) -> c_int
-{
-    p_give_ammo(&mut *player, ammo, num)
-}
+pub unsafe extern "C" fn P_GiveAmmo(player: *mut PlayerT, ammo: c_int, num: c_int) -> c_int { p_give_ammo(&mut *player, ammo, num) }
 
 /// Rust-side body of [`P_GiveAmmo`]. Takes `&mut PlayerT` so callers can
 /// pass an existing borrow without re-deriving a second `&mut` from the
 /// same raw pointer (which would violate aliasing rules).
 pub(super) unsafe fn p_give_ammo(player: &mut PlayerT, ammo: c_int, mut num: c_int) -> c_int
 {
-    if ammo == am_noammo
-    {
-        return 0;
-    }
-    if ammo > NUMAMMO as c_int
-    {
-        i_error!("P_GiveAmmo: bad type");
-    }
+    if ammo == am_noammo { return 0; }
+    if ammo > NUMAMMO as c_int { i_error!("P_GiveAmmo: bad type"); }
     let idx = ammo as usize;
-    if player.ammo[idx] == player.maxammo[idx]
-    {
-        return 0;
-    }
-    if num != 0
-    {
-        num *= clipammo[idx];
-    }
-    else
-    {
-        num = clipammo[idx] / 2;
-    }
-    if gameskill == sk_baby || gameskill == sk_nightmare
-    {
-        num <<= 1;
-    }
+    if player.ammo[idx] == player.maxammo[idx] { return 0; }
+    if num != 0 { num *= clipammo[idx]; }
+    else { num = clipammo[idx] / 2; }
+    if gameskill == sk_baby || gameskill == sk_nightmare { num <<= 1; }
     let oldammo = player.ammo[idx];
     player.ammo[idx] += num;
-    if player.ammo[idx] > player.maxammo[idx]
-    {
-        player.ammo[idx] = player.maxammo[idx];
-    }
-    if oldammo != 0
-    {
-        return 1;
-    }
+    if player.ammo[idx] > player.maxammo[idx] { player.ammo[idx] = player.maxammo[idx]; }
+    if oldammo != 0 { return 1; }
     match ammo
     {
         am_clip if player.readyweapon == wp_fist =>
         {
-            if player.weaponowned[wp_chaingun as usize] != 0
-            {
-                player.pendingweapon = wp_chaingun;
-            }
-            else
-            {
-                player.pendingweapon = wp_pistol;
-            }
+            if player.weaponowned[wp_chaingun as usize] != 0 { player.pendingweapon = wp_chaingun; }
+            else { player.pendingweapon = wp_pistol; }
         }
         am_shell
             if (player.readyweapon == wp_fist || player.readyweapon == wp_pistol)
@@ -115,10 +82,7 @@ pub(super) unsafe fn p_give_ammo(player: &mut PlayerT, ammo: c_int, mut num: c_i
             player.pendingweapon = wp_plasma;
         }
         am_misl
-            if player.readyweapon == wp_fist && player.weaponowned[wp_missile as usize] != 0 =>
-        {
-            player.pendingweapon = wp_missile;
-        }
+            if player.readyweapon == wp_fist && player.weaponowned[wp_missile as usize] != 0 => { player.pendingweapon = wp_missile; }
         _ => {}
     }
     1
@@ -162,20 +126,11 @@ pub(super) unsafe fn p_give_weapon(player: &mut PlayerT, weapon: c_int, dropped:
     let ammo_kind = weaponinfo[widx].ammo;
     if netgame != 0 && deathmatch != 2 && dropped == 0
     {
-        if player.weaponowned[widx] != 0
-        {
-            return 0;
-        }
+        if player.weaponowned[widx] != 0 { return 0; }
         player.bonuscount += BONUSADD;
         player.weaponowned[widx] = 1;
-        if deathmatch != 0
-        {
-            p_give_ammo(player, ammo_kind, 5);
-        }
-        else
-        {
-            p_give_ammo(player, ammo_kind, 2);
-        }
+        if deathmatch != 0 { p_give_ammo(player, ammo_kind, 5); }
+        else { p_give_ammo(player, ammo_kind, 2); }
         player.pendingweapon = weapon;
         let player_ptr = player as *mut PlayerT;
         if std::ptr::eq(
@@ -189,24 +144,12 @@ pub(super) unsafe fn p_give_weapon(player: &mut PlayerT, weapon: c_int, dropped:
     }
     let gaveammo: c_int = if ammo_kind != am_noammo
     {
-        if dropped != 0
-        {
-            p_give_ammo(player, ammo_kind, 1)
-        }
-        else
-        {
-            p_give_ammo(player, ammo_kind, 2)
-        }
+        if dropped != 0 { p_give_ammo(player, ammo_kind, 1) }
+        else { p_give_ammo(player, ammo_kind, 2) }
     }
-    else
-    {
-        0
-    };
+    else { 0 };
     let gaveweapon: c_int;
-    if player.weaponowned[widx] != 0
-    {
-        gaveweapon = 0;
-    }
+    if player.weaponowned[widx] != 0 { gaveweapon = 0; }
     else
     {
         gaveweapon = 1;
@@ -231,23 +174,14 @@ pub(super) unsafe fn p_give_weapon(player: &mut PlayerT, weapon: c_int, dropped:
 /// `player` must be a valid, non-null pointer to a live `PlayerT`, and
 /// `player.mo` must be a valid, non-null pointer to the player's map object.
 #[no_mangle]
-pub unsafe extern "C" fn P_GiveBody(player: *mut PlayerT, num: c_int) -> c_int
-{
-    p_give_body(&mut *player, num)
-}
+pub unsafe extern "C" fn P_GiveBody(player: *mut PlayerT, num: c_int) -> c_int { p_give_body(&mut *player, num) }
 
 /// Rust-side body of [`P_GiveBody`]. See [`p_give_ammo`] for rationale.
 pub(super) unsafe fn p_give_body(player: &mut PlayerT, num: c_int) -> c_int
 {
-    if player.health >= MAXHEALTH
-    {
-        return 0;
-    }
+    if player.health >= MAXHEALTH { return 0; }
     player.health += num;
-    if player.health > MAXHEALTH
-    {
-        player.health = MAXHEALTH;
-    }
+    if player.health > MAXHEALTH { player.health = MAXHEALTH; }
     let mo = &mut *(player.mo as *mut mobj_t);
     mo.health = player.health;
     1
@@ -268,19 +202,13 @@ pub(super) unsafe fn p_give_body(player: &mut PlayerT, num: c_int) -> c_int
 ///
 /// `player` must be a valid, non-null pointer to a live `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_GiveArmor(player: *mut PlayerT, armortype: c_int) -> c_int
-{
-    p_give_armor(&mut *player, armortype)
-}
+pub unsafe extern "C" fn P_GiveArmor(player: *mut PlayerT, armortype: c_int) -> c_int { p_give_armor(&mut *player, armortype) }
 
 /// Rust-side body of [`P_GiveArmor`]. See [`p_give_ammo`] for rationale.
 pub(super) fn p_give_armor(player: &mut PlayerT, armortype: c_int) -> c_int
 {
     let hits = armortype * 100;
-    if player.armorpoints >= hits
-    {
-        return 0;
-    }
+    if player.armorpoints >= hits { return 0; }
     player.armortype = armortype;
     player.armorpoints = hits;
     1
@@ -300,19 +228,13 @@ pub(super) fn p_give_armor(player: &mut PlayerT, armortype: c_int) -> c_int
 ///
 /// `player` must be a valid, non-null pointer to a live `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn P_GiveCard(player: *mut PlayerT, card: c_int)
-{
-    p_give_card(&mut *player, card)
-}
+pub unsafe extern "C" fn P_GiveCard(player: *mut PlayerT, card: c_int) { p_give_card(&mut *player, card) }
 
 /// Rust-side body of [`P_GiveCard`]. See [`p_give_ammo`] for rationale.
 pub(super) fn p_give_card(player: &mut PlayerT, card: c_int)
 {
     let idx = card as usize;
-    if player.cards[idx] != 0
-    {
-        return;
-    }
+    if player.cards[idx] != 0 { return; }
     player.bonuscount = BONUSADD;
     player.cards[idx] = 1;
 }
@@ -335,10 +257,7 @@ pub(super) fn p_give_card(player: &mut PlayerT, card: c_int)
 /// `player` must be a valid, non-null pointer to a live `PlayerT`, and for
 /// `pw_invisibility`, `player.mo` must also be valid.
 #[no_mangle]
-pub unsafe extern "C" fn P_GivePower(player: *mut PlayerT, power: c_int) -> c_int
-{
-    p_give_power(&mut *player, power)
-}
+pub unsafe extern "C" fn P_GivePower(player: *mut PlayerT, power: c_int) -> c_int { p_give_power(&mut *player, power) }
 
 /// Rust-side body of [`P_GivePower`]. See [`p_give_ammo`] for rationale.
 pub(super) unsafe fn p_give_power(player: &mut PlayerT, power: c_int) -> c_int
@@ -372,10 +291,7 @@ pub(super) unsafe fn p_give_power(player: &mut PlayerT, power: c_int) -> c_int
         player.powers[power] = 1;
         return 1;
     }
-    if player.powers[power] != 0
-    {
-        return 0;
-    }
+    if player.powers[power] != 0 { return 0; }
     player.powers[power] = 1;
     1
 }

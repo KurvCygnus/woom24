@@ -64,20 +64,14 @@ pub unsafe extern "C" fn P_KillMobj(source: *mut mobj_t, target: *mut mobj_t)
 {
     let info = (*target).info as *mut MobjInfo;
     (*target).flags &= !(MF_SHOOTABLE | MF_FLOAT | MF_SKULLFLY);
-    if (*target).mobjtype != MT_SKULL
-    {
-        (*target).flags &= !MF_NOGRAVITY;
-    }
+    if(*target).mobjtype != MT_SKULL { (*target).flags &= !MF_NOGRAVITY; }
     (*target).flags |= MF_CORPSE | MF_DROPOFF;
     (*target).height >>= 2;
 
     if !source.is_null() && !(*source).player.is_null()
     {
         let source_player = (*source).player as *mut PlayerT;
-        if (*target).flags & MF_COUNTKILL != 0
-        {
-            (*source_player).killcount += 1;
-        }
+        if(*target).flags & MF_COUNTKILL != 0 { (*source_player).killcount += 1; }
         if !(*target).player.is_null()
         {
             let target_player = (*target).player as *mut PlayerT;
@@ -85,10 +79,7 @@ pub unsafe extern "C" fn P_KillMobj(source: *mut mobj_t, target: *mut mobj_t)
             (*source_player).frags[idx] += 1;
         }
     }
-    else if netgame == 0 && (*target).flags & MF_COUNTKILL != 0
-    {
-        players[0].killcount += 1;
-    }
+    else if netgame == 0 && (*target).flags & MF_COUNTKILL != 0 { players[0].killcount += 1; }
 
     if !(*target).player.is_null()
     {
@@ -110,20 +101,11 @@ pub unsafe extern "C" fn P_KillMobj(source: *mut mobj_t, target: *mut mobj_t)
         }
     }
 
-    if (*target).health < -(*info).spawnhealth && (*info).xdeathstate != 0
-    {
-        P_SetMobjState(target, (*info).xdeathstate);
-    }
-    else
-    {
-        P_SetMobjState(target, (*info).deathstate);
-    }
+    if(*target).health < -(*info).spawnhealth && (*info).xdeathstate != 0 { P_SetMobjState(target, (*info).xdeathstate); }
+    else { P_SetMobjState(target, (*info).deathstate); }
     (*target).tics = dtmc::death_tic_roll((*target).tics, P_Random());
 
-    if gameversion == exe_chex
-    {
-        return;
-    }
+    if gameversion == exe_chex { return; }
 
     let item: c_int = match (*target).mobjtype
     {
@@ -178,14 +160,8 @@ pub unsafe extern "C" fn P_DamageMobj(
     mut damage: c_int,
 )
 {
-    if ((*target).flags & MF_SHOOTABLE) == 0
-    {
-        return;
-    }
-    if (*target).health <= 0
-    {
-        return;
-    }
+    if((*target).flags & MF_SHOOTABLE) == 0 { return; }
+    if(*target).health <= 0 { return; }
     if ((*target).flags & MF_SKULLFLY) != 0
     {
         (*target).momx = 0;
@@ -194,10 +170,7 @@ pub unsafe extern "C" fn P_DamageMobj(
     }
 
     let player = (*target).player as *mut PlayerT;
-    if !player.is_null() && gameskill == sk_baby
-    {
-        damage >>= 1;
-    }
+    if !player.is_null() && gameskill == sk_baby { damage >>= 1; }
 
     if !inflictor.is_null()
         && ((*target).flags & MF_NOCLIP) == 0
@@ -237,10 +210,7 @@ pub unsafe extern "C" fn P_DamageMobj(
     if !player.is_null()
     {
         // end of game hell hack
-        if (*(*(*target).subsector).sector).special == 11 && damage >= (*target).health
-        {
-            damage = (*target).health - 1;
-        }
+        if(*(*(*target).subsector).sector).special == 11 && damage >= (*target).health { damage = (*target).health - 1; }
 
         if damage < 1000
             && (((*player).cheats & CF_GODMODE) != 0 || (*player).powers[pw_invulnerability] != 0)
@@ -257,16 +227,10 @@ pub unsafe extern "C" fn P_DamageMobj(
             damage = damage_after;
         }
         (*player).health -= damage;
-        if (*player).health < 0
-        {
-            (*player).health = 0;
-        }
+        if(*player).health < 0 { (*player).health = 0; }
         (*player).attacker = source as *mut crate::doom::d_player::mobj_t;
         (*player).damagecount += damage;
-        if (*player).damagecount > 100
-        {
-            (*player).damagecount = 100;
-        }
+        if(*player).damagecount > 100 { (*player).damagecount = 100; }
         let temp = if damage < 100 { damage } else { 100 };
         if std::ptr::eq(
             player,
@@ -302,9 +266,6 @@ pub unsafe extern "C" fn P_DamageMobj(
         (*target).threshold = BASETHRESHOLD;
         let state_ptr = (*target).state as *mut State;
         let spawnstate_ptr = &info::states[(*info).spawnstate as usize] as *const State;
-        if std::ptr::eq(state_ptr, spawnstate_ptr) && (*info).seestate != S_NULL
-        {
-            P_SetMobjState(target, (*info).seestate);
-        }
+        if std::ptr::eq(state_ptr, spawnstate_ptr) && (*info).seestate != S_NULL { P_SetMobjState(target, (*info).seestate); }
     }
 }

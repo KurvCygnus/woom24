@@ -44,10 +44,7 @@ pub fn armor_absorption(damage: c_int, armortype: c_int, armorpoints: c_int) -> 
     {
         damage / 3
     }
-    else
-    {
-        damage / 2
-    };
+    else { damage / 2 };
     let mut saved_actual = saved;
     let mut armortype_after = armortype;
     if armorpoints <= saved_actual
@@ -118,10 +115,7 @@ pub fn fall_forward_flip(damage: c_int, health: c_int, z_delta: c_int, rand: c_i
 /// the C original computed the product in `int` and overflow wrapped;
 /// keeping plain `*` reproduces the release-build behavior for every
 /// input a demo can produce.
-pub fn thrust_for(damage: c_int, mass: c_int) -> c_int
-{
-    damage * (FRACUNIT >> 3) * 100 / mass
-}
+pub fn thrust_for(damage: c_int, mass: c_int) -> c_int { damage * (FRACUNIT >> 3) * 100 / mass }
 
 /// The death-tic roll of `P_KillMobj`: subtract up to three tics from
 /// the freshly-entered death state's duration (`rand & 3`) and clamp
@@ -149,14 +143,8 @@ pub fn thrust_for(damage: c_int, mass: c_int) -> c_int
 pub fn death_tic_roll(tics: c_int, rand: c_int) -> c_int
 {
     let tics = tics - (rand & 3);
-    if tics < 1
-    {
-        1
-    }
-    else
-    {
-        tics
-    }
+    if tics < 1 { 1 }
+    else { tics }
 }
 
 #[cfg(test)]
@@ -175,10 +163,7 @@ mod tests
     /// Read the `prndindex` cursor for assertions without creating a
     /// shared reference to the mutable static (the `static_mut_refs`
     /// hazard a direct `assert_eq!(prndindex, ...)` would trigger).
-    fn prnd_index() -> c_int
-    {
-        unsafe { std::ptr::addr_of!(prndindex).read() }
-    }
+    fn prnd_index() -> c_int { unsafe { std::ptr::addr_of!(prndindex).read() } }
 
     /// Set up a bare shootable target around a zeroed `mobj_t` with a
     /// private zeroed `MobjInfo` and a zeroed `subsector -> sector`

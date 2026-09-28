@@ -267,10 +267,7 @@ pub(super) const GOTSHOTGUN2: *mut c_char = c"You got the super shotgun!".as_ptr
 /// patched string replacement. Here it is a no-op identity shim because
 /// `FEATURE_DEHACKED` is not defined.
 #[inline(always)]
-pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char
-{
-    s
-}
+pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char { s }
 
 #[cfg(test)]
 mod tests
