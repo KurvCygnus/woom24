@@ -141,10 +141,7 @@ pub unsafe extern "C" fn do_donut(line: *mut line_t) -> c_int
     } >= 0
     {
         let s1 = sectors.offset(secnum as isize);
-        if !(*s1).specialdata.is_null()
-        {
-            continue;
-        }
+        if !(*s1).specialdata.is_null() { continue; }
 
         rtn = 1;
         let s2 = get_next_sector(*(*s1).lines.offset(0) as *mut line_t, s1);
@@ -160,10 +157,7 @@ pub unsafe extern "C" fn do_donut(line: *mut line_t) -> c_int
             let s3 =
                 (*((*(*s2).lines.offset(i as isize)) as *mut line_t)).backsector as *mut sector_t;
 
-            if s3 == s1
-            {
-                continue;
-            }
+            if s3 == s1 { continue; }
 
             let (s3_floorheight, s3_floorpic) = if s3.is_null()
             {
@@ -174,10 +168,7 @@ pub unsafe extern "C" fn do_donut(line: *mut line_t) -> c_int
                 donut_overrun(&mut fh, &mut fp, line, s1);
                 (fh, fp)
             }
-            else
-            {
-                ((*s3).floorheight, (*s3).floorpic)
-            };
+            else { ((*s3).floorheight, (*s3).floorpic) };
 
             // Spawn rising slime
             let floor = Z_Malloc(

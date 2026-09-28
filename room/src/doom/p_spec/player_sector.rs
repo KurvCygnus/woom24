@@ -56,10 +56,7 @@ pub unsafe extern "C" fn player_in_special_sector(player: *mut PlayerT)
     let sub = (*mo).subsector as *mut subsector_t;
     let sector = (*sub).sector as *mut sector_t;
 
-    if (*mo).z != (*sector).floorheight
-    {
-        return;
-    }
+    if(*mo).z != (*sector).floorheight { return; }
 
     match (*sector).special as c_int
     {
@@ -116,10 +113,7 @@ pub unsafe extern "C" fn player_in_special_sector(player: *mut PlayerT)
                     20,
                 );
             }
-            if (*player).health <= 10
-            {
-                G_ExitLevel();
-            }
+            if(*player).health <= 10 { G_ExitLevel(); }
         }
         _ =>
         {

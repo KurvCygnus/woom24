@@ -259,8 +259,8 @@ it.
 `room/src/doom/p_spec/donut.rs:53-91`, `donut_overrun` (export-shaped
 as the C `DonutOverrun`, doc-aliased): on first call parses
 `-donut <height> <pic>` (defaults 0 and 0x16, rejecting `pic >= numflats`),
-then returns the cached values. Hooked at `p_spec/donut.rs:167-174` in
-`do_donut` when `s3` is null; the warning at `p_spec/donut.rs:170` prints
+then returns the cached values. Hooked at `p_spec/donut.rs:162-169` in
+`do_donut` when `s3` is null; the warning at `p_spec/donut.rs:164` prints
 "emulating buffer overrun due to NULL back sector".
 
 ### Semantics
@@ -765,7 +765,7 @@ only):
 | Store | Classification |
 |---|---|
 | `spechit[20]` push (`p_map/move.rs:226`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
-| `heightlist[20]` stores (`p_spec/geometry.rs:277-287`) | vanilla adjoining-sector overrun, catalog entry 13: writes at `h == 20`/`h == 21` are in-bounds of the `MAX+2` window, the `h == MAX+1` arm's write lands on `height` (emulated verbatim), and `h == MAX+2` is chocolate's `I_Error`; 20/21/22-boundary baseline-pinned in `geometry::tests` |
+| `heightlist[20]` stores (`p_spec/geometry.rs:257-260`) | vanilla adjoining-sector overrun, catalog entry 13: writes at `h == 20`/`h == 21` are in-bounds of the `MAX+2` window, the `h == MAX+1` arm's write lands on `height` (emulated verbatim), and `h == MAX+2` is chocolate's `I_Error`; 20/21/22-boundary baseline-pinned in `geometry::tests` |
 | `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy/brain.rs:71`, `action_brain_awake`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
 | `playerstarts[4]` (`p_mobj/mapthings.rs:187-193`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
@@ -1087,7 +1087,7 @@ adjoining sectors. Vanilla will crash here")`.
 
 ### Where we emulate it
 
-`room/src/doom/p_spec/geometry.rs:262-305` in `next_highest_floor`
+`room/src/doom/p_spec/geometry.rs:244-269` in `next_highest_floor`
 (export pinned as `P_FindNextHighestFloor`): the array is declared with
 the `MAX_ADJOINING_SECTORS + 2` window exactly as chocolate declares it,
 the `h == MAX_ADJOINING_SECTORS + 1` arm performs the shadow write

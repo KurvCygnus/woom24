@@ -139,14 +139,8 @@ pub unsafe extern "C" fn get_next_sector(
     sec: *mut sector_t,
 ) -> *mut sector_t
 {
-    if ((*line).flags as c_int) & (LinedefFlag::TWOSIDED as c_int) == 0
-    {
-        return ptr::null_mut();
-    }
-    if (*line).frontsector == sec as *mut c_void
-    {
-        return (*line).backsector as *mut sector_t;
-    }
+    if((*line).flags as c_int) & (LinedefFlag::TWOSIDED as c_int) == 0 { return ptr::null_mut(); }
+    if(*line).frontsector == sec as *mut c_void { return (*line).backsector as *mut sector_t; }
     (*line).frontsector as *mut sector_t
 }
 
@@ -178,14 +172,8 @@ pub unsafe extern "C" fn lowest_floor_surrounding(sec: *mut sector_t) -> c_int
     {
         let check = *(*sec).lines.offset(i as isize) as *mut line_t;
         let other = get_next_sector(check, sec);
-        if other.is_null()
-        {
-            continue;
-        }
-        if (*other).floorheight < floor
-        {
-            floor = (*other).floorheight;
-        }
+        if other.is_null() { continue; }
+        if(*other).floorheight < floor { floor = (*other).floorheight; }
     }
     floor
 }
@@ -218,14 +206,8 @@ pub unsafe extern "C" fn highest_floor_surrounding(sec: *mut sector_t) -> c_int
     {
         let check = *(*sec).lines.offset(i as isize) as *mut line_t;
         let other = get_next_sector(check, sec);
-        if other.is_null()
-        {
-            continue;
-        }
-        if (*other).floorheight > floor
-        {
-            floor = (*other).floorheight;
-        }
+        if other.is_null() { continue; }
+        if(*other).floorheight > floor { floor = (*other).floorheight; }
     }
     floor
 }
@@ -269,38 +251,20 @@ pub unsafe extern "C" fn next_highest_floor(sec: *mut sector_t, currentheight: c
     {
         let check = *(*sec).lines.offset(i as isize) as *mut line_t;
         let other = get_next_sector(check, sec);
-        if other.is_null()
-        {
-            continue;
-        }
+        if other.is_null() { continue; }
         if (*other).floorheight > height
         {
-            if h == MAX_ADJOINING_SECTORS + 1
-            {
-                height = (*other).floorheight;
-            }
-            else if h == MAX_ADJOINING_SECTORS + 2
-            {
-                i_error!("Sector with more than 22 adjoining sectors. Vanilla will crash here");
-            }
+            if h == MAX_ADJOINING_SECTORS + 1 { height = (*other).floorheight; }
+            else if h == MAX_ADJOINING_SECTORS + 2 { i_error!("Sector with more than 22 adjoining sectors. Vanilla will crash here"); }
             heightlist[h] = (*other).floorheight;
             h += 1;
         }
     }
 
-    if h == 0
-    {
-        return currentheight;
-    }
+    if h == 0 { return currentheight; }
 
     let mut min = heightlist[0];
-    for i in 1..h
-    {
-        if heightlist[i] < min
-        {
-            min = heightlist[i];
-        }
-    }
+    for i in 1..h { if heightlist[i] < min { min = heightlist[i]; } }
     min
 }
 
@@ -330,14 +294,8 @@ pub unsafe extern "C" fn lowest_ceiling_surrounding(sec: *mut sector_t) -> c_int
     {
         let check = *(*sec).lines.offset(i as isize) as *mut line_t;
         let other = get_next_sector(check, sec);
-        if other.is_null()
-        {
-            continue;
-        }
-        if (*other).ceilingheight < height
-        {
-            height = (*other).ceilingheight;
-        }
+        if other.is_null() { continue; }
+        if(*other).ceilingheight < height { height = (*other).ceilingheight; }
     }
     height
 }
@@ -367,14 +325,8 @@ pub unsafe extern "C" fn highest_ceiling_surrounding(sec: *mut sector_t) -> c_in
     {
         let check = *(*sec).lines.offset(i as isize) as *mut line_t;
         let other = get_next_sector(check, sec);
-        if other.is_null()
-        {
-            continue;
-        }
-        if (*other).ceilingheight > height
-        {
-            height = (*other).ceilingheight;
-        }
+        if other.is_null() { continue; }
+        if(*other).ceilingheight > height { height = (*other).ceilingheight; }
     }
     height
 }
@@ -403,13 +355,7 @@ pub unsafe extern "C" fn highest_ceiling_surrounding(sec: *mut sector_t) -> c_in
 #[export_name = "P_FindSectorFromLineTag"]
 pub unsafe extern "C" fn sector_from_line_tag(line: *mut line_t, start: c_int) -> c_int
 {
-    for i in (start + 1)..numsectors
-    {
-        if (*sectors.offset(i as isize)).tag == (*line).tag
-        {
-            return i;
-        }
-    }
+    for i in (start + 1)..numsectors { if(*sectors.offset(i as isize)).tag == (*line).tag { return i; } }
     -1
 }
 
@@ -442,14 +388,8 @@ pub unsafe extern "C" fn min_surrounding_light(sector: *mut sector_t, max: c_int
     {
         let line = *(*sector).lines.offset(i as isize) as *mut line_t;
         let check = get_next_sector(line, sector);
-        if check.is_null()
-        {
-            continue;
-        }
-        if ((*check).lightlevel as c_int) < min
-        {
-            min = (*check).lightlevel as c_int;
-        }
+        if check.is_null() { continue; }
+        if((*check).lightlevel as c_int) < min { min = (*check).lightlevel as c_int; }
     }
     min
 }
@@ -550,28 +490,19 @@ mod tests
         }
 
         /// Center sector pointer (index 0).
-        fn center(&mut self) -> *mut sector_t
-        {
-            &mut self.sec_storage[0] as *mut sector_t
-        }
+        fn center(&mut self) -> *mut sector_t { &mut self.sec_storage[0] as *mut sector_t }
 
         /// Neighbor sector pointer (ring index `i`, sector `i + 1`).
-        fn neighbor(&mut self, i: usize) -> *mut sector_t
-        {
-            &mut self.sec_storage[i + 1] as *mut sector_t
-        }
+        fn neighbor(&mut self, i: usize) -> *mut sector_t { &mut self.sec_storage[i + 1] as *mut sector_t }
 
         /// Line pointer (center line `i`).
-        fn line(&mut self, i: usize) -> *mut line_t
-        {
-            &mut self.line_storage[i] as *mut line_t
-        }
+        fn line(&mut self, i: usize) -> *mut line_t { &mut self.line_storage[i] as *mut line_t }
 
-        //* Installs the fixture into the p_setup globals the geometry
-        //* family reads and returns the prior values for
-        //* [`GeometryFixture::restore`]. The writes are plain
-        //* static-mut assignments (no references); the reads use
-        //* addr_of! so no shared-reference lint fires.
+        /// Installs the fixture into the p_setup globals the geometry
+        /// family reads and returns the prior values for
+        /// [`GeometryFixture::restore`]. The writes are plain
+        /// static-mut assignments (no references); the reads use
+        /// addr_of! so no shared-reference lint fires.
         unsafe fn install(&mut self) -> (*mut sector_t, *mut side_t, c_int)
         {
             let sectors_before = std::ptr::addr_of!(sectors).read();
@@ -731,10 +662,7 @@ mod tests
             // that "fixed" the overrun into a plain bounds-checked
             // store would qualify the 23rd, reach h == 22 and abort.
             let mut fx = GeometryFixture::build(23, 0);
-            for i in 0..21
-            {
-                fx.sec_storage[i + 1].floorheight = current + (10 + i as c_int) * FRACUNIT;
-            }
+            for i in 0..21 { fx.sec_storage[i + 1].floorheight = current + (10 + i as c_int) * FRACUNIT; }
             fx.sec_storage[22].floorheight = current + 100 * FRACUNIT;
             fx.sec_storage[23].floorheight = current + 50 * FRACUNIT;
 

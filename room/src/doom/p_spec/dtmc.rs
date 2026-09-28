@@ -31,10 +31,7 @@ use std::ffi::c_int;
 /// `base..base + numpics`. `numpics` of 0 would divide by zero (cannot
 /// occur: `init_pic_anims` rejects cycles with fewer than two frames).
 /// Never debug-assert on the arithmetic; the wrap is the behavior.
-pub fn anim_frame_pic(basepic: c_int, numpics: c_int, speed: c_int, leveltime: c_int, i: c_int) -> c_int
-{
-    basepic + ((leveltime / speed + i) % numpics)
-}
+pub fn anim_frame_pic(basepic: c_int, numpics: c_int, speed: c_int, leveltime: c_int, i: c_int) -> c_int { basepic + ((leveltime / speed + i) % numpics) }
 
 #[cfg(test)]
 mod tests

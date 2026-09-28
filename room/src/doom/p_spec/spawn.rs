@@ -65,18 +65,12 @@ pub unsafe extern "C" fn spawn_specials()
         levelTimer = 1;
         levelTimeCount = timelimit * 60 * TICRATE;
     }
-    else
-    {
-        levelTimer = 0;
-    }
+    else { levelTimer = 0; }
 
     for i in 0..numsectors
     {
         let sector = sectors.offset(i as isize);
-        if (*sector).special == 0
-        {
-            continue;
-        }
+        if(*sector).special == 0 { continue; }
         match (*sector).special as c_int
         {
             1 => P_SpawnLightFlash(sector as *mut LightsSector),
@@ -88,10 +82,7 @@ pub unsafe extern "C" fn spawn_specials()
                 (*sector).special = 4;
             }
             8 => P_SpawnGlowingLight(sector as *mut LightsSector),
-            9 =>
-            {
-                totalsecret += 1;
-            }
+            9 => { totalsecret += 1; }
             10 => P_SpawnDoorCloseIn30(sector as *mut LightsSector),
             12 => P_SpawnStrobeFlash(sector as *mut LightsSector, crate::doom::c_ffi::SLOWDARK, 1),
             13 => P_SpawnStrobeFlash(sector as *mut LightsSector, crate::doom::c_ffi::FASTDARK, 1),
@@ -106,25 +97,13 @@ pub unsafe extern "C" fn spawn_specials()
     {
         if (*lines.offset(i as isize)).special as c_int == 48
         {
-            if numlinespecials as c_int >= MAXLINEANIMS as c_int
-            {
-                i_error!("Too many scrolling wall linedefs! (Vanilla limit is 64)");
-            }
+            if numlinespecials as c_int >= MAXLINEANIMS as c_int { i_error!("Too many scrolling wall linedefs! (Vanilla limit is 64)"); }
             linespeciallist[numlinespecials as usize] = lines.offset(i as isize);
             numlinespecials += 1;
         }
     }
 
-    for i in 0..crate::doom::c_ffi::MAXCEILINGS as usize
-    {
-        activeceilings[i] = ptr::null_mut();
-    }
-    for i in 0..crate::doom::c_ffi::MAXPLATS as usize
-    {
-        activeplats[i] = ptr::null_mut();
-    }
-    for i in 0..MAXBUTTONS
-    {
-        buttonlist[i] = std::mem::zeroed();
-    }
+    for i in 0..crate::doom::c_ffi::MAXCEILINGS as usize { activeceilings[i] = ptr::null_mut(); }
+    for i in 0..crate::doom::c_ffi::MAXPLATS as usize { activeplats[i] = ptr::null_mut(); }
+    for i in 0..MAXBUTTONS { buttonlist[i] = std::mem::zeroed(); }
 }

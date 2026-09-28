@@ -155,10 +155,7 @@ pub static mut lastanim: *mut anim_t = ptr::null_mut();
 /// for however long the caller uses it).
 #[doc(alias = "DEH_String")]
 #[inline(always)]
-unsafe fn deh_string(s: *mut c_char) -> *mut c_char
-{
-    s
-}
+unsafe fn deh_string(s: *mut c_char) -> *mut c_char { s }
 
 // ---------------------------------------------------------------------------
 // init_pic_anims
@@ -189,28 +186,19 @@ pub unsafe extern "C" fn init_pic_anims()
     lastanim = std::ptr::addr_of_mut!(anims[0]);
     for &(istexture, endname, startname, speed) in ANIMDEFS
     {
-        if istexture == -1
-        {
-            break;
-        }
+        if istexture == -1 { break; }
         let startname = deh_string(startname);
         let endname = deh_string(endname);
 
         if istexture != 0
         {
-            if R_CheckTextureNumForName(startname) == -1
-            {
-                continue;
-            }
+            if R_CheckTextureNumForName(startname) == -1 { continue; }
             (*lastanim).picnum = R_TextureNumForName(endname);
             (*lastanim).basepic = R_TextureNumForName(startname);
         }
         else
         {
-            if W_CheckNumForName(startname) == -1
-            {
-                continue;
-            }
+            if W_CheckNumForName(startname) == -1 { continue; }
             (*lastanim).picnum = R_FlatNumForName(endname);
             (*lastanim).basepic = R_FlatNumForName(startname);
         }
@@ -238,16 +226,10 @@ mod tests
     use super::*;
 
     #[test]
-    fn anim_t_layout_matches_c()
-    {
-        assert_eq!(std::mem::size_of::<anim_t>(), 20);
-    }
+    fn anim_t_layout_matches_c() { assert_eq!(std::mem::size_of::<anim_t>(), 20); }
 
     #[test]
-    fn animdef_t_layout_matches_c()
-    {
-        assert_eq!(std::mem::size_of::<animdef_t>(), 28);
-    }
+    fn animdef_t_layout_matches_c() { assert_eq!(std::mem::size_of::<animdef_t>(), 28); }
 
     #[test]
     fn animation_defs_terminated()

@@ -93,10 +93,7 @@ pub unsafe extern "C" fn update_specials()
     if levelTimer != 0
     {
         levelTimeCount -= 1;
-        if levelTimeCount == 0
-        {
-            G_ExitLevel();
-        }
+        if levelTimeCount == 0 { G_ExitLevel(); }
     }
 
     let mut anim = std::ptr::addr_of_mut!(anims[0]);
@@ -107,14 +104,8 @@ pub unsafe extern "C" fn update_specials()
         for i in base..base + numpics
         {
             let pic = anim_frame_pic(base, numpics, (*anim).speed, leveltime, i);
-            if (*anim).istexture != 0
-            {
-                *texturetranslation.offset(i as isize) = pic;
-            }
-            else
-            {
-                *flattranslation.offset(i as isize) = pic;
-            }
+            if(*anim).istexture != 0 { *texturetranslation.offset(i as isize) = pic; }
+            else { *flattranslation.offset(i as isize) = pic; }
         }
         anim = anim.offset(1);
     }
@@ -139,18 +130,9 @@ pub unsafe extern "C" fn update_specials()
                 let sidenum = (*buttonlist[i].line).sidenum[0] as isize;
                 match buttonlist[i].where_
                 {
-                    0 =>
-                    {
-                        (*sides.offset(sidenum)).toptexture = buttonlist[i].btexture as i16;
-                    }
-                    1 =>
-                    {
-                        (*sides.offset(sidenum)).midtexture = buttonlist[i].btexture as i16;
-                    }
-                    2 =>
-                    {
-                        (*sides.offset(sidenum)).bottomtexture = buttonlist[i].btexture as i16;
-                    }
+                    0 => { (*sides.offset(sidenum)).toptexture = buttonlist[i].btexture as i16; }
+                    1 => { (*sides.offset(sidenum)).midtexture = buttonlist[i].btexture as i16; }
+                    2 => { (*sides.offset(sidenum)).bottomtexture = buttonlist[i].btexture as i16; }
                     _ => {}
                 }
                 S_StartSound(
@@ -193,10 +175,7 @@ mod tests
             assert_eq!(levelTimeCount, 0);
             assert_eq!(numlinespecials, 0);
             assert!(lastanim.is_null());
-            for (i, &v) in linespeciallist.iter().enumerate()
-            {
-                assert!(v.is_null(), "linespeciallist[{i}] should be null");
-            }
+            for (i, &v) in linespeciallist.iter().enumerate() { assert!(v.is_null(), "linespeciallist[{i}] should be null"); }
             for (i, a) in anims.iter().enumerate()
             {
                 assert_eq!(a.istexture, 0, "anims[{i}].istexture should be 0");
