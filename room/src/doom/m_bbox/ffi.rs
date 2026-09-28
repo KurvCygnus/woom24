@@ -36,10 +36,7 @@ impl BBox
 /// # Safety
 /// `bbox` must point to at least 4 contiguous `fixed_t` values.
 #[no_mangle]
-pub unsafe extern "C" fn M_ClearBox(bbox: *mut fixed_t)
-{
-    clear_box(std::slice::from_raw_parts_mut(bbox, 4));
-}
+pub unsafe extern "C" fn M_ClearBox(bbox: *mut fixed_t) { clear_box(std::slice::from_raw_parts_mut(bbox, 4)); }
 
 /// `void M_AddToBox(fixed_t *box, fixed_t x, fixed_t y)`. Pointer
 /// wrapper: marshals the raw C pointer to a four-element slice and
@@ -48,10 +45,7 @@ pub unsafe extern "C" fn M_ClearBox(bbox: *mut fixed_t)
 /// # Safety
 /// `bbox` must point to at least 4 contiguous `fixed_t` values.
 #[no_mangle]
-pub unsafe extern "C" fn M_AddToBox(bbox: *mut fixed_t, x: fixed_t, y: fixed_t)
-{
-    add_to_box(std::slice::from_raw_parts_mut(bbox, 4), x, y);
-}
+pub unsafe extern "C" fn M_AddToBox(bbox: *mut fixed_t, x: fixed_t, y: fixed_t) { add_to_box(std::slice::from_raw_parts_mut(bbox, 4), x, y); }
 
 #[cfg(test)]
 mod tests

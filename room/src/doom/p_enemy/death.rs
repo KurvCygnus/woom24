@@ -39,15 +39,9 @@ pub unsafe extern "C" fn action_scream(actor: *mut mobj_t)
         Sfx::Bgdth1 | Sfx::Bgdth2 => Sfx::Bgdth1 as c_int + P_Random() % 2 as c_int,
         s => s as c_int,
     };
-    if (*actor).mobjtype as c_uint == MT_SPIDER as c_int as c_uint
-        || (*actor).mobjtype as c_uint == MT_CYBORG as c_int as c_uint
-    {
-        S_StartSound(std::ptr::null_mut::<c_void>(), sound);
-    }
-    else
-    {
-        S_StartSound(actor as *mut c_void, sound);
-    };
+    if(*actor).mobjtype as c_uint == MT_SPIDER as c_int as c_uint ||
+        (*actor).mobjtype as c_uint == MT_CYBORG as c_int as c_uint { S_StartSound(std::ptr::null_mut::<c_void>(), sound); }
+    else { S_StartSound(actor as *mut c_void, sound); };
 }
 
 /// Plays the player/monster gibbing scream (`sfx_slop`) positioned at the actor.
@@ -57,10 +51,7 @@ pub unsafe extern "C" fn action_scream(actor: *mut mobj_t)
 /// `actor` must be non-null. Called from C.
 #[doc(alias = "A_XScream")]
 #[export_name = "A_XScream"]
-pub unsafe extern "C" fn action_x_scream(actor: *mut mobj_t)
-{
-    S_StartSound(actor as *mut c_void, Sfx::Slop as c_int);
-}
+pub unsafe extern "C" fn action_x_scream(actor: *mut mobj_t) { S_StartSound(actor as *mut c_void, Sfx::Slop as c_int); }
 
 /// Plays the monster's pain sound if it has one.
 ///
@@ -71,7 +62,7 @@ pub unsafe extern "C" fn action_x_scream(actor: *mut mobj_t)
 #[export_name = "A_Pain"]
 pub unsafe extern "C" fn action_pain(actor: *mut mobj_t)
 {
-    if (*((*actor).info as *mut MobjInfo)).painsound != Sfx::None
+    if(*((*actor).info as *mut MobjInfo)).painsound != Sfx::None
     {
         S_StartSound(
             actor as *mut c_void,
@@ -87,10 +78,7 @@ pub unsafe extern "C" fn action_pain(actor: *mut mobj_t)
 /// `actor` must be non-null. Called from C.
 #[doc(alias = "A_Fall")]
 #[export_name = "A_Fall"]
-pub unsafe extern "C" fn action_fall(actor: *mut mobj_t)
-{
-    (*actor).flags &= !(MF_SOLID as c_int);
-}
+pub unsafe extern "C" fn action_fall(actor: *mut mobj_t) { (*actor).flags &= !(MF_SOLID as c_int); }
 
 /// Plays the player death scream; uses the gibbing scream in Doom II when health is below -50.
 ///
@@ -105,10 +93,7 @@ pub unsafe extern "C" fn action_fall(actor: *mut mobj_t)
 pub unsafe extern "C" fn action_player_scream(mo: *mut mobj_t)
 {
     let mut sound: c_int = Sfx::Pldeth as c_int;
-    if gamemode as c_uint == commercial as c_int as c_uint && (*mo).health < -50 as c_int
-    {
-        sound = Sfx::Pdiehi as c_int;
-    }
+    if gamemode as c_uint == commercial as c_int as c_uint && (*mo).health < -50 as c_int { sound = Sfx::Pdiehi as c_int; }
     S_StartSound(mo as *mut c_void, sound);
 }
 

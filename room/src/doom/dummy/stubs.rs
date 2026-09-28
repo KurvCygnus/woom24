@@ -13,7 +13,8 @@ use std::ffi::c_uint;
 /// non-zero value when a connection is established; because the real network
 /// module is not yet ported, this stub keeps it permanently `false`.
 /// Referenced from C as `net_client_connected`.
-// `boolean` in doomtype.h is `typedef unsigned int boolean;` — use c_uint.
+/// 
+/// `boolean` in doomtype.h is `typedef unsigned int boolean;` — use c_uint.
 #[no_mangle]
 pub static mut net_client_connected: c_uint = 0; // false
 
@@ -37,8 +38,7 @@ pub static mut drone: c_uint = 0; // false
 /// # Note
 /// The original C stub is also empty; no `// FIXME` is needed here.
 #[no_mangle]
-pub extern "C" fn I_InitTimidityConfig()
-{}
+pub extern "C" fn I_InitTimidityConfig() {}
 
 #[cfg(test)]
 mod tests
@@ -75,8 +75,5 @@ mod tests
     }
 
     #[test]
-    fn timidity_stub_does_not_panic()
-    {
-        I_InitTimidityConfig();
-    }
+    fn timidity_stub_does_not_panic() { I_InitTimidityConfig(); }
 }

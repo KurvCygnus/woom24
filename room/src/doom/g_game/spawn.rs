@@ -65,10 +65,7 @@ use self::{
 /// byte-identical.
 #[doc(alias = "G_InitPlayer")]
 #[export_name = "G_InitPlayer"]
-pub unsafe extern "C" fn init_player(player: c_int)
-{
-    G_PlayerReborn(player);
-}
+pub unsafe extern "C" fn init_player(player: c_int) { G_PlayerReborn(player); }
 
 // ---------------------------------------------------------------------------
 // G_PlayerFinishLevel
@@ -182,11 +179,7 @@ pub unsafe extern "C" fn check_spot(playernum: c_int, mthing: *mut mapthing_t) -
         for i in 0..playernum as usize
         {
             let mo = players[i].mo as *mut mobj_t;
-            if (*mo).x == ((*mthing).x as fixed_t) << 16
-                && (*mo).y == ((*mthing).y as fixed_t) << 16
-            {
-                return 0;
-            }
+            if (*mo).x == ((*mthing).x as fixed_t) << 16 && (*mo).y == ((*mthing).y as fixed_t) << 16 { return 0; }
         }
         return 1;
     }
@@ -198,16 +191,10 @@ pub unsafe extern "C" fn check_spot(playernum: c_int, mthing: *mut mapthing_t) -
         players[playernum as usize].mo as *mut crate::doom::c_ffi::mobj_t,
         x,
         y,
-    ) == 0
-    {
-        return 0;
-    }
+    ) == 0 { return 0; }
 
     // Flush old corpse
-    if bodyqueslot >= 32
-    {
-        P_RemoveMobj(bodyque[(bodyqueslot % 32) as usize]);
-    }
+    if bodyqueslot >= 32 { P_RemoveMobj(bodyque[(bodyqueslot % 32) as usize]); }
     bodyque[(bodyqueslot % 32) as usize] = players[playernum as usize].mo as *mut mobj_t;
     bodyqueslot += 1;
 
@@ -224,10 +211,7 @@ pub unsafe extern "C" fn check_spot(playernum: c_int, mthing: *mut mapthing_t) -
     let floorheight = (*(*ss).sector).floorheight;
     let mo = P_SpawnMobj(x + 20 * xa, y + 20 * ya, floorheight, MT_TFOG);
 
-    if players[consoleplayer as usize].viewz != 1
-    {
-        S_StartSound(mo as *mut c_void, Sfx::Telept as c_int);
-    }
+    if players[consoleplayer as usize].viewz != 1 { S_StartSound(mo as *mut c_void, Sfx::Telept as c_int); }
     1
 }
 
@@ -252,10 +236,7 @@ pub unsafe extern "C" fn check_spot(playernum: c_int, mthing: *mut mapthing_t) -
 pub unsafe extern "C" fn deathmatch_spawn_player(playernum: c_int)
 {
     let selections = deathmatch_p.offset_from(std::ptr::addr_of!(deathmatchstarts[0])) as c_int;
-    if selections < 4
-    {
-        I_Error(c"Only %i deathmatch spots, 4 required".as_ptr());
-    }
+    if selections < 4 { I_Error(c"Only %i deathmatch spots, 4 required".as_ptr()); }
 
     for _ in 0..20
     {
@@ -293,17 +274,11 @@ pub unsafe extern "C" fn deathmatch_spawn_player(playernum: c_int)
 #[export_name = "G_DoReborn"]
 pub unsafe extern "C" fn do_reborn(playernum: c_int)
 {
-    if netgame == 0
-    {
-        gameaction = ga_loadlevel;
-    }
+    if netgame == 0 { gameaction = ga_loadlevel; }
     else
     {
         let mo = players[playernum as usize].mo as *mut mobj_t;
-        if !mo.is_null()
-        {
-            (*mo).player = ptr::null_mut();
-        }
+        if !mo.is_null() { (*mo).player = ptr::null_mut(); }
 
         if deathmatch != 0
         {
@@ -313,12 +288,10 @@ pub unsafe extern "C" fn do_reborn(playernum: c_int)
 
         if G_CheckSpot(
             playernum,
-            &mut playerstarts[playernum as usize] as *mut SetupMapThing as *mut mapthing_t,
+            &mut playerstarts[playernum as usize] as *mut SetupMapThing as *mut mapthing_t
         ) != 0
         {
-            P_SpawnPlayer(
-                &mut playerstarts[playernum as usize] as *mut SetupMapThing as *mut mapthing_t,
-            );
+            P_SpawnPlayer(&mut playerstarts[playernum as usize] as *mut SetupMapThing as *mut mapthing_t);
             return;
         }
 
@@ -326,19 +299,15 @@ pub unsafe extern "C" fn do_reborn(playernum: c_int)
         {
             if G_CheckSpot(
                 playernum,
-                &mut playerstarts[i as usize] as *mut SetupMapThing as *mut mapthing_t,
+                &mut playerstarts[i as usize] as *mut SetupMapThing as *mut mapthing_t
             ) != 0
             {
                 playerstarts[i as usize].r#type = (playernum + 1) as i16;
-                P_SpawnPlayer(
-                    &mut playerstarts[i as usize] as *mut SetupMapThing as *mut mapthing_t,
-                );
+                P_SpawnPlayer(&mut playerstarts[i as usize] as *mut SetupMapThing as *mut mapthing_t);
                 playerstarts[i as usize].r#type = (i + 1) as i16;
                 return;
             }
         }
-        P_SpawnPlayer(
-            &mut playerstarts[playernum as usize] as *mut SetupMapThing as *mut mapthing_t,
-        );
+        P_SpawnPlayer(&mut playerstarts[playernum as usize] as *mut SetupMapThing as *mut mapthing_t);
     }
 }

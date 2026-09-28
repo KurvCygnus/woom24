@@ -82,10 +82,7 @@ pub extern "C" fn D_PopEvent() -> *mut event_t
 {
     unsafe
     {
-        if EVENT_TAIL == EVENT_HEAD
-        {
-            return std::ptr::null_mut();
-        }
+        if EVENT_TAIL == EVENT_HEAD { return std::ptr::null_mut(); }
         let result = &mut EVENTS[EVENT_TAIL];
         EVENT_TAIL = (EVENT_TAIL + 1) % MAXEVENTS;
         result

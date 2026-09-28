@@ -23,10 +23,7 @@ use crate::doom::sounds::Sfx;
 /// `player` must be non-null with a valid `mo`. Called from C.
 #[doc(alias = "A_OpenShotgun2")]
 #[export_name = "A_OpenShotgun2"]
-pub unsafe extern "C" fn action_open_shotgun2(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    S_StartSound((*player).mo as *mut c_void, Sfx::Dbopn as c_int);
-}
+pub unsafe extern "C" fn action_open_shotgun2(player: *mut PlayerT, _psp: *mut PspdefT) { S_StartSound((*player).mo as *mut c_void, Sfx::Dbopn as c_int); }
 
 /// Super Shotgun load action: plays the shell-load sound (`sfx_dbload`) for the player.
 ///
@@ -35,10 +32,7 @@ pub unsafe extern "C" fn action_open_shotgun2(player: *mut PlayerT, _psp: *mut P
 /// `player` must be non-null with a valid `mo`. Called from C.
 #[doc(alias = "A_LoadShotgun2")]
 #[export_name = "A_LoadShotgun2"]
-pub unsafe extern "C" fn action_load_shotgun2(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    S_StartSound((*player).mo as *mut c_void, Sfx::Dbload as c_int);
-}
+pub unsafe extern "C" fn action_load_shotgun2(player: *mut PlayerT, _psp: *mut PspdefT) { S_StartSound((*player).mo as *mut c_void, Sfx::Dbload as c_int); }
 
 /// Super Shotgun close action: plays the close sound (`sfx_dbcls`) then checks for refire.
 ///

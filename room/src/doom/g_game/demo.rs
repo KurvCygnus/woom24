@@ -181,10 +181,7 @@ pub unsafe extern "C" fn write_demo_ticcmd(cmd: *mut TiccmdT)
 {
     use crate::doom::m_controls::key_demo_quit;
 
-    if super::ticcmd::GAMEKEYDOWN[key_demo_quit as usize] != 0
-    {
-        G_CheckDemoStatus();
-    }
+    if super::ticcmd::GAMEKEYDOWN[key_demo_quit as usize] != 0 { G_CheckDemoStatus(); }
 
     let cmd = &*cmd;
     let demo_start = demo_p;
@@ -220,10 +217,7 @@ pub unsafe extern "C" fn write_demo_ticcmd(cmd: *mut TiccmdT)
             G_CheckDemoStatus();
             return;
         }
-        else
-        {
-            increase_demo_buffer();
-        }
+        else { increase_demo_buffer(); }
     }
 
     G_ReadDemoTiccmd(cmd as *const TiccmdT as *mut TiccmdT);
@@ -260,7 +254,7 @@ pub unsafe extern "C" fn record_demo(name: *mut c_char)
     let i = M_CheckParmWithArgs(c"-maxdemo".as_ptr().cast_mut(), 1);
     if i != 0
     {
-        maxsize = libc::atoi(*myargv.add(i as usize + 1) as *const libc::c_char);
+        maxsize = libc::atoi(*myargv.add(i as usize + 1) as *const c_char);
         maxsize *= 1024;
     }
     demobuffer = Z_Malloc(maxsize, PU_STATIC, std::ptr::null_mut()) as *mut byte;
@@ -279,10 +273,7 @@ pub unsafe extern "C" fn record_demo(name: *mut c_char)
 /// (`G_VanillaVersionCode`) so the wasm export set stays byte-identical.
 #[doc(alias = "G_VanillaVersionCode")]
 #[export_name = "G_VanillaVersionCode"]
-pub unsafe extern "C" fn vanilla_version_code() -> c_int
-{
-    super::dtmc::vanilla_version_code_for(gameversion)
-}
+pub unsafe extern "C" fn vanilla_version_code() -> c_int { super::dtmc::vanilla_version_code_for(gameversion) }
 
 /// Write the demo file header (version byte, skill, episode, map,
 /// deathmatch / respawn / fast / nomonsters flags, console player and
@@ -307,14 +298,8 @@ pub unsafe extern "C" fn begin_recording()
 
     demo_p = demobuffer;
 
-    if longtics != 0
-    {
-        *demo_p = DOOM_191_VERSION as byte;
-    }
-    else
-    {
-        *demo_p = G_VanillaVersionCode() as byte;
-    }
+    if longtics != 0 { *demo_p = DOOM_191_VERSION as byte; }
+    else { *demo_p = G_VanillaVersionCode() as byte; }
     demo_p = demo_p.add(1);
 
     *demo_p = gameskill as byte;
@@ -384,10 +369,7 @@ unsafe fn demo_version_description(version: c_int) -> *const c_char
         109 => c"v1.9".as_ptr(),
         _ =>
         {
-            if (0..=4).contains(&version)
-            {
-                c"v1.0/v1.1/v1.2".as_ptr()
-            }
+            if (0..=4).contains(&version) { c"v1.0/v1.1/v1.2".as_ptr() }
             else
             {
                 M_snprintf_clamp(
@@ -439,14 +421,8 @@ pub unsafe extern "C" fn do_play_demo()
     let demoversion = *demo_p as c_int;
     demo_p = demo_p.add(1);
 
-    if demoversion == G_VanillaVersionCode()
-    {
-        longtics = 0;
-    }
-    else if demoversion == DOOM_191_VERSION
-    {
-        longtics = 1;
-    }
+    if demoversion == G_VanillaVersionCode() { longtics = 0; }
+    else if demoversion == DOOM_191_VERSION { longtics = 1; }
     else
     {
         let message = b"Demo is from a different game version!\n\
@@ -456,7 +432,7 @@ pub unsafe extern "C" fn do_play_demo()
             This appears to be %s.\0";
         // C code uses printf (not I_Error) here so demo playback continues
         c_printf3(
-            message.as_ptr() as *const libc::c_char,
+            message.as_ptr() as *const c_char,
             demoversion,
             G_VanillaVersionCode(),
             demo_version_description(demoversion),
@@ -479,10 +455,7 @@ pub unsafe extern "C" fn do_play_demo()
     demo_p = demo_p.add(1);
     consoleplayer = *demo_p as c_int;
     demo_p = demo_p.add(1);
-    if consoleplayer < 0 || consoleplayer >= MAXPLAYERS as c_int
-    {
-        I_Error(c"G_DoPlayDemo: consoleplayer %d out of range\n".as_ptr());
-    }
+    if consoleplayer < 0 || consoleplayer >= MAXPLAYERS as c_int { I_Error(c"G_DoPlayDemo: consoleplayer %d out of range\n".as_ptr()); }
 
     for i in 0..MAXPLAYERS
     {
@@ -490,13 +463,13 @@ pub unsafe extern "C" fn do_play_demo()
         demo_p = demo_p.add(1);
     }
 
-    if playeringame[1] != 0
-        || M_CheckParm(c"-solo-net".as_ptr().cast_mut()) > 0
-        || M_CheckParm(c"-netdemo".as_ptr().cast_mut()) > 0
-    {
-        netgame = 1;
-        netdemo = 1;
-    }
+    if playeringame[1] != 0 ||
+        M_CheckParm(c"-solo-net".as_ptr().cast_mut()) > 0 ||
+        M_CheckParm(c"-netdemo".as_ptr().cast_mut()) > 0
+        {
+            netgame = 1;
+            netdemo = 1;
+        }
 
     precache = 0;
     G_InitNew(skill, episode, map);
@@ -581,14 +554,8 @@ pub unsafe extern "C" fn check_demo_status() -> boolean
         nomonsters = 0;
         consoleplayer = 0;
 
-        if singledemo != 0
-        {
-            I_Quit();
-        }
-        else
-        {
-            D_AdvanceDemo();
-        }
+        if singledemo != 0 { I_Quit(); }
+        else { D_AdvanceDemo(); }
         return 1;
     }
 

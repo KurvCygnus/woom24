@@ -37,19 +37,13 @@ use super::{free, M_FileExists, myargv, M_CheckParmWithArgs};
 #[export_name = "D_FindWADByName"]
 pub unsafe extern "C" fn find_wad_by_name(name: *mut c_char) -> *mut c_char
 {
-    if M_FileExists(name) != 0
-    {
-        return name;
-    }
+    if M_FileExists(name) != 0 { return name; }
 
     build_iwad_dir_list();
 
     for i in 0..num_iwad_dirs
     {
-        if dir_is_file(iwad_dirs[i as usize], name) != 0 && M_FileExists(iwad_dirs[i as usize]) != 0
-        {
-            return strdup(iwad_dirs[i as usize]);
-        }
+        if dir_is_file(iwad_dirs[i as usize], name) != 0 && M_FileExists(iwad_dirs[i as usize]) != 0 { return strdup(iwad_dirs[i as usize]); }
 
         let strs: [*const c_char; 4] = [
             iwad_dirs[i as usize] as *const c_char,
@@ -60,10 +54,7 @@ pub unsafe extern "C" fn find_wad_by_name(name: *mut c_char) -> *mut c_char
         // SAFETY: null-terminated pointer array; freed below on miss, transferred to caller on hit.
         let path = M_StringJoinA(strs.as_ptr());
 
-        if M_FileExists(path) != 0
-        {
-            return path;
-        }
+        if M_FileExists(path) != 0 { return path; }
 
         free(path as *mut c_void);
     }
@@ -78,9 +69,9 @@ pub unsafe extern "C" fn find_wad_by_name(name: *mut c_char) -> *mut c_char
 /// pointer: either a heap-allocated path string on success, or the original
 /// `filename` argument unchanged on failure. Called from `w_main.c`.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below;
-//* the freeze-zone caller `w_main.rs` imports the upstream name
-//* through the root shim.
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// the freeze-zone caller `w_main.rs` imports the upstream name
+/// through the root shim.
 ///
 /// # Safety
 /// `filename` must be a valid, null-terminated C string.
@@ -89,14 +80,8 @@ pub unsafe extern "C" fn find_wad_by_name(name: *mut c_char) -> *mut c_char
 pub unsafe extern "C" fn try_find_wad_by_name(filename: *mut c_char) -> *mut c_char
 {
     let result = find_wad_by_name(filename);
-    if !result.is_null()
-    {
-        result
-    }
-    else
-    {
-        filename
-    }
+    if !result.is_null() { result }
+    else { filename }
 }
 
 /// Locates an IWAD file on disk and identifies its game mission.
@@ -111,10 +96,10 @@ pub unsafe extern "C" fn try_find_wad_by_name(filename: *mut c_char) -> *mut c_c
 ///
 /// Called from `d_main.c`.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below;
-//* the freeze-zone caller `d_main.rs` imports the upstream name
-//* through the root shim. The `i_error!` abort path and the
-//* `-iwad` argv read are carried verbatim.
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// the freeze-zone caller `d_main.rs` imports the upstream name
+/// through the root shim. The `i_error!` abort path and the
+/// `-iwad` argv read are carried verbatim.
 ///
 /// # Safety
 /// `mission` must be a valid, non-null pointer.
@@ -150,10 +135,7 @@ pub unsafe extern "C" fn find_iwad(mask: c_int, mission: *mut c_int) -> *mut c_c
 
         for i in 0..num_iwad_dirs
         {
-            if !result.is_null()
-            {
-                break;
-            }
+            if !result.is_null() { break; }
             result = search_directory_for_iwad(iwad_dirs[i as usize], mask, mission);
         }
 

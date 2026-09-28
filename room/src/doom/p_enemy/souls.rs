@@ -38,10 +38,7 @@ pub unsafe extern "C" fn action_skull_attack(actor: *mut mobj_t)
 {
     let mut dist: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     let dest: *mut mobj_t = (*actor).target;
     (*actor).flags |= MF_SKULLFLY as c_int;
     S_StartSound(
@@ -54,13 +51,8 @@ pub unsafe extern "C" fn action_skull_attack(actor: *mut mobj_t)
     (*actor).momy = FixedMul(SKULLSPEED, finesine[an as usize]);
     dist = P_AproxDistance((*dest).x - (*actor).x, (*dest).y - (*actor).y) as c_int;
     dist /= SKULLSPEED;
-    if dist < 1 as c_int
-    {
-        dist = 1 as c_int;
-    }
-    (*actor).momz = (((*dest).z as c_int + ((*dest).height as c_int >> 1 as c_int)
-        - (*actor).z as c_int)
-        / dist) as fixed_t;
+    if dist < 1 as c_int { dist = 1 as c_int; }
+    (*actor).momz = (((*dest).z as c_int + ((*dest).height as c_int >> 1 as c_int) - (*actor).z as c_int) / dist) as fixed_t;
 }
 
 /// Spawns a Lost Soul (`MT_SKULL`) at `angle` from `actor` and launches it at the target.
@@ -86,23 +78,17 @@ pub unsafe extern "C" fn action_pain_shoot_skull(actor: *mut mobj_t, angle: angl
     currentthinker = thinkercap.next;
     while !std::ptr::eq(currentthinker, &raw const thinkercap)
     {
-        if super::map_events::is_mobj_thinker(currentthinker)
-            && (*(currentthinker as *mut mobj_t)).mobjtype as c_uint == MT_SKULL as c_int as c_uint
-        {
-            count += 1;
-        }
+        if super::map_events::is_mobj_thinker(currentthinker) &&
+            (*(currentthinker as *mut mobj_t)).mobjtype as c_uint == MT_SKULL as c_int as c_uint { count += 1; }
         currentthinker = (*currentthinker).next;
     }
-    if count > 20 as c_int
-    {
-        return;
-    }
+    if count > 20 as c_int { return; }
     let an: angle_t = angle >> ANGLETOFINESHIFT;
-    let prestep: c_int = 4 as c_int * FRACUNIT
-        + 3 as c_int
-            * ((*((*actor).info as *mut MobjInfo)).radius
-                + crate::doom::info::mobjinfo[MT_SKULL as c_int as usize].radius)
-            / 2 as c_int;
+    let prestep: c_int = 4 as c_int * FRACUNIT +
+        3 as c_int * (
+            (*((*actor).info as *mut MobjInfo)).radius +
+            crate::doom::info::mobjinfo[MT_SKULL as c_int as usize].radius
+        ) / 2 as c_int;
     let x: fixed_t = (*actor).x + FixedMul(prestep as fixed_t, *finecosine.0.add(an as usize));
     let y: fixed_t = (*actor).y + FixedMul(prestep as fixed_t, finesine[an as usize]);
     let z: fixed_t = ((*actor).z as c_int + 8 as c_int * FRACUNIT) as fixed_t;
@@ -125,10 +111,7 @@ pub unsafe extern "C" fn action_pain_shoot_skull(actor: *mut mobj_t, angle: angl
 #[export_name = "A_PainAttack"]
 pub unsafe extern "C" fn action_pain_attack(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     action_pain_shoot_skull(actor, (*actor).angle);
 }

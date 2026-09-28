@@ -31,13 +31,7 @@ use super::{
 /// # Safety
 /// Must be called from the single-threaded game loop only. The function reads
 /// the mutable global `drone` without synchronisation.
-unsafe fn handle_disconnected()
-{
-    if drone != 0
-    {
-        i_error!("Disconnected from server in drone mode.");
-    }
-}
+unsafe fn handle_disconnected() { if drone != 0 { i_error!("Disconnected from server in drone mode."); } }
 
 /// Receives a completed set of ticcmds from the network layer for `RECVTIC`.
 ///
@@ -68,10 +62,7 @@ pub extern "C" fn receive_tic(ticcmds: *mut TiccmdT, players_mask: *mut c_int)
 
         for i in 0..NET_MAXPLAYERS
         {
-            if drone == 0 && i == LOCALPLAYER as usize
-            {
-                // This is us.  Don't overwrite it.
-            }
+            if drone == 0 && i == LOCALPLAYER as usize { /* This is us.  Don't overwrite it. */ }
             else
             {
                 TICDATA[(RECVTIC as usize) % BACKUPTICS].cmds[i] = *ticcmds.add(i);
@@ -90,18 +81,12 @@ pub extern "C" fn receive_tic(ticcmds: *mut TiccmdT, players_mask: *mut c_int)
 /// is `0` rather than an arbitrary large value. Called from `d_main.c`.
 /// Corresponds to `D_StartGameLoop` in `d_loop.c`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below
-//* (`#[no_mangle]` drops with the rename; the symbol name set stays
-//* byte-identical).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below
+/// (`#[no_mangle]` drops with the rename; the symbol name set stays
+/// byte-identical).
 #[doc(alias = "D_StartGameLoop")]
 #[export_name = "D_StartGameLoop"]
-pub extern "C" fn start_game_loop()
-{
-    unsafe
-    {
-        LASTTIME = super::tic_pump::get_adjusted_time() / ticdup;
-    }
-}
+pub extern "C" fn start_game_loop() { unsafe { LASTTIME = super::tic_pump::get_adjusted_time() / ticdup; } }
 
 /// Configures game settings for a single-player session and updates globals.
 ///
@@ -115,10 +100,10 @@ pub extern "C" fn start_game_loop()
 /// # Safety
 /// `settings` must be a valid, non-null pointer to a `NetGameSettingsT`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below;
-//* d_net's extern block (`D_StartNetGame`) links this symbol at every
-//* boot. The `_callback: *const ()` parameter type is a carried oddity
-//* (upstream passes a fn pointer).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below;
+/// d_net's extern block (`D_StartNetGame`) links this symbol at every
+/// boot. The `_callback: *const ()` parameter type is a carried oddity
+/// (upstream passes a fn pointer).
 #[doc(alias = "D_StartNetGame")]
 #[export_name = "D_StartNetGame"]
 pub extern "C" fn start_net_game(settings: *mut NetGameSettingsT, _callback: *const ())
@@ -136,10 +121,7 @@ pub extern "C" fn start_net_game(settings: *mut NetGameSettingsT, _callback: *co
         // d_loop.c D_StartNetGame parity; both stay constant in this
         // single-player build but keep the upstream data flow).
         LOCALPLAYER = (*settings).consoleplayer;
-        for i in 0..NET_MAXPLAYERS
-        {
-            LOCAL_PLAYERINGAME[i] = (i < (*settings).num_players as usize) as c_int;
-        }
+        for i in 0..NET_MAXPLAYERS { LOCAL_PLAYERINGAME[i] = (i < (*settings).num_players as usize) as c_int; }
 
         ticdup = (*settings).ticdup;
         NEW_SYNC = (*settings).new_sync;
@@ -170,9 +152,9 @@ pub extern "C" fn start_net_game(settings: *mut NetGameSettingsT, _callback: *co
 /// # Safety
 /// `connect_data` must be a valid, non-null pointer to a `NetConnectDataT`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below;
-//* d_net's extern block (`D_InitNetGame`) links this symbol at every
-//* boot.
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below;
+/// d_net's extern block (`D_InitNetGame`) links this symbol at every
+/// boot.
 #[doc(alias = "D_InitNetGame")]
 #[export_name = "D_InitNetGame"]
 pub extern "C" fn init_net_game(connect_data: *mut NetConnectDataT) -> c_int
@@ -192,15 +174,12 @@ pub extern "C" fn init_net_game(connect_data: *mut NetConnectDataT) -> c_int
 /// registered via `I_AtExit` from [`init_net_game`] and called automatically
 /// on both clean exit and error exit.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below
-//* (`#[no_mangle]` drops with the rename; the symbol name set stays
-//* byte-identical).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below
+/// (`#[no_mangle]` drops with the rename; the symbol name set stays
+/// byte-identical).
 #[doc(alias = "D_QuitNetGame")]
 #[export_name = "D_QuitNetGame"]
-pub extern "C" fn quit_net_game()
-{
-    // No-op when FEATURE_MULTIPLAYER is not defined.
-}
+pub extern "C" fn quit_net_game() { /* No-op when FEATURE_MULTIPLAYER is not defined. */ }
 
 /// Registers the loop callback table used by all main-loop operations.
 ///
@@ -213,18 +192,12 @@ pub extern "C" fn quit_net_game()
 /// `i` must be a valid, non-null pointer to a fully-initialised
 /// `LoopInterfaceT` with all four function pointers set to non-null values.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below;
-//* d_net's extern block (`D_RegisterLoopCallbacks`) links this symbol at
-//* every boot.
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below;
+/// d_net's extern block (`D_RegisterLoopCallbacks`) links this symbol at
+/// every boot.
 #[doc(alias = "D_RegisterLoopCallbacks")]
 #[export_name = "D_RegisterLoopCallbacks"]
-pub extern "C" fn register_loop_callbacks(i: *mut LoopInterfaceT)
-{
-    unsafe
-    {
-        LOOP_INTERFACE = i;
-    }
-}
+pub extern "C" fn register_loop_callbacks(i: *mut LoopInterfaceT) { unsafe { LOOP_INTERFACE = i; } }
 
 #[cfg(test)]
 mod tests
@@ -248,9 +221,9 @@ mod tests
         // hold the shared engine-statics test lock (B1a p_user
         // precedent; parallel unit-test threads can otherwise interleave
         // the write with the sibling's read).
-        let _g = crate::doom::violations::ENGINE_STATICS_TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _g = crate::doom::violations::ENGINE_STATICS_TEST_LOCK.
+            lock().
+            unwrap_or_else(|e| e.into_inner());
         unsafe
         {
             let mut settings: NetGameSettingsT = std::mem::zeroed();
@@ -269,10 +242,7 @@ mod tests
             );
             assert_eq!(LOCALPLAYER, 0);
             assert_eq!(LOCAL_PLAYERINGAME[0], 1, "console player must be in game");
-            for i in 1..NET_MAXPLAYERS
-            {
-                assert_eq!(LOCAL_PLAYERINGAME[i], 0, "slot {} must be empty", i);
-            }
+            for i in 1..NET_MAXPLAYERS { assert_eq!(LOCAL_PLAYERINGAME[i], 0, "slot {} must be empty", i); }
         }
     }
 }

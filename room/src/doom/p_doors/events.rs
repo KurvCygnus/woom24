@@ -51,10 +51,7 @@ pub unsafe extern "C" fn EV_DoLockedDoor(
 ) -> c_int
 {
     let Some(p) = ((*thing).player as *mut PlayerT).as_mut()
-    else
-    {
-        return 0;
-    };
+    else { return 0; };
 
     match (*line).special as c_int
     {
@@ -82,8 +79,7 @@ pub unsafe extern "C" fn EV_DoLockedDoor(
             S_StartSound(std::ptr::null_mut(), Sfx::Oof as c_int);
             return 0;
         }
-        _ =>
-        {}
+        _ => {}
     }
 
     EV_DoDoor(line, r#type)
@@ -114,24 +110,23 @@ pub unsafe extern "C" fn EV_DoDoor(line: *mut line_t, r#type: c_int) -> c_int
     } >= 0
     {
         let sec = sectors.add(secnum as usize);
-        if !(*sec).specialdata.is_null()
-        {
-            continue;
-        }
+        if !(*sec).specialdata.is_null() { continue; }
 
         rtn = 1;
         let door = Z_Malloc(
-            std::mem::size_of::<vldoor_t>() as c_int,
+            size_of::<vldoor_t>() as c_int,
             PU_LEVSPEC,
             std::ptr::null_mut(),
         ) as *mut vldoor_t;
         P_AddThinker(&mut (*door).thinker);
         (*sec).specialdata = door as *mut c_void;
 
-        (*door).thinker.function.acp1 = Some(core::mem::transmute::<
-            unsafe extern "C" fn(*mut vldoor_t),
-            unsafe extern "C" fn(*mut c_void),
-        >(T_VerticalDoor));
+        (*door).thinker.function.acp1 = Some(
+            core::mem::transmute::<
+                unsafe extern "C" fn(*mut vldoor_t),
+                unsafe extern "C" fn(*mut c_void),
+            >(T_VerticalDoor)
+        );
         (*door).sector = sec as *mut sector_t;
         (*door).r#type = r#type;
         (*door).topwait = VDOORWAIT;
@@ -175,7 +170,7 @@ pub unsafe extern "C" fn EV_DoDoor(line: *mut line_t, r#type: c_int) -> c_int
                 (*door).topheight = P_FindLowestCeilingSurrounding(sec);
                 (*door).topheight -= 4 * FRACUNIT;
                 (*door).speed = VDOORSPEED * 4;
-                if (*door).topheight != (*sec).ceilingheight
+                if(*door).topheight != (*sec).ceilingheight
                 {
                     S_StartSound(
                         &(*(*door).sector).soundorg as *const [u8; 40] as *mut c_void,
@@ -188,7 +183,7 @@ pub unsafe extern "C" fn EV_DoDoor(line: *mut line_t, r#type: c_int) -> c_int
                 (*door).direction = 1;
                 (*door).topheight = P_FindLowestCeilingSurrounding(sec);
                 (*door).topheight -= 4 * FRACUNIT;
-                if (*door).topheight != (*sec).ceilingheight
+                if(*door).topheight != (*sec).ceilingheight
                 {
                     S_StartSound(
                         &(*(*door).sector).soundorg as *const [u8; 40] as *mut c_void,
@@ -196,8 +191,7 @@ pub unsafe extern "C" fn EV_DoDoor(line: *mut line_t, r#type: c_int) -> c_int
                     );
                 }
             }
-            _ =>
-            {}
+            _ => {}
         }
     }
     rtn
@@ -230,10 +224,7 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
         26 | 32 =>
         {
             let Some(player) = player.as_mut()
-            else
-            {
-                return;
-            };
+            else { return; };
             if player.cards[it_bluecard] == 0 && player.cards[it_blueskull] == 0
             {
                 player.message = locked_door_message((*line).special as c_int);
@@ -244,10 +235,7 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
         27 | 34 =>
         {
             let Some(player) = player.as_mut()
-            else
-            {
-                return;
-            };
+            else { return; };
             if player.cards[it_yellowcard] == 0 && player.cards[it_yellowskull] == 0
             {
                 player.message = locked_door_message((*line).special as c_int);
@@ -258,10 +246,7 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
         28 | 33 =>
         {
             let Some(player) = player.as_mut()
-            else
-            {
-                return;
-            };
+            else { return; };
             if player.cards[it_redcard] == 0 && player.cards[it_redskull] == 0
             {
                 player.message = locked_door_message((*line).special as c_int);
@@ -269,8 +254,7 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
                 return;
             }
         }
-        _ =>
-        {}
+        _ => {}
     }
 
     let sec = (*sides.offset((*line).sidenum[(side ^ 1) as usize] as isize)).sector;
@@ -278,32 +262,27 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
     if !(*sec).specialdata.is_null()
     {
         let door = (*sec).specialdata as *mut vldoor_t;
-        match (*line).special as c_int
+        match(*line).special as c_int
         {
             1 | 26 | 27 | 28 | 117 =>
             {
-                if (*door).direction == -1
-                {
-                    (*door).direction = 1;
-                }
+                if(*door).direction == -1 { (*door).direction = 1; }
                 else
                 {
-                    if (*thing).player.is_null()
-                    {
-                        return;
-                    }
-                    let t_vdoor = Some(core::mem::transmute::<
-                        unsafe extern "C" fn(*mut vldoor_t),
-                        unsafe extern "C" fn(*mut c_void),
-                    >(T_VerticalDoor));
-                    let t_plat = Some(core::mem::transmute::<
-                        unsafe extern "C" fn(*mut plat_t),
-                        unsafe extern "C" fn(*mut c_void),
-                    >(T_PlatRaise));
-                    if (*door).thinker.function.acp1 == t_vdoor
-                    {
-                        (*door).direction = -1;
-                    }
+                    if(*thing).player.is_null() { return; }
+                    let t_vdoor = Some(
+                        core::mem::transmute::<
+                            unsafe extern "C" fn(*mut vldoor_t),
+                            unsafe extern "C" fn(*mut c_void),
+                        >(T_VerticalDoor)
+                    );
+                    let t_plat = Some(
+                        core::mem::transmute::<
+                            unsafe extern "C" fn(*mut plat_t),
+                            unsafe extern "C" fn(*mut c_void),
+                        >(T_PlatRaise)
+                    );
+                    if(*door).thinker.function.acp1 == t_vdoor { (*door).direction = -1; }
                     else if (*door).thinker.function.acp1 == t_plat
                     {
                         let plat = door as *mut plat_t;
@@ -317,13 +296,12 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
                 }
                 return;
             }
-            _ =>
-            {}
+            _ => {}
         }
     }
 
     // for proper sound
-    match (*line).special as c_int
+    match(*line).special as c_int
     {
         117 | 118 =>
         {
@@ -350,27 +328,26 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
 
     // new door thinker
     let door = Z_Malloc(
-        std::mem::size_of::<vldoor_t>() as c_int,
+        size_of::<vldoor_t>() as c_int,
         PU_LEVSPEC,
         std::ptr::null_mut(),
     ) as *mut vldoor_t;
     P_AddThinker(&mut (*door).thinker);
     (*sec).specialdata = door as *mut c_void;
-    (*door).thinker.function.acp1 = Some(core::mem::transmute::<
-        unsafe extern "C" fn(*mut vldoor_t),
-        unsafe extern "C" fn(*mut c_void),
-    >(T_VerticalDoor));
+    (*door).thinker.function.acp1 = Some(
+        core::mem::transmute::<
+            unsafe extern "C" fn(*mut vldoor_t),
+            unsafe extern "C" fn(*mut c_void),
+        >(T_VerticalDoor)
+    );
     (*door).sector = sec as *mut sector_t;
     (*door).direction = 1;
     (*door).speed = VDOORSPEED;
     (*door).topwait = VDOORWAIT;
 
-    match (*line).special as c_int
+    match(*line).special as c_int
     {
-        1 | 26 | 27 | 28 =>
-        {
-            (*door).r#type = vld_normal;
-        }
+        1 | 26 | 27 | 28 => { (*door).r#type = vld_normal; }
         31..=34 =>
         {
             (*door).r#type = vld_open;
@@ -387,8 +364,7 @@ pub unsafe extern "C" fn EV_VerticalDoor(line: *mut line_t, thing: *mut mobj_t)
             (*line).special = 0;
             (*door).speed = VDOORSPEED * 4;
         }
-        _ =>
-        {}
+        _ => {}
     }
 
     // find the top and bottom of the movement range

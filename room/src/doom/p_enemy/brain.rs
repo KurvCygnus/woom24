@@ -66,7 +66,7 @@ pub unsafe extern "C" fn action_brain_awake(_mo: *mut mobj_t)
         if super::map_events::is_mobj_thinker(thinker)
         {
             m = thinker as *mut mobj_t;
-            if (*m).mobjtype as c_uint == MT_BOSSTARGET as c_int as c_uint
+            if(*m).mobjtype as c_uint == MT_BOSSTARGET as c_int as c_uint
             {
                 braintargets[numbraintargets as usize] = m;
                 numbraintargets += 1;
@@ -84,10 +84,7 @@ pub unsafe extern "C" fn action_brain_awake(_mo: *mut mobj_t)
 /// Called from C. No pointer dereference; safe with any (even null) `_mo`.
 #[doc(alias = "A_BrainPain")]
 #[export_name = "A_BrainPain"]
-pub unsafe extern "C" fn action_brain_pain(_mo: *mut mobj_t)
-{
-    S_StartSound(std::ptr::null_mut::<c_void>(), Sfx::Bospn as c_int);
-}
+pub unsafe extern "C" fn action_brain_pain(_mo: *mut mobj_t) { S_StartSound(std::ptr::null_mut::<c_void>(), Sfx::Bospn as c_int); }
 
 /// Icon of Sin death scream: spawns a row of exploding rockets across the brain's width.
 ///
@@ -120,10 +117,7 @@ pub unsafe extern "C" fn action_brain_scream(mo: *mut mobj_t)
         (*th).momz = (P_Random() * 512 as c_int) as fixed_t;
         P_SetMobjState(th, S_BRAINEXPLODE1);
         (*th).tics -= P_Random() & 7 as c_int;
-        if (*th).tics < 1 as c_int
-        {
-            (*th).tics = 1 as c_int;
-        }
+        if(*th).tics < 1 as c_int { (*th).tics = 1 as c_int; }
         x += FRACUNIT * 8 as c_int;
     }
     S_StartSound(std::ptr::null_mut::<c_void>(), Sfx::Bosdth as c_int);
@@ -155,10 +149,7 @@ pub unsafe extern "C" fn action_brain_explode(mo: *mut mobj_t)
     (*th).momz = (P_Random() * 512 as c_int) as fixed_t;
     P_SetMobjState(th, S_BRAINEXPLODE1);
     (*th).tics -= P_Random() & 7 as c_int;
-    if (*th).tics < 1 as c_int
-    {
-        (*th).tics = 1 as c_int;
-    }
+    if(*th).tics < 1 as c_int { (*th).tics = 1 as c_int; }
 }
 
 /// Icon of Sin death: ends the level via `G_ExitLevel`.
@@ -168,10 +159,7 @@ pub unsafe extern "C" fn action_brain_explode(mo: *mut mobj_t)
 /// Called from C. No pointer dereference beyond the ignored `_mo`.
 #[doc(alias = "A_BrainDie")]
 #[export_name = "A_BrainDie"]
-pub unsafe extern "C" fn action_brain_die(_mo: *mut mobj_t)
-{
-    G_ExitLevel();
-}
+pub unsafe extern "C" fn action_brain_die(_mo: *mut mobj_t) { G_ExitLevel(); }
 
 /// Icon of Sin attack: launches a monster cube (`MT_SPAWNSHOT`) toward the next target spot.
 ///
@@ -190,17 +178,14 @@ pub unsafe extern "C" fn action_brain_spit(mo: *mut mobj_t)
 {
     static mut easy: c_int = 0 as c_int;
     easy ^= 1 as c_int;
-    if gameskill as c_int <= sk_easy as c_int && easy == 0
-    {
-        return;
-    }
+    if gameskill as c_int <= sk_easy as c_int && easy == 0 { return; }
     let targ: *mut mobj_t = braintargets[braintargeton as usize];
     braintargeton = (braintargeton + 1 as c_int) % numbraintargets;
     let newmobj: *mut mobj_t = P_SpawnMissile(mo, targ, MT_SPAWNSHOT);
     (*newmobj).target = targ;
-    (*newmobj).reactiontime = ((*targ).y as c_int - (*mo).y as c_int)
-        / (*newmobj).momy as c_int
-        / (*((*newmobj).state as *mut State)).tics;
+    (*newmobj).reactiontime = ((*targ).y as c_int - (*mo).y as c_int) /
+        (*newmobj).momy as c_int /
+        (*((*newmobj).state as *mut State)).tics;
     S_StartSound(std::ptr::null_mut::<c_void>(), Sfx::Bospit as c_int);
 }
 
@@ -236,10 +221,7 @@ pub unsafe extern "C" fn action_spawn_sound(mo: *mut mobj_t)
 pub unsafe extern "C" fn action_spawn_fly(mo: *mut mobj_t)
 {
     (*mo).reactiontime -= 1;
-    if (*mo).reactiontime != 0
-    {
-        return;
-    }
+    if(*mo).reactiontime != 0 { return; }
     let targ: *mut mobj_t = P_SubstNullMobj((*mo).target);
     let fog: *mut mobj_t = P_SpawnMobj((*targ).x, (*targ).y, (*targ).z, MT_SPAWNFIRE);
     S_StartSound(fog as *mut c_void, Sfx::Telept as c_int);

@@ -17,11 +17,11 @@ use super::{consoleplayer, players};
 /// (e.g., "Gamma correction OFF"); the freeze-zone caller `m_menu.rs`
 /// reaches it through the upstream-name shim at the module root.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below
-//* (wasm-surface conservatism: zero extern declarers exist in-tree,
-//* the five call sites are Rust-side via the shim). The pre-move
-//* signature is `pub unsafe extern "C"` and stays unsafe
-//* (signature-parity rule, p_saveg 7631dfa precedent).
+/// The pre-move export symbol is kept with `#[export_name]` below
+/// (wasm-surface conservatism: zero extern declarers exist in-tree,
+/// the five call sites are Rust-side via the shim). The pre-move
+/// signature is `pub unsafe extern "C"` and stays unsafe
+/// (signature-parity rule, p_saveg 7631dfa precedent).
 ///
 /// # Safety
 /// - `msg` must be a valid pointer to a NUL-terminated C string that remains

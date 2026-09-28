@@ -41,16 +41,11 @@ pub(super) unsafe fn dir_is_file(path: *mut c_char, filename: *mut c_char) -> c_
     let path_len = strlen(path);
     let filename_len = strlen(filename);
 
-    if path_len > filename_len
-        && *path.add(path_len - filename_len - 1) == DIR_SEPARATOR
-        && strcasecmp(path.add(path_len - filename_len), filename) == 0
-    {
-        1
-    }
-    else
-    {
-        0
-    }
+    if path_len > filename_len &&
+        *path.add(path_len - filename_len - 1) == DIR_SEPARATOR &&
+        strcasecmp(path.add(path_len - filename_len), filename) == 0
+        { 1 }
+    else { 0 }
 }
 
 /// Checks whether `dir` contains the IWAD named `iwadname`, returning a
@@ -77,15 +72,9 @@ pub(super) unsafe fn check_directory_has_iwad(
     iwadname: *mut c_char,
 ) -> *mut c_char
 {
-    if dir_is_file(dir, iwadname) != 0 && M_FileExists(dir) != 0
-    {
-        return strdup(dir);
-    }
+    if dir_is_file(dir, iwadname) != 0 && M_FileExists(dir) != 0 { return strdup(dir); }
 
-    let filename = if strcmp(dir, c".".as_ptr()) == 0
-    {
-        strdup(iwadname)
-    }
+    let filename = if strcmp(dir, c".".as_ptr()) == 0 { strdup(iwadname) }
     else
     {
         let strs: [*const c_char; 4] = [
@@ -100,10 +89,7 @@ pub(super) unsafe fn check_directory_has_iwad(
 
     c_printf1(c"Trying IWAD file:%s\n".as_ptr(), filename);
 
-    if M_FileExists(filename) != 0
-    {
-        return filename;
-    }
+    if M_FileExists(filename) != 0 { return filename; }
 
     free(filename as *mut c_void);
     ptr::null_mut()
@@ -127,10 +113,7 @@ pub(super) unsafe fn search_directory_for_iwad(
 {
     for i in 0..IWADS.len()
     {
-        if ((1 << IWADS[i].mission) & mask) == 0
-        {
-            continue;
-        }
+        if ((1 << IWADS[i].mission) & mask) == 0 { continue; }
 
         let filename = check_directory_has_iwad(dir, IWADS[i].name);
 
@@ -162,19 +145,13 @@ pub(super) unsafe fn search_directory_for_iwad(
 pub(super) unsafe fn identify_iwad_by_name(mut name: *mut c_char, mask: c_int) -> c_int
 {
     let p = strrchr(name, DIR_SEPARATOR as c_int);
-    if !p.is_null()
-    {
-        name = p.add(1);
-    }
+    if !p.is_null() { name = p.add(1); }
 
     let mut mission = none;
 
     for i in 0..IWADS.len()
     {
-        if ((1 << IWADS[i].mission) & mask) == 0
-        {
-            continue;
-        }
+        if ((1 << IWADS[i].mission) & mask) == 0 { continue; }
 
         if strcasecmp(name, IWADS[i].name) == 0
         {
@@ -214,10 +191,7 @@ mod tests
     }
 
     /// Converts a Rust string to an owned C string pointer.
-    fn cstr(s: &str) -> CString
-    {
-        CString::new(s).unwrap()
-    }
+    fn cstr(s: &str) -> CString { CString::new(s).unwrap() }
 
     /// The trailing path component matches case-insensitively.
     #[test]
@@ -282,19 +256,18 @@ mod tests
     fn check_directory_joins_dir_and_name()
     {
         let probe_file = make_probe_path("join");
-        let dir = std::path::Path::new(&probe_file)
-            .parent()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
+        let dir = std::path::Path::new(&probe_file).
+            parent().
+            unwrap().
+            to_str().
+            unwrap().
+            to_string();
         let joined = format!("{dir}/woom24_c1_probe_join.wad");
         unsafe
         {
             let dir = cstr(&dir);
             let name = cstr("woom24_c1_probe_join.wad");
-            let result =
-                check_directory_has_iwad(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
+            let result = check_directory_has_iwad(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
             assert!(!result.is_null());
             assert_eq!(CStr::from_ptr(result).to_str().unwrap(), joined);
             free(result as *mut c_void);
@@ -311,8 +284,7 @@ mod tests
         {
             let dir = cstr(&probe);
             let name = cstr("woom24_c1_probe_self.wad");
-            let result =
-                check_directory_has_iwad(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
+            let result = check_directory_has_iwad(dir.as_ptr().cast_mut(), name.as_ptr().cast_mut());
             assert!(!result.is_null());
             assert_eq!(CStr::from_ptr(result).to_str().unwrap(), probe);
             free(result as *mut c_void);

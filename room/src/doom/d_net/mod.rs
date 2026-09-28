@@ -145,7 +145,8 @@ pub static mut netcmds: *mut TiccmdT = std::ptr::null_mut();
 // (see the extern-by-symbol contract above).
 // ---------------------------------------------------------------------------
 
-extern "C" {
+extern "C"
+{
     /// Safe bounded string copy. Copies at most `dst_size - 1` bytes from `src`
     /// to `dst`, always NUL-terminates, and returns non-zero on success.
     /// From `vendor/doomgeneric/m_misc.c`.

@@ -87,7 +87,7 @@ pub struct ceiling_t
 mod layout_checks
 {
     use super::*;
-    const _: () = assert!(std::mem::size_of::<ceiling_t>() == 72);
+    const _: () = assert!(size_of::<ceiling_t>() == 72);
     const _: () = assert!(std::mem::offset_of!(ceiling_t, thinker) == 0);
     const _: () = assert!(std::mem::offset_of!(ceiling_t, r#type) == 24);
     const _: () = assert!(std::mem::offset_of!(ceiling_t, sector) == 32);
@@ -139,7 +139,7 @@ mod tests
     fn ceiling_t_layout_matches_c()
     {
         let _g = LOCK.lock().unwrap();
-        assert_eq!(std::mem::size_of::<ceiling_t>(), CEILING_T_SIZEOF);
+        assert_eq!(size_of::<ceiling_t>(), CEILING_T_SIZEOF);
         assert_eq!(std::mem::offset_of!(ceiling_t, thinker), CEILING_T_THINKER);
         assert_eq!(std::mem::offset_of!(ceiling_t, r#type), CEILING_T_TYPE);
         assert_eq!(std::mem::offset_of!(ceiling_t, sector), CEILING_T_SECTOR);

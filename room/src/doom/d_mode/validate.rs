@@ -1,10 +1,10 @@
 //! Boot-time validators over the game-mode / mission / version vocabulary:
 //! membership queries and counters over the private tables, verbatim ports
 //! of the `D_Valid*` family in `vendor/doomgeneric/d_mode.c`.
-
-// The C enum vocabulary is lowercase (`doom`, `shareware`, ...); names
-// are verbatim upstream data and the match patterns below reference
-// them as-is, so the two name lints are silenced file-wide.
+//! 
+//! The C enum vocabulary is lowercase (`doom`, `shareware`, ...); names
+//! are verbatim upstream data and the match patterns below reference
+//! them as-is, so the two name lints are silenced file-wide.
 #![allow(non_upper_case_globals, non_snake_case)]
 
 use std::ffi::c_int;
@@ -19,22 +19,16 @@ use crate::types::Boolean;
 /// game-mode/mission pair received over the network before accepting it.
 /// Returns `FALSE` for unrecognised combinations (e.g., `doom2` + `shareware`).
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below
-//* (wasm-surface conservatism: no C callers exist and no extern
-//* declarer was found in-tree).
+/// The pre-move export symbol is kept with `#[export_name]` below
+/// (wasm-surface conservatism: no C callers exist and no extern
+/// declarer was found in-tree).
 ///
 /// Corresponds to `D_ValidGameMode` in `d_mode.c`.
 #[doc(alias = "D_ValidGameMode")]
 #[export_name = "D_ValidGameMode"]
 pub extern "C" fn valid_game_mode(mission: c_int, mode: c_int) -> Boolean
 {
-    for vm in &VALID_MODES
-    {
-        if vm.mission == mission && vm.mode == mode
-        {
-            return Boolean::TRUE;
-        }
-    }
+    for vm in &VALID_MODES { if vm.mission == mission && vm.mode == mode { return Boolean::TRUE; } }
     Boolean::FALSE
 }
 
@@ -49,9 +43,9 @@ pub extern "C" fn valid_game_mode(mission: c_int, mode: c_int) -> Boolean
 ///
 /// Returns `FALSE` for unknown mission/mode combinations.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below
-//* (wasm-surface conservatism: no C callers exist and no extern
-//* declarer was found in-tree).
+/// The pre-move export symbol is kept with `#[export_name]` below
+/// (wasm-surface conservatism: no C callers exist and no extern
+/// declarer was found in-tree).
 ///
 /// Corresponds to `D_ValidEpisodeMap` in `d_mode.c`.
 #[doc(alias = "D_ValidEpisodeMap")]
@@ -66,14 +60,8 @@ pub extern "C" fn valid_episode_map(
     // Hacks for Heretic secret episodes
     if mission == heretic
     {
-        if mode == retail && episode == 6
-        {
-            return Boolean::from((1..=3).contains(&map));
-        }
-        else if mode == registered && episode == 4
-        {
-            return Boolean::from(map == 1);
-        }
+        if mode == retail && episode == 6 { return Boolean::from((1..=3).contains(&map)); }
+        else if mode == registered && episode == 4 { return Boolean::from(map == 1); }
     }
 
     for vm in &VALID_MODES
@@ -96,9 +84,9 @@ pub extern "C" fn valid_episode_map(
 /// the last valid episode number. Commercial games (Doom 2, Hexen, Strife)
 /// have only episode 1. Returns 0 for unknown combinations.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below
-//* (wasm-surface conservatism: no C callers exist and no extern
-//* declarer was found in-tree).
+/// The pre-move export symbol is kept with `#[export_name]` below
+/// (wasm-surface conservatism: no C callers exist and no extern
+/// declarer was found in-tree).
 ///
 /// Corresponds to `D_GetNumEpisodes` in `d_mode.c`.
 #[doc(alias = "D_GetNumEpisodes")]
@@ -106,10 +94,7 @@ pub extern "C" fn valid_episode_map(
 pub extern "C" fn num_episodes(mission: c_int, mode: c_int) -> c_int
 {
     let mut episode = 1;
-    while valid_episode_map(mission, mode, episode, 1).is_truthy()
-    {
-        episode += 1;
-    }
+    while valid_episode_map(mission, mode, episode, 1).is_truthy() { episode += 1; }
     episode - 1
 }
 
@@ -120,35 +105,24 @@ pub extern "C" fn num_episodes(mission: c_int, mode: c_int) -> c_int
 /// the same set of valid executable versions. Returns `FALSE` for unknown
 /// combinations.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below
-//* (wasm-surface conservatism: no C callers exist and no extern
-//* declarer was found in-tree).
+/// The pre-move export symbol is kept with `#[export_name]` below
+/// (wasm-surface conservatism: no C callers exist and no extern
+/// declarer was found in-tree).
 ///
 /// Corresponds to `D_ValidGameVersion` in `d_mode.c`.
 #[doc(alias = "D_ValidGameVersion")]
 #[export_name = "D_ValidGameVersion"]
 pub extern "C" fn valid_game_version(mission: c_int, version: c_int) -> Boolean
 {
-    let mission = if mission == doom2
-        || mission == pack_plut
-        || mission == pack_tnt
-        || mission == pack_hacx
-        || mission == pack_chex
-    {
-        doom
-    }
-    else
-    {
-        mission
-    };
+    let mission = if mission == doom2 ||
+        mission == pack_plut ||
+        mission == pack_tnt ||
+        mission == pack_hacx ||
+        mission == pack_chex
+        { doom }
+    else { mission };
 
-    for vv in &VALID_VERSIONS
-    {
-        if vv.mission == mission && vv.version == version
-        {
-            return Boolean::TRUE;
-        }
-    }
+    for vv in &VALID_VERSIONS { if vv.mission == mission && vv.version == version { return Boolean::TRUE; } }
 
     Boolean::FALSE
 }
@@ -159,9 +133,9 @@ pub extern "C" fn valid_game_version(mission: c_int, version: c_int) -> Boolean
 /// All other missions use `MAPxx` (e.g., `MAP01`). This distinction drives
 /// level-name formatting and warp/cheat parsing throughout the engine.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below
-//* (wasm-surface conservatism: no C callers exist and no extern
-//* declarer was found in-tree).
+/// The pre-move export symbol is kept with `#[export_name]` below
+/// (wasm-surface conservatism: no C callers exist and no extern
+/// declarer was found in-tree).
 ///
 /// Corresponds to `D_IsEpisodeMap` in `d_mode.c`.
 #[doc(alias = "D_IsEpisodeMap")]
@@ -190,66 +164,39 @@ mod tests
 
     /// Verifies that `doom` shareware is a valid game mode combination.
     #[test]
-    fn valid_game_mode_doom_shareware()
-    {
-        assert_eq!(valid_game_mode(doom, shareware), Boolean::TRUE);
-    }
+    fn valid_game_mode_doom_shareware() { assert_eq!(valid_game_mode(doom, shareware), Boolean::TRUE); }
 
     /// Verifies that `doom2` shareware is not a valid game mode combination.
     #[test]
-    fn valid_game_mode_doom2_shareware_invalid()
-    {
-        assert_eq!(valid_game_mode(doom2, shareware), Boolean::FALSE);
-    }
+    fn valid_game_mode_doom2_shareware_invalid() { assert_eq!(valid_game_mode(doom2, shareware), Boolean::FALSE); }
 
     /// Verifies that Doom retail has exactly 4 episodes.
     #[test]
-    fn get_num_episodes_doom_retail()
-    {
-        assert_eq!(num_episodes(doom, retail), 4);
-    }
+    fn get_num_episodes_doom_retail() { assert_eq!(num_episodes(doom, retail), 4); }
 
     /// Verifies that `doom2` does not use the episode-map (`ExMy`) naming scheme.
     #[test]
-    fn is_episode_map_doom2_false()
-    {
-        assert_eq!(is_episode_map(doom2), Boolean::FALSE);
-    }
+    fn is_episode_map_doom2_false() { assert_eq!(is_episode_map(doom2), Boolean::FALSE); }
 
     /// Verifies that `doom` uses the episode-map (`ExMy`) naming scheme.
     #[test]
-    fn is_episode_map_doom_true()
-    {
-        assert_eq!(is_episode_map(doom), Boolean::TRUE);
-    }
+    fn is_episode_map_doom_true() { assert_eq!(is_episode_map(doom), Boolean::TRUE); }
 
     /// Verifies that `exe_final2` is a valid game version for the `doom` mission.
     #[test]
-    fn valid_game_version_doom_final2()
-    {
-        assert_eq!(valid_game_version(doom, exe_final2), Boolean::TRUE);
-    }
+    fn valid_game_version_doom_final2() { assert_eq!(valid_game_version(doom, exe_final2), Boolean::TRUE); }
 
     /// Verifies that `doom2` is normalised to `doom` when checking game versions.
     #[test]
-    fn valid_game_version_doom2_mapped_to_doom()
-    {
-        assert_eq!(valid_game_version(doom2, exe_final2), Boolean::TRUE);
-    }
+    fn valid_game_version_doom2_mapped_to_doom() { assert_eq!(valid_game_version(doom2, exe_final2), Boolean::TRUE); }
 
     /// Verifies that episode 4 map 9 is valid for Doom retail.
     #[test]
-    fn valid_episode_map_doom_retail_ep4_map9()
-    {
-        assert_eq!(valid_episode_map(doom, retail, 4, 9), Boolean::TRUE);
-    }
+    fn valid_episode_map_doom_retail_ep4_map9() { assert_eq!(valid_episode_map(doom, retail, 4, 9), Boolean::TRUE); }
 
     /// Verifies that episode 5 is out of bounds for Doom retail (max is 4).
     #[test]
-    fn valid_episode_map_doom_retail_ep5_map1_invalid()
-    {
-        assert_eq!(valid_episode_map(doom, retail, 5, 1), Boolean::FALSE);
-    }
+    fn valid_episode_map_doom_retail_ep5_map1_invalid() { assert_eq!(valid_episode_map(doom, retail, 5, 1), Boolean::FALSE); }
 
     /// Heretic retail secret episode 6 allows maps 1-3 only.
     #[test]
@@ -291,31 +238,19 @@ mod tests
 
     /// D_GetNumEpisodes for doom shareware has 1 episode.
     #[test]
-    fn get_num_episodes_doom_shareware()
-    {
-        assert_eq!(num_episodes(doom, shareware), 1);
-    }
+    fn get_num_episodes_doom_shareware() { assert_eq!(num_episodes(doom, shareware), 1); }
 
     /// D_GetNumEpisodes for doom2 (commercial) returns 1.
     #[test]
-    fn get_num_episodes_doom2()
-    {
-        assert_eq!(num_episodes(doom2, commercial), 1);
-    }
+    fn get_num_episodes_doom2() { assert_eq!(num_episodes(doom2, commercial), 1); }
 
     /// D_GetNumEpisodes for doom registered returns 3.
     #[test]
-    fn get_num_episodes_doom_registered()
-    {
-        assert_eq!(num_episodes(doom, registered), 3);
-    }
+    fn get_num_episodes_doom_registered() { assert_eq!(num_episodes(doom, registered), 3); }
 
     /// D_IsEpisodeMap is true for pack_chex (chex.wad is episode-based).
     #[test]
-    fn is_episode_map_pack_chex_true()
-    {
-        assert_eq!(is_episode_map(pack_chex), Boolean::TRUE);
-    }
+    fn is_episode_map_pack_chex_true() { assert_eq!(is_episode_map(pack_chex), Boolean::TRUE); }
 
     /// pack_tnt / pack_plut are commercial (MAP01–MAP32), not episode-based.
     #[test]

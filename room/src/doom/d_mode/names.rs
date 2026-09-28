@@ -1,10 +1,10 @@
 //! The mission-naming helper for WAD-load diagnostics: map a
 //! `GameMission_t` value to its canonical short name, verbatim port of
 //! `D_GameMissionString` in `vendor/doomgeneric/d_mode.c`.
-
-// The C enum vocabulary is lowercase (`doom`, `pack_tnt`, ...); names
-// are verbatim upstream data and the match arms below reference them
-// as-is, so the two name lints are silenced file-wide.
+//! 
+//! The C enum vocabulary is lowercase (`doom`, `pack_tnt`, ...); names
+//! are verbatim upstream data and the match arms below reference them
+//! as-is, so the two name lints are silenced file-wide.
 #![allow(non_upper_case_globals, non_snake_case)]
 
 use std::ffi::{c_char, c_int};
@@ -22,9 +22,9 @@ use super::consts::{doom, doom2, heretic, hexen, pack_chex, pack_hacx, pack_plut
 /// is read-only; writing to it is undefined behaviour, as it would be in the C
 /// original.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below; the
-//* sole live consumer is the graduated `w_wad/iwad.rs`, served by the
-//* upstream-name shim at the module root.
+/// The pre-move export symbol is kept with `#[export_name]` below; the
+/// sole live consumer is the graduated `w_wad/iwad.rs`, served by the
+/// upstream-name shim at the module root.
 ///
 /// Corresponds to `D_GameMissionString` in `d_mode.c`.
 #[doc(alias = "D_GameMissionString")]

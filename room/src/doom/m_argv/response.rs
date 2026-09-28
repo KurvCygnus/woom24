@@ -20,7 +20,8 @@ use crate::doom::m_misc::{M_FileLength, FILE as MiscFILE};
 /// internals to Rust.
 enum FILE {}
 
-extern "C" {
+extern "C"
+{
     /// libc `fopen` — open a file by path with the given mode string.
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut FILE;
     /// libc `fread` — read up to `nmemb` elements of `size` bytes each.
@@ -80,13 +81,12 @@ unsafe fn load_response_file(argv_index: c_int)
     fclose(handle);
     *file.add(size as usize) = 0;
 
-    let newargv: *mut *mut c_char = malloc(std::mem::size_of::<*mut c_char>() * MAXARGVS)
-        as *mut *mut c_char;
+    let newargv: *mut *mut c_char = malloc(size_of::<*mut c_char>() * MAXARGVS) as *mut *mut c_char;
     let mut newargc: c_int = 0;
     memset(
         newargv as *mut c_void,
         0,
-        std::mem::size_of::<*mut c_char>() * MAXARGVS,
+        size_of::<*mut c_char>() * MAXARGVS,
     );
 
     let mut idx: c_int = 0;
@@ -101,27 +101,19 @@ unsafe fn load_response_file(argv_index: c_int)
     let mut k: usize = 0;
     while (k as c_long) < size
     {
-        while (k as c_long) < size && isspace(*infile.add(k) as c_int) != 0
-        {
-            k += 1;
-        }
-        if (k as c_long) >= size
-        {
-            break;
-        }
+        while (k as c_long) < size && isspace(*infile.add(k) as c_int) != 0 { k += 1; }
+        if (k as c_long) >= size { break; }
 
         if *infile.add(k) == b'"' as c_char
         {
             k += 1;
             *newargv.offset(newargc as isize) = infile.add(k);
             newargc += 1;
-            while (k as c_long) < size
-                && *infile.add(k) != b'"' as c_char
-                && *infile.add(k) != b'\n' as c_char
-            {
-                k += 1;
-            }
-            if (k as c_long) >= size || *infile.add(k) == b'\n' as c_char
+            while(k as c_long) < size &&
+                *infile.add(k) != b'"' as c_char &&
+                *infile.add(k) != b'\n' as c_char { k += 1; }
+            
+            if(k as c_long) >= size || *infile.add(k) == b'\n' as c_char
             {
                 i_error!(
                     "Quotes unclosed in response file '{}'",
@@ -135,10 +127,7 @@ unsafe fn load_response_file(argv_index: c_int)
         {
             *newargv.offset(newargc as isize) = infile.add(k);
             newargc += 1;
-            while (k as c_long) < size && isspace(*infile.add(k) as c_int) == 0
-            {
-                k += 1;
-            }
+            while(k as c_long) < size && isspace(*infile.add(k) as c_int) == 0 { k += 1; }
             *infile.add(k) = 0;
             k += 1;
         }
@@ -159,10 +148,10 @@ unsafe fn load_response_file(argv_index: c_int)
 /// `void M_FindResponseFile(void)` — scan `myargv` for arguments
 /// beginning with `'@'` and expand each via `load_response_file`.
 ///
-//* Freeze-zone legacy `extern "C"` blocks link this function by its
-//* upstream C symbol (`doomgeneric.rs`, called from
-//* `doomgeneric_Create` before `D_DoomMain`), so the symbol is pinned
-//* with `#[export_name]` instead of being dropped with the rename.
+/// Freeze-zone legacy `extern "C"` blocks link this function by its
+/// upstream C symbol (`doomgeneric.rs`, called from
+/// `doomgeneric_Create` before `D_DoomMain`), so the symbol is pinned
+/// with `#[export_name]` instead of being dropped with the rename.
 ///
 /// # Safety
 /// - `myargv` must either be null or point at `myargc` valid
@@ -176,10 +165,7 @@ pub extern "C" fn find_response_file()
         let mut i: c_int = 1;
         while i < myargc
         {
-            if **myargv.offset(i as isize) == b'@' as c_char
-            {
-                load_response_file(i);
-            }
+            if **myargv.offset(i as isize) == b'@' as c_char { load_response_file(i); }
             i += 1;
         }
     }

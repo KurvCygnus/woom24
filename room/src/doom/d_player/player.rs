@@ -69,7 +69,8 @@ pub enum state_t {}
 /// were derived from a `layout_probe.c` run on x86-64 Linux.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct PlayerT {
+pub struct PlayerT
+{
     /// Pointer to the player's map object (position, velocity, health during play).
     pub mo: *mut mobj_t,
     /// Current lifecycle state: alive (`PST_LIVE`), dead (`PST_DEAD`), or respawning (`PST_REBORN`).
@@ -163,10 +164,10 @@ mod tests
     fn player_t_size_matches_c()
     {
         assert_eq!(
-            std::mem::size_of::<PlayerT>(),
+            size_of::<PlayerT>(),
             PLAYER_T_SIZEOF,
             "PlayerT size mismatch: Rust={}, expected={}",
-            std::mem::size_of::<PlayerT>(),
+            size_of::<PlayerT>(),
             PLAYER_T_SIZEOF
         );
     }

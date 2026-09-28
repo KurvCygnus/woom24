@@ -44,7 +44,7 @@ type CffiMobj = super::consts::CffiMobj;
 #[export_name = "A_FaceTarget"]
 pub unsafe extern "C" fn action_face_target(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
+    if(*actor).target.is_null()
     {
         return;
     }
@@ -55,11 +55,11 @@ pub unsafe extern "C" fn action_face_target(actor: *mut mobj_t)
         (*(*actor).target).x,
         (*(*actor).target).y,
     );
-    if (*(*actor).target).flags & MF_SHADOW as c_int != 0
+    if(*(*actor).target).flags & MF_SHADOW as c_int != 0
     {
-        (*actor).angle = (*actor)
-            .angle
-            .wrapping_add(((P_Random() - P_Random()) << 21 as c_int) as super::consts::angle_t);
+        (*actor).angle = (*actor).
+            angle.
+            wrapping_add(((P_Random() - P_Random()) << 21 as c_int) as super::consts::angle_t);
     }
 }
 
@@ -77,10 +77,7 @@ pub unsafe extern "C" fn action_pos_attack(actor: *mut mobj_t)
 {
     let mut angle: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     angle = (*actor).angle as c_int;
     let slope: c_int =
@@ -116,16 +113,11 @@ pub unsafe extern "C" fn action_spos_attack(actor: *mut mobj_t)
 
     let mut damage: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     S_StartSound(actor as *mut c_void, Sfx::Shotgn as c_int);
     action_face_target(actor);
     let bangle: c_int = (*actor).angle as c_int;
-    let slope: c_int =
-        P_AimLineAttack(actor as *mut CffiMobj, bangle as super::consts::angle_t, MISSILERANGE)
-            as c_int;
+    let slope: c_int = P_AimLineAttack(actor as *mut CffiMobj, bangle as super::consts::angle_t, MISSILERANGE)  as c_int;
     i = 0 as c_int;
     while i < 3 as c_int
     {
@@ -155,16 +147,11 @@ pub unsafe extern "C" fn action_spos_attack(actor: *mut mobj_t)
 #[export_name = "A_CPosAttack"]
 pub unsafe extern "C" fn action_cpos_attack(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     S_StartSound(actor as *mut c_void, Sfx::Shotgn as c_int);
     action_face_target(actor);
     let bangle: c_int = (*actor).angle as c_int;
-    let slope: c_int =
-        P_AimLineAttack(actor as *mut CffiMobj, bangle as super::consts::angle_t, MISSILERANGE)
-            as c_int;
+    let slope: c_int = P_AimLineAttack(actor as *mut CffiMobj, bangle as super::consts::angle_t, MISSILERANGE) as c_int;
     let angle: c_int = bangle.wrapping_add((P_Random() - P_Random()) << 20 as c_int);
     let damage: c_int = (P_Random() % 5 as c_int + 1 as c_int) * 3 as c_int;
     P_LineAttack(
@@ -190,19 +177,16 @@ pub unsafe extern "C" fn action_cpos_attack(actor: *mut mobj_t)
 pub unsafe extern "C" fn action_cpos_refire(actor: *mut mobj_t)
 {
     action_face_target(actor);
-    if P_Random() < 40 as c_int
-    {
-        return;
-    }
-    if (*actor).target.is_null()
-        || (*(*actor).target).health <= 0 as c_int
-        || P_CheckSight(actor, (*actor).target) == 0
-    {
-        P_SetMobjState(
-            actor,
-            (*((*actor).info as *mut MobjInfo)).seestate as statenum_t,
-        );
-    }
+    if P_Random() < 40 as c_int { return; }
+    if(*actor).target.is_null() ||
+        (*(*actor).target).health <= 0 as c_int ||
+        P_CheckSight(actor, (*actor).target) == 0
+        {
+            P_SetMobjState(
+                actor,
+                (*((*actor).info as *mut MobjInfo)).seestate as statenum_t,
+            );
+        }
 }
 
 /// Refire check for the Spider Mastermind: keeps firing unless the target is gone or hidden.
@@ -218,19 +202,16 @@ pub unsafe extern "C" fn action_cpos_refire(actor: *mut mobj_t)
 pub unsafe extern "C" fn action_spid_refire(actor: *mut mobj_t)
 {
     action_face_target(actor);
-    if P_Random() < 10 as c_int
-    {
-        return;
-    }
-    if (*actor).target.is_null()
-        || (*(*actor).target).health <= 0 as c_int
-        || P_CheckSight(actor, (*actor).target) == 0
-    {
-        P_SetMobjState(
-            actor,
-            (*((*actor).info as *mut MobjInfo)).seestate as statenum_t,
-        );
-    }
+    if P_Random() < 10 as c_int { return; }
+    if(*actor).target.is_null() ||
+        (*(*actor).target).health <= 0 as c_int ||
+        P_CheckSight(actor, (*actor).target) == 0
+        {
+            P_SetMobjState(
+                actor,
+                (*((*actor).info as *mut MobjInfo)).seestate as statenum_t,
+            );
+        }
 }
 
 /// Attack action for the Arachnotron: launches one `MT_ARACHPLAZ` plasma ball.
@@ -242,10 +223,7 @@ pub unsafe extern "C" fn action_spid_refire(actor: *mut mobj_t)
 #[export_name = "A_BspiAttack"]
 pub unsafe extern "C" fn action_bspi_attack(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     P_SpawnMissile(actor, (*actor).target, MT_ARACHPLAZ);
 }
@@ -264,10 +242,7 @@ pub unsafe extern "C" fn action_troop_attack(actor: *mut mobj_t)
 {
     let damage: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     if check_melee_range(actor).is_truthy()
     {
@@ -292,10 +267,7 @@ pub unsafe extern "C" fn action_sarg_attack(actor: *mut mobj_t)
 {
     let damage: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     if check_melee_range(actor).is_truthy()
     {
@@ -317,10 +289,7 @@ pub unsafe extern "C" fn action_head_attack(actor: *mut mobj_t)
 {
     let damage: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     if check_melee_range(actor).is_truthy()
     {
@@ -340,10 +309,7 @@ pub unsafe extern "C" fn action_head_attack(actor: *mut mobj_t)
 #[export_name = "A_CyberAttack"]
 pub unsafe extern "C" fn action_cyber_attack(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     P_SpawnMissile(actor, (*actor).target, MT_ROCKET);
 }
@@ -362,10 +328,7 @@ pub unsafe extern "C" fn action_bruis_attack(actor: *mut mobj_t)
 {
     let damage: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     if check_melee_range(actor).is_truthy()
     {
         S_StartSound(actor as *mut c_void, Sfx::Claw as c_int);

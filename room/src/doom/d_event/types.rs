@@ -22,7 +22,8 @@ use std::ffi::c_int;
 /// C).
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct event_t {
+pub struct event_t
+{
     /// Event type discriminant; one of the `ev_*` constants from `evtype_t`.
     pub type_: c_int,
     /// Primary event datum; interpretation depends on `type_`.

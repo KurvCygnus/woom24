@@ -55,10 +55,7 @@ pub unsafe extern "C" fn EV_DoCeiling(line: *mut line_t, ceilingtype: c_int) -> 
     // Reactivate in-stasis ceilings for certain types.
     match ceilingtype
     {
-        x if x == fastCrushAndRaise || x == silentCrushAndRaise || x == crushAndRaise =>
-        {
-            P_ActivateInStasisCeiling(line);
-        }
+        x if x == fastCrushAndRaise || x == silentCrushAndRaise || x == crushAndRaise => { P_ActivateInStasisCeiling(line); }
         _ => {}
     }
 
@@ -69,23 +66,22 @@ pub unsafe extern "C" fn EV_DoCeiling(line: *mut line_t, ceilingtype: c_int) -> 
     } >= 0
     {
         let sec = sectors.add(secnum as usize);
-        if !(*sec).specialdata.is_null()
-        {
-            continue;
-        }
+        if !(*sec).specialdata.is_null() { continue; }
 
         rtn = 1;
         let ceiling = Z_Malloc(
-            std::mem::size_of::<ceiling_t>() as c_int,
+            size_of::<ceiling_t>() as c_int,
             PU_LEVSPEC,
             std::ptr::null_mut(),
         ) as *mut ceiling_t;
         P_AddThinker(&mut (*ceiling).thinker);
         (*sec).specialdata = ceiling as *mut c_void;
-        (*ceiling).thinker.function.acp1 = Some(core::mem::transmute::<
-            unsafe extern "C" fn(*mut ceiling_t),
-            unsafe extern "C" fn(*mut c_void),
-        >(T_MoveCeiling));
+        (*ceiling).thinker.function.acp1 = Some(
+            core::mem::transmute::<
+                unsafe extern "C" fn(*mut ceiling_t),
+                unsafe extern "C" fn(*mut c_void),
+            >(T_MoveCeiling)
+        );
         (*ceiling).sector = sec as *mut sector_t;
         (*ceiling).crush = 0;
 
@@ -107,10 +103,7 @@ pub unsafe extern "C" fn EV_DoCeiling(line: *mut line_t, ceilingtype: c_int) -> 
             x if x == lowerAndCrush || x == lowerToFloor =>
             {
                 (*ceiling).bottomheight = (*sec).floorheight;
-                if ceilingtype != lowerToFloor
-                {
-                    (*ceiling).bottomheight += 8 * FRACUNIT;
-                }
+                if ceilingtype != lowerToFloor { (*ceiling).bottomheight += 8 * FRACUNIT; }
                 (*ceiling).direction = -1;
                 (*ceiling).speed = CEILSPEED;
             }
@@ -197,16 +190,18 @@ pub extern "C" fn P_ActivateInStasisCeiling(line: *mut line_t)
     {
         for i in 0..MAXCEILINGS
         {
-            if !activeceilings[i].is_null()
-                && (*activeceilings[i]).tag == (*line).tag as c_int
-                && (*activeceilings[i]).direction == 0
-            {
-                (*activeceilings[i]).direction = (*activeceilings[i]).olddirection;
-                (*activeceilings[i]).thinker.function.acp1 = Some(core::mem::transmute::<
-                    unsafe extern "C" fn(*mut ceiling_t),
-                    unsafe extern "C" fn(*mut c_void),
-                >(T_MoveCeiling));
-            }
+            if !activeceilings[i].is_null() &&
+                (*activeceilings[i]).tag == (*line).tag as c_int &&
+                (*activeceilings[i]).direction == 0
+                {
+                    (*activeceilings[i]).direction = (*activeceilings[i]).olddirection;
+                    (*activeceilings[i]).thinker.function.acp1 = Some(
+                        core::mem::transmute::<
+                            unsafe extern "C" fn(*mut ceiling_t),
+                            unsafe extern "C" fn(*mut c_void),
+                        >(T_MoveCeiling)
+                    );
+                }
         }
     }
 }
@@ -233,15 +228,15 @@ pub extern "C" fn EV_CeilingCrushStop(line: *mut line_t) -> c_int
         let mut rtn: c_int = 0;
         for i in 0..MAXCEILINGS
         {
-            if !activeceilings[i].is_null()
-                && (*activeceilings[i]).tag == (*line).tag as c_int
-                && (*activeceilings[i]).direction != 0
-            {
-                (*activeceilings[i]).olddirection = (*activeceilings[i]).direction;
-                (*activeceilings[i]).thinker.function.acv = None;
-                (*activeceilings[i]).direction = 0;
-                rtn = 1;
-            }
+            if !activeceilings[i].is_null() &&
+                (*activeceilings[i]).tag == (*line).tag as c_int &&
+                (*activeceilings[i]).direction != 0
+                {
+                    (*activeceilings[i]).olddirection = (*activeceilings[i]).direction;
+                    (*activeceilings[i]).thinker.function.acv = None;
+                    (*activeceilings[i]).direction = 0;
+                    rtn = 1;
+                }
         }
         rtn
     }

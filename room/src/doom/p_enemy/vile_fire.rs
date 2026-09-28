@@ -34,10 +34,7 @@ type CffiMobj = super::consts::CffiMobj;
 /// `actor` must be non-null. Called from C.
 #[doc(alias = "A_VileStart")]
 #[export_name = "A_VileStart"]
-pub unsafe extern "C" fn action_vile_start(actor: *mut mobj_t)
-{
-    S_StartSound(actor as *mut c_void, Sfx::Vilatk as c_int);
-}
+pub unsafe extern "C" fn action_vile_start(actor: *mut mobj_t) { S_StartSound(actor as *mut c_void, Sfx::Vilatk as c_int); }
 
 /// Archvile fire start: plays the flame start sound then positions the fire object.
 ///
@@ -80,15 +77,9 @@ pub unsafe extern "C" fn action_fire_crackle(actor: *mut mobj_t)
 pub unsafe extern "C" fn action_fire(actor: *mut mobj_t)
 {
     let dest: *mut mobj_t = (*actor).tracer;
-    if dest.is_null()
-    {
-        return;
-    }
+    if dest.is_null() { return; }
     let target: *mut mobj_t = P_SubstNullMobj((*actor).target);
-    if P_CheckSight(target, dest) == 0
-    {
-        return;
-    }
+    if P_CheckSight(target, dest) == 0 { return; }
     let an: c_uint = ((*dest).angle >> ANGLETOFINESHIFT) as c_uint;
     P_UnsetThingPosition(actor as *mut CffiMobj);
     (*actor).x = (*dest).x + FixedMul(24 as fixed_t * FRACUNIT, *finecosine.0.add(an as usize));
@@ -114,10 +105,7 @@ pub unsafe extern "C" fn action_fire(actor: *mut mobj_t)
 #[export_name = "A_VileTarget"]
 pub unsafe extern "C" fn action_vile_target(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
     // FIXME: p_enemy.c passes `actor->target->x` for the Y argument instead of
     // `actor->target->y` - this is a vanilla Doom bug reproduced faithfully here.
@@ -147,27 +135,17 @@ pub unsafe extern "C" fn action_vile_target(actor: *mut mobj_t)
 #[export_name = "A_VileAttack"]
 pub unsafe extern "C" fn action_vile_attack(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     action_face_target(actor);
-    if P_CheckSight(actor, (*actor).target) == 0
-    {
-        return;
-    }
+    if P_CheckSight(actor, (*actor).target) == 0 { return; }
     S_StartSound(actor as *mut c_void, Sfx::Barexp as c_int);
     crate::doom::p_inter::P_DamageMobj((*actor).target, actor, actor, 20 as c_int);
     (*(*actor).target).momz =
         (1000 as c_int * FRACUNIT / (*((*(*actor).target).info as *mut MobjInfo)).mass) as fixed_t;
     let an: c_int = ((*actor).angle >> ANGLETOFINESHIFT) as c_int;
     let fire: *mut mobj_t = (*actor).tracer;
-    if fire.is_null()
-    {
-        return;
-    }
-    (*fire).x =
-        (*(*actor).target).x - FixedMul(24 as fixed_t * FRACUNIT, *finecosine.0.add(an as usize));
+    if fire.is_null() { return; }
+    (*fire).x = (*(*actor).target).x - FixedMul(24 as fixed_t * FRACUNIT, *finecosine.0.add(an as usize));
     (*fire).y = (*(*actor).target).y - FixedMul(24 as fixed_t * FRACUNIT, finesine[an as usize]);
     P_RadiusAttack(fire as *mut CffiMobj, actor as *mut CffiMobj, 70 as c_int);
 }

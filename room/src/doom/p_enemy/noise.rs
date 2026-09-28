@@ -43,10 +43,7 @@ pub unsafe extern "C" fn recursive_sound(sec: *mut sector_t, soundblocks: c_int)
 
     let mut other: *mut sector_t;
 
-    if (*sec).validcount == validcount && (*sec).soundtraversed <= soundblocks + 1 as c_int
-    {
-        return;
-    }
+    if(*sec).validcount == validcount && (*sec).soundtraversed <= soundblocks + 1 as c_int { return; }
     (*sec).validcount = validcount;
     (*sec).soundtraversed = soundblocks + 1 as c_int;
     (*sec).soundtarget = soundtarget as *mut c_void;
@@ -54,7 +51,7 @@ pub unsafe extern "C" fn recursive_sound(sec: *mut sector_t, soundblocks: c_int)
     while i < (*sec).linecount
     {
         check = *(*sec).lines.offset(i as isize) as *mut line_t;
-        if (*check).flags as c_int & LinedefFlag::TWOSIDED as c_int != 0
+        if(*check).flags as c_int & LinedefFlag::TWOSIDED as c_int != 0
         {
             P_LineOpening(check);
             if openrange > 0 as c_int
@@ -62,25 +59,10 @@ pub unsafe extern "C" fn recursive_sound(sec: *mut sector_t, soundblocks: c_int)
                 if std::ptr::eq(
                     (*sides.offset((*check).sidenum[0 as c_int as usize] as isize)).sector,
                     sec,
-                )
-                {
-                    other = (*sides.offset((*check).sidenum[1 as c_int as usize] as isize)).sector;
-                }
-                else
-                {
-                    other = (*sides.offset((*check).sidenum[0 as c_int as usize] as isize)).sector;
-                }
-                if (*check).flags as c_int & LinedefFlag::SOUNDBLOCK as c_int != 0
-                {
-                    if soundblocks == 0
-                    {
-                        recursive_sound(other, 1 as c_int);
-                    }
-                }
-                else
-                {
-                    recursive_sound(other, soundblocks);
-                }
+                ) { other = (*sides.offset((*check).sidenum[1 as c_int as usize] as isize)).sector; }
+                else { other = (*sides.offset((*check).sidenum[0 as c_int as usize] as isize)).sector; }
+                if(*check).flags as c_int & LinedefFlag::SOUNDBLOCK as c_int != 0 { if soundblocks == 0 { recursive_sound(other, 1 as c_int); } }
+                else { recursive_sound(other, soundblocks); }
             }
         }
         i += 1;

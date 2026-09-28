@@ -22,10 +22,7 @@ unsafe impl Sync for Ptr {}
 impl Ptr
 {
     /// Returns the inner raw pointer as `*const c_char`.
-    pub fn as_ptr(&self) -> *const c_char
-    {
-        self.0
-    }
+    pub fn as_ptr(&self) -> *const c_char { self.0 }
 }
 
 /// Eight quit messages shown when a Doom 1 player tries to exit.
@@ -73,16 +70,10 @@ mod tests
     use super::*;
 
     #[test]
-    fn doom1_table_length()
-    {
-        assert_eq!(doom1_endmsg.len(), 8);
-    }
+    fn doom1_table_length() { assert_eq!(doom1_endmsg.len(), 8); }
 
     #[test]
-    fn doom2_table_length()
-    {
-        assert_eq!(doom2_endmsg.len(), 8);
-    }
+    fn doom2_table_length() { assert_eq!(doom2_endmsg.len(), 8); }
 
     #[test]
     fn doom1_first_entry_roundtrips()
@@ -136,12 +127,12 @@ mod tests
     fn doom1_and_doom2_differ_at_index_1()
     {
         use std::ffi::CStr;
-        let s1 = unsafe { CStr::from_ptr(doom1_endmsg[1].0) }
-            .to_str()
-            .unwrap();
-        let s2 = unsafe { CStr::from_ptr(doom2_endmsg[1].0) }
-            .to_str()
-            .unwrap();
+        let s1 = unsafe { CStr::from_ptr(doom1_endmsg[1].0) }.
+            to_str().
+            unwrap();
+        let s2 = unsafe { CStr::from_ptr(doom2_endmsg[1].0) }.
+            to_str().
+            unwrap();
         assert_ne!(
             s1, s2,
             "index 1 messages should differ between doom1 and doom2"

@@ -42,13 +42,10 @@ type PLineThing = crate::doom::p_lights::line_t;
 /// Never a C symbol; `pub(super)` for the three consuming subfiles.
 pub(super) unsafe fn is_mobj_thinker(thinker: *mut thinker_t) -> bool
 {
-    (*thinker).function.acp1
-        == core::mem::transmute::<
-            Option<unsafe extern "C" fn(*mut mobj_t) -> ()>,
-            Option<unsafe extern "C" fn(*mut c_void) -> ()>,
-        >(Some(
-            P_MobjThinker as unsafe extern "C" fn(*mut mobj_t) -> (),
-        ))
+    (*thinker).function.acp1 == core::mem::transmute::<
+        Option<unsafe extern "C" fn(*mut mobj_t) -> ()>,
+        Option<unsafe extern "C" fn(*mut c_void) -> ()>,
+    >(Some(P_MobjThinker as unsafe extern "C" fn(*mut mobj_t) -> ()))
 }
 
 /// Action function for Commander Keen's death (Doom II map 32 special).
@@ -93,12 +90,9 @@ pub unsafe extern "C" fn action_keen_die(mo: *mut mobj_t)
         if is_mobj_thinker(th)
         {
             mo2 = th as *mut mobj_t;
-            if mo2 != mo
-                && (*mo2).mobjtype as c_uint == (*mo).mobjtype as c_uint
-                && (*mo2).health > 0 as c_int
-            {
-                return;
-            }
+            if mo2 != mo &&
+                (*mo2).mobjtype as c_uint == (*mo).mobjtype as c_uint &&
+                (*mo2).health > 0 as c_int { return; }
         }
         th = (*th).next;
     }
@@ -122,16 +116,10 @@ pub unsafe extern "C" fn action_keen_die(mo: *mut mobj_t)
 #[doc(alias = "CheckBossEnd")]
 pub(super) unsafe extern "C" fn check_boss_end(motype: mobjtype_t) -> Boolean
 {
-    if (gameversion as c_uint) < exe_ultimate as c_int as c_uint
+    if(gameversion as c_uint) < exe_ultimate as c_int as c_uint
     {
-        if gamemap != 8 as c_int
-        {
-            return Boolean::FALSE;
-        }
-        if motype == MT_BRUISER && gameepisode != 1 as c_int
-        {
-            return Boolean::FALSE;
-        }
+        if gamemap != 8 as c_int { return Boolean::FALSE; }
+        if motype == MT_BRUISER && gameepisode != 1 as c_int { return Boolean::FALSE; }
         Boolean::TRUE
     }
     else
@@ -191,45 +179,24 @@ pub unsafe extern "C" fn action_boss_death(mo: *mut mobj_t)
     let _i: c_int = 0;
     if gamemode as c_uint == commercial as c_int as c_uint
     {
-        if gamemap != 7 as c_int
-        {
-            return;
-        }
-        if (*mo).mobjtype as c_uint != MT_FATSO as c_int as c_uint
-            && (*mo).mobjtype as c_uint != MT_BABY as c_int as c_uint
-        {
-            return;
-        }
+        if gamemap != 7 as c_int { return; }
+        if(*mo).mobjtype as c_uint != MT_FATSO as c_int as c_uint && (*mo).mobjtype as c_uint != MT_BABY as c_int as c_uint { return; }
     }
-    else if check_boss_end((*mo).mobjtype).is_false()
-    {
-        return;
-    }
+    else if check_boss_end((*mo).mobjtype).is_false() { return; }
     let mut i: usize = 0;
     while i < MAXPLAYERS
     {
-        if playeringame[i] != 0 && players[i].health > 0 as c_int
-        {
-            break;
-        }
+        if playeringame[i] != 0 && players[i].health > 0 as c_int { break; }
         i += 1;
     }
-    if i == MAXPLAYERS
-    {
-        return;
-    }
+    if i == MAXPLAYERS { return; }
     th = thinkercap.next;
     while !std::ptr::eq(th, &raw const thinkercap)
     {
         if is_mobj_thinker(th)
         {
             mo2 = th as *mut mobj_t;
-            if mo2 != mo
-                && (*mo2).mobjtype as c_uint == (*mo).mobjtype as c_uint
-                && (*mo2).health > 0 as c_int
-            {
-                return;
-            }
+            if mo2 != mo && (*mo2).mobjtype as c_uint == (*mo).mobjtype as c_uint && (*mo2).health > 0 as c_int { return; }
         }
         th = (*th).next;
     }
@@ -237,7 +204,7 @@ pub unsafe extern "C" fn action_boss_death(mo: *mut mobj_t)
     {
         if gamemap == 7 as c_int
         {
-            if (*mo).mobjtype as c_uint == MT_FATSO as c_int as c_uint
+            if(*mo).mobjtype as c_uint == MT_FATSO as c_int as c_uint
             {
                 junk.tag = 666 as c_short;
                 EV_DoFloor(
@@ -246,7 +213,7 @@ pub unsafe extern "C" fn action_boss_death(mo: *mut mobj_t)
                 );
                 return;
             }
-            if (*mo).mobjtype as c_uint == MT_BABY as c_int as c_uint
+            if(*mo).mobjtype as c_uint == MT_BABY as c_int as c_uint
             {
                 junk.tag = 667 as c_short;
                 EV_DoFloor(&mut junk as *mut line_t as *mut PLineThing, raiseToTexture);
@@ -286,12 +253,10 @@ pub unsafe extern "C" fn action_boss_death(mo: *mut mobj_t)
                         );
                         return;
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
-            _ =>
-            {}
+            _ => {}
         }
     }
     G_ExitLevel();
@@ -355,14 +320,8 @@ mod tests
         if version < super::exe_ultimate
         {
             // Pre-ultimate: map 8 only; Barons ignored outside episode 1.
-            if map != 8
-            {
-                return false;
-            }
-            if motype == MT_BRUISER && episode != 1
-            {
-                return false;
-            }
+            if map != 8 { return false; }
+            if motype == MT_BRUISER && episode != 1 { return false; }
             true
         }
         else
@@ -456,12 +415,15 @@ mod tests
             next: std::ptr::null_mut(),
             function: crate::doom::p_tick::actionf_t { acp1: Some(foreign_ptr) },
         };
-        live.function.acp1 = Some(unsafe {
-            core::mem::transmute::<
-                unsafe extern "C" fn(*mut mobj_t) -> (),
-                unsafe extern "C" fn(*mut c_void),
-            >(crate::doom::p_mobj::P_MobjThinker)
-        });
+        live.function.acp1 = Some(
+            unsafe
+            {
+                core::mem::transmute::<
+                    unsafe extern "C" fn(*mut mobj_t) -> (),
+                    unsafe extern "C" fn(*mut c_void),
+                >(crate::doom::p_mobj::P_MobjThinker)
+            }
+        );
 
         assert!(unsafe { super::is_mobj_thinker(&mut live) });
         assert!(!unsafe { super::is_mobj_thinker(&mut foreign) });

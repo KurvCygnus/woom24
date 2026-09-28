@@ -162,9 +162,9 @@ mid-game asset swaps are out of scope until explicitly designed (they are determ
   inline reason (`#![allow(...)] // ! Reason…`). Deprecated APIs are never used.
 - Comment prefix system:
   - `//*` — explains something important.
-  - `//!` — explains something edgy, counterintuitive, or footgunny.
+  - `// !` — explains something edgy, counterintuitive, or footgunny, `//!` represents module doc in rust, so we have to use `// !` to avoid rustdoc issues.
   - `//?` — confusion, TODO, FIX.
-- The `//*` / `//!` / `//?` markers live **only in `//` comments**. Doc comments (`///`, `//!`) are
+- The `//*` / `// !` / `//?` markers live **only in `//` comments**. Doc comments (`///`, `//!`) are
   rendered by rustdoc — these markers have no effect there and render literally (decided
   2026-09-18: never prefix doc comments with them). Doc comments use standard Markdown and
   Rustdoc conventions instead (headings, backticks, `# Panics` / `# Safety` sections).

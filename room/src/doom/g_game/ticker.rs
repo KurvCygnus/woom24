@@ -95,13 +95,7 @@ pub unsafe extern "C" fn ticker()
     use crate::doom::c_ffi::BACKUPTICS;
 
     // Player reborns
-    for i in 0..MAXPLAYERS
-    {
-        if playeringame[i] != 0 && players[i].playerstate == PST_REBORN
-        {
-            G_DoReborn(i as c_int);
-        }
-    }
+    for i in 0..MAXPLAYERS { if playeringame[i] != 0 && players[i].playerstate == PST_REBORN { G_DoReborn(i as c_int); } }
 
     // Process pending game actions
     while gameaction != ga_nothing
@@ -123,8 +117,7 @@ pub unsafe extern "C" fn ticker()
                     deh_string(c"screen shot".as_ptr()) as *mut c_char;
                 gameaction = ga_nothing;
             }
-            _ =>
-            {}
+            _ => {}
         }
     }
 
@@ -140,57 +133,39 @@ pub unsafe extern "C" fn ticker()
             // Copy net command into player command
             std::ptr::copy_nonoverlapping(netcmds.add(i), cmd, 1);
 
-            if demoplayback != 0
-            {
-                G_ReadDemoTiccmd(cmd);
-            }
-            if demorecording != 0
-            {
-                G_WriteDemoTiccmd(cmd);
-            }
+            if demoplayback != 0 { G_ReadDemoTiccmd(cmd); }
+            if demorecording != 0 { G_WriteDemoTiccmd(cmd); }
 
             // Turbo detection
-            if (*cmd).forwardmove > 0x32
-            {
-                turbodetected[i] = 1;
-            }
+            if (*cmd).forwardmove > 0x32 { turbodetected[i] = 1; }
 
             //* The nested `M_snprintf_clamp(..., c_snprintf1(...))` looks
             //* wrong and is parity-correct -- vanilla's nested snprintf had
             //* the same shape. Never "fix" it (pre-split g_game.rs:1546-1555).
-            if (gametic & 31) == 0
-                && ((gametic >> 5) % MAXPLAYERS as c_int) == i as c_int
-                && turbodetected[i] != 0
-            {
-                M_snprintf_clamp(
-                    std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
-                    80,
-                    c_snprintf1(
+            if(gametic & 31) == 0 &&
+                ((gametic >> 5) % MAXPLAYERS as c_int) == i as c_int &&
+                turbodetected[i] != 0
+                {
+                    M_snprintf_clamp(
                         std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
                         80,
-                        c"%s is turbo!".as_ptr(),
-                        player_names[i],
-                    ),
-                );
-                players[consoleplayer as usize].message = std::ptr::addr_of_mut!(TURBOMESSAGE[0]);
-                turbodetected[i] = 0;
-            }
+                        c_snprintf1(
+                            std::ptr::addr_of_mut!(TURBOMESSAGE[0]),
+                            80,
+                            c"%s is turbo!".as_ptr(),
+                            player_names[i],
+                        ),
+                    );
+                    players[consoleplayer as usize].message = std::ptr::addr_of_mut!(TURBOMESSAGE[0]);
+                    turbodetected[i] = 0;
+                }
 
             if netgame != 0 && netdemo == 0 && (gametic % ticdup) == 0
             {
-                if gametic > BACKUPTICS as c_int && consistancy[i][buf] != (*cmd).consistancy
-                {
-                    I_Error(c"consistency failure (%i should be %i)".as_ptr());
-                }
+                if gametic > BACKUPTICS as c_int && consistancy[i][buf] != (*cmd).consistancy { I_Error(c"consistency failure (%i should be %i)".as_ptr()); }
                 let mo = players[i].mo as *mut mobj_t;
-                if !mo.is_null()
-                {
-                    consistancy[i][buf] = (*mo).x as u8;
-                }
-                else
-                {
-                    consistancy[i][buf] = rndindex as u8;
-                }
+                if !mo.is_null() { consistancy[i][buf] = (*mo).x as u8; }
+                else { consistancy[i][buf] = rndindex as u8; }
             }
         }
     }
@@ -208,14 +183,8 @@ pub unsafe extern "C" fn ticker()
                     BTS_PAUSE =>
                     {
                         paused ^= 1;
-                        if paused != 0
-                        {
-                            S_PauseSound();
-                        }
-                        else
-                        {
-                            S_ResumeSound();
-                        }
+                        if paused != 0 { S_PauseSound(); }
+                        else { S_ResumeSound(); }
                     }
                     BTS_SAVEGAME =>
                     {
@@ -224,24 +193,20 @@ pub unsafe extern "C" fn ticker()
                             M_StringCopy(
                                 std::ptr::addr_of_mut!(SAVEDESCRIPTION[0]),
                                 c"NET GAME".as_ptr(),
-                                32,
+                                32
                             );
                         }
                         SAVEGAMESLOT = ((buttons & BTS_SAVEMASK) >> BTS_SAVESHIFT) as c_int;
                         gameaction = ga_savegame;
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
         }
     }
 
     // Check if intermission screen just ended
-    if oldgamestate == GS_INTERMISSION && gamestate != GS_INTERMISSION
-    {
-        WI_End();
-    }
+    if oldgamestate == GS_INTERMISSION && gamestate != GS_INTERMISSION { WI_End(); }
     oldgamestate = gamestate;
 
     // Main game-state dispatch
@@ -254,19 +219,9 @@ pub unsafe extern "C" fn ticker()
             AM_Ticker();
             HU_Ticker();
         }
-        GS_INTERMISSION =>
-        {
-            WI_Ticker();
-        }
-        GS_FINALE =>
-        {
-            F_Ticker();
-        }
-        GS_DEMOSCREEN =>
-        {
-            D_PageTicker();
-        }
-        _ =>
-        {}
+        GS_INTERMISSION => { WI_Ticker(); }
+        GS_FINALE => { F_Ticker(); }
+        GS_DEMOSCREEN => { D_PageTicker(); }
+        _ => {}
     }
 }

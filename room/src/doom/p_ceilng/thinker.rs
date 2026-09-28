@@ -67,20 +67,14 @@ pub unsafe extern "C" fn T_MoveCeiling(ceiling: *mut ceiling_t)
     let res = T_MovePlane(
         (*ceiling).sector,
         (*ceiling).speed,
-        if (*ceiling).direction == 1
-        {
-            (*ceiling).topheight
-        }
-        else
-        {
-            (*ceiling).bottomheight
-        },
+        if (*ceiling).direction == 1 { (*ceiling).topheight }
+        else { (*ceiling).bottomheight },
         (*ceiling).crush,
         1,
         (*ceiling).direction,
     );
 
-    if (leveltime & 7) == 0
+    if(leveltime & 7) == 0
     {
         match (*ceiling).r#type
         {
@@ -99,10 +93,7 @@ pub unsafe extern "C" fn T_MoveCeiling(ceiling: *mut ceiling_t)
     {
         match (*ceiling).r#type
         {
-            x if x == raiseToHighest =>
-            {
-                P_RemoveActiveCeiling(ceiling);
-            }
+            x if x == raiseToHighest => { P_RemoveActiveCeiling(ceiling); }
             x if x == silentCrushAndRaise =>
             {
                 S_StartSound(
@@ -110,10 +101,7 @@ pub unsafe extern "C" fn T_MoveCeiling(ceiling: *mut ceiling_t)
                     Sfx::Pstop as c_int,
                 );
             }
-            x if x == fastCrushAndRaise || x == crushAndRaise =>
-            {
-                (*ceiling).direction = -1;
-            }
+            x if x == fastCrushAndRaise || x == crushAndRaise => { (*ceiling).direction = -1; }
             _ => {}
         }
     }
@@ -121,10 +109,7 @@ pub unsafe extern "C" fn T_MoveCeiling(ceiling: *mut ceiling_t)
     {
         match (*ceiling).r#type
         {
-            x if x == silentCrushAndRaise || x == crushAndRaise || x == lowerAndCrush =>
-            {
-                (*ceiling).speed = CEILSPEED / 8;
-            }
+            x if x == silentCrushAndRaise || x == crushAndRaise || x == lowerAndCrush => { (*ceiling).speed = CEILSPEED / 8; }
             _ => {}
         }
     }

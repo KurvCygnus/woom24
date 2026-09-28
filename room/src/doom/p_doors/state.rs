@@ -61,25 +61,25 @@ pub(super) const it_yellowskull: usize = 4;
 pub(super) const it_redskull: usize = 5;
 
 /// Locked-object message: blue key required.
-const PD_BLUEO: *mut c_char = c"You need a blue key to activate this object"
-    .as_ptr()
-    .cast_mut();
+const PD_BLUEO: *mut c_char = c"You need a blue key to activate this object".
+    as_ptr().
+    cast_mut();
 /// Locked-object message: red key required.
-const PD_REDO: *mut c_char = c"You need a red key to activate this object"
-    .as_ptr()
-    .cast_mut();
+const PD_REDO: *mut c_char = c"You need a red key to activate this object".
+    as_ptr().
+    cast_mut();
 /// Locked-object message: yellow key required.
-const PD_YELLOWO: *mut c_char = c"You need a yellow key to activate this object"
-    .as_ptr()
-    .cast_mut();
+const PD_YELLOWO: *mut c_char = c"You need a yellow key to activate this object".
+    as_ptr().
+    cast_mut();
 /// Locked-door message: blue key required.
 const PD_BLUEK: *mut c_char = c"You need a blue key to open this door".as_ptr().cast_mut();
 /// Locked-door message: red key required.
 const PD_REDK: *mut c_char = c"You need a red key to open this door".as_ptr().cast_mut();
 /// Locked-door message: yellow key required.
-const PD_YELLOWK: *mut c_char = c"You need a yellow key to open this door"
-    .as_ptr()
-    .cast_mut();
+const PD_YELLOWK: *mut c_char = c"You need a yellow key to open this door".
+    as_ptr().
+    cast_mut();
 
 /// Passes `s` through unchanged.
 ///
@@ -87,10 +87,7 @@ const PD_YELLOWK: *mut c_char = c"You need a yellow key to open this door"
 /// string replacement. Here it is a no-op identity shim because
 /// `FEATURE_DEHACKED` is not defined.
 #[inline(always)]
-pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char
-{
-    s
-}
+pub(super) unsafe fn DEH_String(s: *mut c_char) -> *mut c_char { s }
 
 #[inline(always)]
 pub(super) unsafe fn locked_object_message(special: c_int) -> *mut c_char
@@ -152,7 +149,7 @@ pub struct vldoor_t
 mod layout_checks
 {
     use super::*;
-    const _: () = assert!(std::mem::size_of::<vldoor_t>() == 64);
+    const _: () = assert!(size_of::<vldoor_t>() == 64);
     const _: () = assert!(std::mem::offset_of!(vldoor_t, thinker) == 0);
     const _: () = assert!(std::mem::offset_of!(vldoor_t, r#type) == 24);
     const _: () = assert!(std::mem::offset_of!(vldoor_t, sector) == 32);
@@ -186,10 +183,10 @@ mod tests
     {
         let _g = LOCK.lock().unwrap();
         assert_eq!(
-            std::mem::size_of::<vldoor_t>(),
+            size_of::<vldoor_t>(),
             VLDOOR_T_SIZEOF,
             "vldoor_t size mismatch: Rust={}, expected={}",
-            std::mem::size_of::<vldoor_t>(),
+            size_of::<vldoor_t>(),
             VLDOOR_T_SIZEOF,
         );
         assert_eq!(std::mem::offset_of!(vldoor_t, thinker), VLDOOR_T_THINKER);

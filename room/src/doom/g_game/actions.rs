@@ -90,37 +90,22 @@ pub unsafe extern "C" fn do_load_level()
     // Fix sky texture for Final Doom / Chex
     if gamemode == commercial && (gameversion == exe_final2 || gameversion == exe_chex)
     {
-        let skytexturename: *const c_char = if gamemap < 12
-        {
-            c"SKY1".as_ptr()
-        }
-        else if gamemap < 21
-        {
-            c"SKY2".as_ptr()
-        }
-        else
-        {
-            c"SKY3".as_ptr()
-        };
+        let skytexturename: *const c_char = if gamemap < 12 { c"SKY1".as_ptr() }
+        else if gamemap < 21 { c"SKY2".as_ptr() }
+        else { c"SKY3".as_ptr() };
         skytexture = R_TextureNumForName(deh_string(skytexturename) as *mut c_char);
     }
 
     levelstarttic = gametic;
 
-    if wipegamestate == GS_LEVEL
-    {
-        wipegamestate = -1; // force a wipe
-    }
+    if wipegamestate == GS_LEVEL { wipegamestate = -1; /* force a wipe */ }
 
     gamestate = GS_LEVEL;
 
     for i in 0..MAXPLAYERS
     {
         turbodetected[i] = 0;
-        if playeringame[i] != 0 && players[i].playerstate == PST_DEAD
-        {
-            players[i].playerstate = PST_REBORN;
-        }
+        if playeringame[i] != 0 && players[i].playerstate == PST_DEAD { players[i].playerstate = PST_REBORN; }
         players[i].frags = [0; MAXPLAYERS];
     }
 
@@ -142,10 +127,7 @@ pub unsafe extern "C" fn do_load_level()
     MOUSEARRAY = [0; MAX_MOUSE_BUTTONS + 1];
     JOYARRAY = [0; MAX_JOY_BUTTONS + 1];
 
-    if testcontrols != 0
-    {
-        players[consoleplayer as usize].message = c"Press escape to quit.".as_ptr().cast_mut();
-    }
+    if testcontrols != 0 { players[consoleplayer as usize].message = c"Press escape to quit.".as_ptr().cast_mut(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -163,10 +145,7 @@ pub unsafe extern "C" fn do_load_level()
 /// so the wasm export set stays byte-identical.
 #[doc(alias = "G_ScreenShot")]
 #[export_name = "G_ScreenShot"]
-pub unsafe extern "C" fn screen_shot()
-{
-    gameaction = ga_screenshot;
-}
+pub unsafe extern "C" fn screen_shot() { gameaction = ga_screenshot; }
 
 // ---------------------------------------------------------------------------
 // G_ExitLevel / G_SecretExitLevel
@@ -199,14 +178,8 @@ pub unsafe extern "C" fn exit_level()
 #[export_name = "G_SecretExitLevel"]
 pub unsafe extern "C" fn secret_exit_level()
 {
-    if gamemode == commercial && W_CheckNumForName(c"map31".as_ptr()) < 0
-    {
-        secretexit = 0;
-    }
-    else
-    {
-        secretexit = 1;
-    }
+    if gamemode == commercial && W_CheckNumForName(c"map31".as_ptr()) < 0 { secretexit = 0; }
+    else { secretexit = 1; }
     gameaction = ga_completed;
 }
 
@@ -244,18 +217,9 @@ pub unsafe extern "C" fn do_completed()
 {
     gameaction = ga_nothing;
 
-    for i in 0..MAXPLAYERS
-    {
-        if playeringame[i] != 0
-        {
-            G_PlayerFinishLevel(i as c_int);
-        }
-    }
+    for i in 0..MAXPLAYERS { if playeringame[i] != 0 { G_PlayerFinishLevel(i as c_int); } }
 
-    if automapactive != 0
-    {
-        AM_Stop();
-    }
+    if automapactive != 0 { AM_Stop(); }
 
     if gamemode != commercial
     {
@@ -276,15 +240,8 @@ pub unsafe extern "C" fn do_completed()
                     gameaction = ga_victory;
                     return;
                 }
-                9 =>
-                {
-                    for i in 0..MAXPLAYERS
-                    {
-                        players[i].didsecret = 1;
-                    }
-                }
-                _ =>
-                {}
+                9 => { for i in 0..MAXPLAYERS { players[i].didsecret = 1; } }
+                _ => {}
             }
         }
     }
@@ -294,13 +251,7 @@ pub unsafe extern "C" fn do_completed()
         gameaction = ga_victory;
         return;
     }
-    if gamemap == 9 && gamemode != commercial
-    {
-        for i in 0..MAXPLAYERS
-        {
-            players[i].didsecret = 1;
-        }
-    }
+    if gamemap == 9 && gamemode != commercial { for i in 0..MAXPLAYERS { players[i].didsecret = 1; } }
 
     wminfo.didsecret = players[consoleplayer as usize].didsecret;
     wminfo.epsd = gameepisode - 1;
@@ -328,10 +279,7 @@ pub unsafe extern "C" fn do_completed()
     }
     else
     {
-        wminfo.next = if secretexit != 0
-        {
-            8
-        }
+        wminfo.next = if secretexit != 0 { 8 }
         else if gamemap == 9
         {
             match gameepisode
@@ -343,10 +291,7 @@ pub unsafe extern "C" fn do_completed()
                 _ => gamemap,
             }
         }
-        else
-        {
-            gamemap
-        };
+        else { gamemap };
     }
 
     wminfo.maxkills = totalkills;
@@ -356,22 +301,17 @@ pub unsafe extern "C" fn do_completed()
 
     wminfo.partime = if gamemode == commercial
     {
-        match commercial_partime(gamemap)
-        {
-            Some(partime) => partime,
-            None =>
+        commercial_partime(gamemap).unwrap_or_else(
+            | |
             {
                 //* Copy first: `format!` inside `i_error!` would borrow the
                 //* mutable static (static_mut_refs).
                 let map = gamemap;
                 i_error!("G_DoCompleted: commercial map {} has no vanilla par time", map)
             }
-        }
+        )
     }
-    else if gameepisode < 4
-    {
-        35 * pars[gameepisode as usize][gamemap as usize]
-    }
+    else if gameepisode < 4 { 35 * pars[gameepisode as usize][gamemap as usize] }
     else
     {
         violations::record(VanillaViolation::ParTimeOverrun);
@@ -416,10 +356,7 @@ pub unsafe extern "C" fn world_done()
 {
     gameaction = ga_worlddone;
 
-    if secretexit != 0
-    {
-        players[consoleplayer as usize].didsecret = 1;
-    }
+    if secretexit != 0 { players[consoleplayer as usize].didsecret = 1; }
 
     if gamemode == commercial
     {
@@ -427,18 +364,11 @@ pub unsafe extern "C" fn world_done()
         {
             15 | 31 =>
             {
-                if secretexit == 0
-                {
-                    return;
-                }
+                if secretexit == 0 { return; }
                 F_StartFinale();
             }
-            6 | 11 | 20 | 30 =>
-            {
-                F_StartFinale();
-            }
-            _ =>
-            {}
+            6 | 11 | 20 | 30 => { F_StartFinale(); }
+            _ => {}
         }
     }
 }
@@ -545,31 +475,13 @@ pub unsafe extern "C" fn init_new(skill: skill_t, episode: c_int, map: c_int)
         skill = 4;
     }
 
-    if gameversion >= exe_ultimate
-    {
-        if episode == 0
-        {
-            episode = 4;
-        }
-    }
-    else
-    {
-        episode = episode.clamp(1, 3);
-    }
+    if gameversion >= exe_ultimate { if episode == 0 { episode = 4; } }
+    else { episode = episode.clamp(1, 3); }
 
-    if episode > 1 && gamemode == shareware
-    {
-        episode = 1;
-    }
+    if episode > 1 && gamemode == shareware { episode = 1; }
 
-    if map < 1
-    {
-        map = 1;
-    }
-    if map > 9 && gamemode != commercial
-    {
-        map = 9;
-    }
+    if map < 1 { map = 1; }
+    if map > 9 && gamemode != commercial { map = 9; }
 
     M_ClearRandom();
 
@@ -578,26 +490,14 @@ pub unsafe extern "C" fn init_new(skill: skill_t, episode: c_int, map: c_int)
         // sk_nightmare = 4
         respawnmonsters = 1;
     }
-    else
-    {
-        respawnmonsters = 0;
-    }
+    else { respawnmonsters = 0; }
 
     // Fast monsters for nightmare or fastparm
-    if fastparm != 0 || (skill == 4 && gameskill != 4)
-    {
-        set_fast_monsters_bool(true);
-    }
-    else if skill != 4 && gameskill == 4
-    {
-        set_fast_monsters_bool(false);
-    }
+    if fastparm != 0 || (skill == 4 && gameskill != 4) { set_fast_monsters_bool(true); }
+    else if skill != 4 && gameskill == 4 { set_fast_monsters_bool(false); }
 
     // Force players to be reborn on first level load
-    for i in 0..MAXPLAYERS
-    {
-        players[i].playerstate = PST_REBORN;
-    }
+    for i in 0..MAXPLAYERS { players[i].playerstate = PST_REBORN; }
 
     usergame = 1;
     paused = 0;
@@ -612,18 +512,9 @@ pub unsafe extern "C" fn init_new(skill: skill_t, episode: c_int, map: c_int)
     // game start, not per level — deliberately preserved for compatibility).
     let skytexturename: *const c_char = if gamemode == commercial
     {
-        if gamemap < 12
-        {
-            c"SKY1".as_ptr()
-        }
-        else if gamemap < 21
-        {
-            c"SKY2".as_ptr()
-        }
-        else
-        {
-            c"SKY3".as_ptr()
-        }
+        if gamemap < 12 { c"SKY1".as_ptr() }
+        else if gamemap < 21 { c"SKY2".as_ptr() }
+        else { c"SKY3".as_ptr() }
     }
     else
     {
@@ -662,14 +553,8 @@ unsafe fn set_fast_monsters_bool(fast: bool)
     // mobjinfo adjustments for MT_BRUISERSHOT, MT_HEADSHOT, MT_TROOPSHOT
     // These are byte-offset operations into the info tables.
     // Delegate to a safe extern to avoid duplicating the state-offset arithmetic.
-    if fast
-    {
-        set_fast_monsters(1);
-    }
-    else
-    {
-        set_fast_monsters(0);
-    }
+    if fast { set_fast_monsters(1); }
+    else { set_fast_monsters(0); }
 }
 
 // ---------------------------------------------------------------------------
@@ -695,30 +580,16 @@ unsafe fn set_fast_monsters_bool(fast: bool)
 #[export_name = "G_SetFastMonsters"]
 pub unsafe extern "C" fn set_fast_monsters(fast: c_int)
 {
-    use crate::doom::info::{
-        mobjinfo, states, MT_BRUISERSHOT, MT_HEADSHOT, MT_TROOPSHOT, S_SARG_PAIN2, S_SARG_RUN1,
-    };
+    use crate::doom::info::{mobjinfo, states, MT_BRUISERSHOT, MT_HEADSHOT, MT_TROOPSHOT, S_SARG_PAIN2, S_SARG_RUN1};
 
     for i in S_SARG_RUN1 as usize..=S_SARG_PAIN2 as usize
     {
-        if fast != 0
-        {
-            states[i].tics >>= 1;
-        }
-        else
-        {
-            states[i].tics <<= 1;
-        }
+        if fast != 0 { states[i].tics >>= 1; }
+        else { states[i].tics <<= 1; }
     }
 
-    let (bruiser_spd, head_spd, troop_spd): (fixed_t, fixed_t, fixed_t) = if fast != 0
-    {
-        (20 * 65536, 20 * 65536, 20 * 65536)
-    }
-    else
-    {
-        (15 * 65536, 10 * 65536, 10 * 65536)
-    };
+    let (bruiser_spd, head_spd, troop_spd): (fixed_t, fixed_t, fixed_t) = if fast != 0 { (20 * 65536, 20 * 65536, 20 * 65536) }
+    else { (15 * 65536, 10 * 65536, 10 * 65536) };
 
     mobjinfo[MT_BRUISERSHOT as usize].speed = bruiser_spd;
     mobjinfo[MT_HEADSHOT as usize].speed = head_spd;

@@ -163,7 +163,8 @@ pub const BACKUPTICS: usize = 128;
 ///
 /// Corresponds to `ticcmd_set_t` in `d_loop.c`.
 #[repr(C)]
-struct TiccmdSetT {
+struct TiccmdSetT
+{
     /// Per-player input commands for this tic.
     cmds: [TiccmdT; NET_MAXPLAYERS],
     /// Non-zero for each player slot that is active this tic (`boolean` in C).
@@ -243,9 +244,9 @@ pub static mut offsetms: c_int = 0; // fixed_t
 /// policy. `0` (the default) keeps vanilla unbounded behavior, which the
 /// legacy `doomgeneric_Tick` path and the demo tests rely on.
 ///
-//* Not from any reference: Woof! simply runs all available tics
-//* (`woof/src/d_loop.c:777-785`), which is safe for a native event loop but
-//* unbounded after a suspend — the cap is our own browser-shell policy.
+/// Not from any reference: Woof! simply runs all available tics
+/// (`woof/src/d_loop.c:777-785`), which is safe for a native event loop but
+/// unbounded after a suspend — the cap is our own browser-shell policy.
 pub static mut pump_tic_cap: c_int = 0;
 
 /// Whether to use the new client synchronisation algorithm.
@@ -303,7 +304,8 @@ static mut OLDNETTICS: c_int = 0;
 // (see the extern-by-symbol contract above).
 // ---------------------------------------------------------------------------
 
-extern "C" {
+extern "C"
+{
     /// Non-zero when running as a network drone (spectator only, no input).
     static mut drone: c_int; // boolean
     /// Non-zero when a network client connection is active.

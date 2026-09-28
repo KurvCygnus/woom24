@@ -24,7 +24,8 @@ use crate::doom::z_zone::PU_STATIC;
 /// write sink that owns its own growable buffer. Mirrors the unnamed C
 /// `enum memfile_mode_t`.
 #[repr(C)]
-pub enum memfile_mode_t {
+pub enum memfile_mode_t
+{
     /// Read mode: `buf` points at caller-owned data, `alloced` is unused.
     MODE_READ = 0,
     /// Write mode: `buf` is owned by the `MEMFILE` and grows on demand.
@@ -34,7 +35,8 @@ pub enum memfile_mode_t {
 /// Origin selector for `mem_seek`, mirroring `stdio.h` `SEEK_SET` /
 /// `SEEK_CUR` / `SEEK_END`. Direct port of C `mem_rel_t`.
 #[repr(C)]
-pub enum mem_rel_t {
+pub enum mem_rel_t
+{
     /// Seek relative to the start of the buffer.
     MEM_SEEK_SET = 0,
     /// Seek relative to the current position.
@@ -53,7 +55,8 @@ pub enum mem_rel_t {
 /// * write mode -- `buf` is an owned allocation of `alloced` bytes; `buflen`
 ///   is the highest position ever written to (i.e. the logical file size).
 #[repr(C)]
-pub struct _MEMFILE {
+pub struct _MEMFILE
+{
     /// Pointer to the data buffer (borrowed in read mode, owned in write
     /// mode).
     pub buf: *mut u8,
@@ -95,18 +98,12 @@ fn dealloc(ptr: *mut c_void)
 /// Production allocator: routes through Doom's zone allocator at
 /// `PU_STATIC` priority, matching the C source's use of `Z_Malloc`.
 #[cfg(not(test))]
-fn alloc(size: usize) -> *mut c_void
-{
-    unsafe { zone_alloc(size as c_int, PU_STATIC, std::ptr::null_mut()) }
-}
+fn alloc(size: usize) -> *mut c_void { unsafe { zone_alloc(size as c_int, PU_STATIC, std::ptr::null_mut()) } }
 
 /// Production deallocator: forwards to the zone allocator, matching the
 /// C source.
 #[cfg(not(test))]
-fn dealloc(ptr: *mut c_void)
-{
-    unsafe { zone_free(ptr) }
-}
+fn dealloc(ptr: *mut c_void) { unsafe { zone_free(ptr) } }
 
 /// Test-only zero-initialised allocator.
 #[cfg(test)]
@@ -124,10 +121,7 @@ fn alloc_zeroed(size: usize) -> *mut c_void
 fn alloc_zeroed(size: usize) -> *mut c_void
 {
     let ptr = alloc(size);
-    if !ptr.is_null()
-    {
-        unsafe { std::ptr::write_bytes(ptr as *mut u8, 0, size) };
-    }
+    if !ptr.is_null() { unsafe { std::ptr::write_bytes(ptr as *mut u8, 0, size) }; }
     ptr
 }
 
@@ -140,7 +134,7 @@ fn alloc_zeroed(size: usize) -> *mut c_void
 #[doc(alias = "mem_fopen_read")]
 pub extern "C" fn mem_open_read(buf: *mut c_void, buflen: usize) -> *mut _MEMFILE
 {
-    let file: *mut _MEMFILE = alloc(std::mem::size_of::<_MEMFILE>()) as *mut _MEMFILE;
+    let file: *mut _MEMFILE = alloc(size_of::<_MEMFILE>()) as *mut _MEMFILE;
     unsafe
     {
         (*file).buf = buf as *mut u8;
@@ -165,17 +159,11 @@ pub extern "C" fn mem_read(buf: *mut c_void, size: usize, nmemb: usize, stream: 
 {
     let stream = unsafe { &mut *stream };
 
-    if !matches!(stream.mode, memfile_mode_t::MODE_READ)
-    {
-        return 0;
-    }
+    if !matches!(stream.mode, memfile_mode_t::MODE_READ) { return 0; }
 
     let mut items = nmemb;
 
-    if items * size > stream.buflen - stream.position as usize
-    {
-        items = (stream.buflen - stream.position as usize) / size;
-    }
+    if items * size > stream.buflen - stream.position as usize { items = (stream.buflen - stream.position as usize) / size; }
 
     unsafe
     {
@@ -200,7 +188,7 @@ pub extern "C" fn mem_read(buf: *mut c_void, size: usize, nmemb: usize, stream: 
 #[doc(alias = "mem_fopen_write")]
 pub extern "C" fn mem_open_write() -> *mut _MEMFILE
 {
-    let file: *mut _MEMFILE = alloc(std::mem::size_of::<_MEMFILE>()) as *mut _MEMFILE;
+    let file: *mut _MEMFILE = alloc(size_of::<_MEMFILE>()) as *mut _MEMFILE;
     let initial_alloc = 1024usize;
     let buf = alloc(initial_alloc) as *mut u8;
 
@@ -227,10 +215,7 @@ pub extern "C" fn mem_write(ptr: *const c_void, size: usize, nmemb: usize, strea
 {
     let stream = unsafe { &mut *stream };
 
-    if !matches!(stream.mode, memfile_mode_t::MODE_WRITE)
-    {
-        return 0;
-    }
+    if !matches!(stream.mode, memfile_mode_t::MODE_WRITE) { return 0; }
 
     let bytes = size * nmemb;
 
@@ -238,10 +223,7 @@ pub extern "C" fn mem_write(ptr: *const c_void, size: usize, nmemb: usize, strea
     {
         let new_alloc = stream.alloced * 2;
         let newbuf = alloc(new_alloc) as *mut u8;
-        unsafe
-        {
-            std::ptr::copy_nonoverlapping(stream.buf, newbuf, stream.alloced);
-        }
+        unsafe { std::ptr::copy_nonoverlapping(stream.buf, newbuf, stream.alloced); }
         dealloc(stream.buf as *mut c_void);
         stream.buf = newbuf;
         stream.alloced = new_alloc;
@@ -257,10 +239,7 @@ pub extern "C" fn mem_write(ptr: *const c_void, size: usize, nmemb: usize, strea
     }
     stream.position += bytes as u32;
 
-    if stream.position as usize > stream.buflen
-    {
-        stream.buflen = stream.position as usize;
-    }
+    if stream.position as usize > stream.buflen { stream.buflen = stream.position as usize; }
 
     nmemb
 }
@@ -291,10 +270,7 @@ pub extern "C" fn mem_close(stream: *mut _MEMFILE)
 {
     let stream = unsafe { &*stream };
 
-    if matches!(stream.mode, memfile_mode_t::MODE_WRITE)
-    {
-        dealloc(stream.buf as *mut c_void);
-    }
+    if matches!(stream.mode, memfile_mode_t::MODE_WRITE) { dealloc(stream.buf as *mut c_void); }
 
     dealloc(stream as *const _MEMFILE as *mut c_void);
 }
@@ -336,10 +312,7 @@ pub extern "C" fn mem_seek(stream: *mut _MEMFILE, position: c_int, whence: mem_r
         stream.position = newpos;
         0
     }
-    else
-    {
-        -1
-    }
+    else { -1 }
 }
 
 /// Unit tests covering round-trip read/write, seek semantics, mode errors,

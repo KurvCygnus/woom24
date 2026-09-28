@@ -70,7 +70,8 @@ const NUMWEAPONS: usize = 9;
 #[no_mangle]
 pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
     // fist
-    weaponinfo_t {
+    weaponinfo_t
+    {
         ammo: am_noammo,
         upstate: S_PUNCHUP,
         downstate: S_PUNCHDOWN,
@@ -79,7 +80,8 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         flashstate: S_NULL,
     },
     // pistol
-    weaponinfo_t {
+    weaponinfo_t
+    {
         ammo: am_clip,
         upstate: S_PISTOLUP,
         downstate: S_PISTOLDOWN,
@@ -88,7 +90,8 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         flashstate: S_PISTOLFLASH,
     },
     // shotgun
-    weaponinfo_t {
+    weaponinfo_t
+    {
         ammo: am_shell,
         upstate: S_SGUNUP,
         downstate: S_SGUNDOWN,
@@ -97,7 +100,8 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         flashstate: S_SGUNFLASH1,
     },
     // chaingun
-    weaponinfo_t {
+    weaponinfo_t
+    {
         ammo: am_clip,
         upstate: S_CHAINUP,
         downstate: S_CHAINDOWN,
@@ -105,8 +109,9 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         atkstate: S_CHAIN1,
         flashstate: S_CHAINFLASH1,
     },
-    // missile launcher
-    weaponinfo_t {
+    // rocket launcher
+    weaponinfo_t
+    {
         ammo: am_misl,
         upstate: S_MISSILEUP,
         downstate: S_MISSILEDOWN,
@@ -115,7 +120,8 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         flashstate: S_MISSILEFLASH1,
     },
     // plasma rifle
-    weaponinfo_t {
+    weaponinfo_t
+    {
         ammo: am_cell,
         upstate: S_PLASMAUP,
         downstate: S_PLASMADOWN,
@@ -123,8 +129,9 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         atkstate: S_PLASMA1,
         flashstate: S_PLASMAFLASH1,
     },
-    // bfg 9000
-    weaponinfo_t {
+    // BFG 9000
+    weaponinfo_t
+    {
         ammo: am_cell,
         upstate: S_BFGUP,
         downstate: S_BFGDOWN,
@@ -132,8 +139,9 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         atkstate: S_BFG1,
         flashstate: S_BFGFLASH1,
     },
-    // chainsaw
-    weaponinfo_t {
+    // chainsaw(sucks)
+    weaponinfo_t
+    {
         ammo: am_noammo,
         upstate: S_SAWUP,
         downstate: S_SAWDOWN,
@@ -142,7 +150,8 @@ pub static weaponinfo: [weaponinfo_t; NUMWEAPONS] = [
         flashstate: S_NULL,
     },
     // super shotgun
-    weaponinfo_t {
+    weaponinfo_t
+    {
         ammo: am_shell,
         upstate: S_DSGUNUP,
         downstate: S_DSGUNDOWN,
@@ -159,10 +168,7 @@ mod tests
 
     /// Verify the weapon table has exactly nine entries.
     #[test]
-    fn test_weaponinfo_length()
-    {
-        assert_eq!(weaponinfo.len(), 9);
-    }
+    fn test_weaponinfo_length() { assert_eq!(weaponinfo.len(), 9); }
 
     /// Verify the fist entry uses no ammo and has the correct ready state.
     #[test]
@@ -182,8 +188,5 @@ mod tests
 
     /// Verify `weaponinfo_t` is 24 bytes (six `c_int` fields, 4 bytes each).
     #[test]
-    fn test_weaponinfo_t_size()
-    {
-        assert_eq!(size_of::<weaponinfo_t>(), 24);
-    }
+    fn test_weaponinfo_t_size() { assert_eq!(size_of::<weaponinfo_t>(), 24); }
 }

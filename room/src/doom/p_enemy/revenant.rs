@@ -42,10 +42,7 @@ pub static mut TRACEANGLE: c_int = 0xc000000 as c_int;
 #[export_name = "A_SkelMissile"]
 pub unsafe extern "C" fn action_skel_missile(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     super::attacks::action_face_target(actor);
     (*actor).z += 16 as c_int * FRACUNIT;
     let mo: *mut mobj_t = P_SpawnMissile(actor, (*actor).target, MT_TRACER);
@@ -78,10 +75,7 @@ pub unsafe extern "C" fn action_tracer(actor: *mut mobj_t)
 
     let mut dist: fixed_t;
 
-    if gametic & 3 as c_int != 0
-    {
-        return;
-    }
+    if gametic & 3 as c_int != 0 { return; }
     P_SpawnPuff((*actor).x, (*actor).y, (*actor).z);
     let th: *mut mobj_t = P_SpawnMobj(
         (*actor).x - (*actor).momx,
@@ -91,33 +85,21 @@ pub unsafe extern "C" fn action_tracer(actor: *mut mobj_t)
     );
     (*th).momz = FRACUNIT as fixed_t;
     (*th).tics -= P_Random() & 3 as c_int;
-    if (*th).tics < 1 as c_int
-    {
-        (*th).tics = 1 as c_int;
-    }
+    if(*th).tics < 1 as c_int { (*th).tics = 1 as c_int; }
     let dest: *mut mobj_t = (*actor).tracer;
-    if dest.is_null() || (*dest).health <= 0 as c_int
-    {
-        return;
-    }
+    if dest.is_null() || (*dest).health <= 0 as c_int { return; }
     exact = R_PointToAngle2((*actor).x, (*actor).y, (*dest).x, (*dest).y);
     if exact != (*actor).angle
     {
         if exact.wrapping_sub((*actor).angle) > 0x80000000 as c_uint
         {
             (*actor).angle = (*actor).angle.wrapping_sub(TRACEANGLE as angle_t);
-            if exact.wrapping_sub((*actor).angle) < 0x80000000 as c_uint
-            {
-                (*actor).angle = exact;
-            }
+            if exact.wrapping_sub((*actor).angle) < 0x80000000 as c_uint { (*actor).angle = exact; }
         }
         else
         {
             (*actor).angle = (*actor).angle.wrapping_add(TRACEANGLE as angle_t);
-            if exact.wrapping_sub((*actor).angle) > 0x80000000 as c_uint
-            {
-                (*actor).angle = exact;
-            }
+            if exact.wrapping_sub((*actor).angle) > 0x80000000 as c_uint { (*actor).angle = exact; }
         }
     }
     exact = (*actor).angle >> ANGLETOFINESHIFT;
@@ -131,19 +113,10 @@ pub unsafe extern "C" fn action_tracer(actor: *mut mobj_t)
     );
     dist = P_AproxDistance((*dest).x - (*actor).x, (*dest).y - (*actor).y);
     dist = (dist as c_int / (*((*actor).info as *mut MobjInfo)).speed) as fixed_t;
-    if dist < 1 as c_int
-    {
-        dist = 1 as c_int as fixed_t;
-    }
+    if dist < 1 as c_int { dist = 1 as c_int as fixed_t; }
     let slope: fixed_t = ((*dest).z + 40 as fixed_t * FRACUNIT - (*actor).z) / dist;
-    if slope < (*actor).momz
-    {
-        (*actor).momz -= FRACUNIT / 8 as c_int;
-    }
-    else
-    {
-        (*actor).momz += FRACUNIT / 8 as c_int;
-    };
+    if slope < (*actor).momz { (*actor).momz -= FRACUNIT / 8 as c_int; }
+    else { (*actor).momz += FRACUNIT / 8 as c_int; };
 }
 
 /// Revenant melee wind-up: faces the target and plays the whoosh sound.
@@ -155,10 +128,7 @@ pub unsafe extern "C" fn action_tracer(actor: *mut mobj_t)
 #[export_name = "A_SkelWhoosh"]
 pub unsafe extern "C" fn action_skel_whoosh(actor: *mut mobj_t)
 {
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     super::attacks::action_face_target(actor);
     S_StartSound(actor as *mut c_void, Sfx::Skeswg as c_int);
 }
@@ -176,10 +146,7 @@ pub unsafe extern "C" fn action_skel_fist(actor: *mut mobj_t)
 {
     let damage: c_int;
 
-    if (*actor).target.is_null()
-    {
-        return;
-    }
+    if(*actor).target.is_null() { return; }
     super::attacks::action_face_target(actor);
     if check_melee_range(actor).is_truthy()
     {

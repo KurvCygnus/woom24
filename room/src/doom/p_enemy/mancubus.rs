@@ -78,9 +78,9 @@ pub unsafe extern "C" fn action_fat_attack2(actor: *mut mobj_t)
     let target: *mut mobj_t = P_SubstNullMobj((*actor).target);
     P_SpawnMissile(actor, target, MT_FATSHOT);
     let mo: *mut mobj_t = P_SpawnMissile(actor, target, MT_FATSHOT);
-    (*mo).angle = (*mo)
-        .angle
-        .wrapping_sub((FATSPREAD * 2 as c_int) as angle_t);
+    (*mo).angle = (*mo).
+        angle.
+        wrapping_sub((FATSPREAD * 2 as c_int) as angle_t);
     let an: c_int = ((*mo).angle >> ANGLETOFINESHIFT) as c_int;
     (*mo).momx = FixedMul(
         (*((*mo).info as *mut MobjInfo)).speed as fixed_t,
@@ -111,9 +111,9 @@ pub unsafe extern "C" fn action_fat_attack3(actor: *mut mobj_t)
     action_face_target(actor);
     let target: *mut mobj_t = P_SubstNullMobj((*actor).target);
     mo = P_SpawnMissile(actor, target, MT_FATSHOT);
-    (*mo).angle = (*mo)
-        .angle
-        .wrapping_sub((FATSPREAD / 2 as c_int) as angle_t);
+    (*mo).angle = (*mo).
+        angle.
+        wrapping_sub((FATSPREAD / 2 as c_int) as angle_t);
     an = ((*mo).angle >> ANGLETOFINESHIFT) as c_int;
     (*mo).momx = FixedMul(
         (*((*mo).info as *mut MobjInfo)).speed as fixed_t,
@@ -124,9 +124,9 @@ pub unsafe extern "C" fn action_fat_attack3(actor: *mut mobj_t)
         finesine[an as usize],
     );
     mo = P_SpawnMissile(actor, target, MT_FATSHOT);
-    (*mo).angle = (*mo)
-        .angle
-        .wrapping_add((FATSPREAD / 2 as c_int) as angle_t);
+    (*mo).angle = (*mo).
+        angle.
+        wrapping_add((FATSPREAD / 2 as c_int) as angle_t);
     an = ((*mo).angle >> ANGLETOFINESHIFT) as c_int;
     (*mo).momx = FixedMul(
         (*((*mo).info as *mut MobjInfo)).speed as fixed_t,

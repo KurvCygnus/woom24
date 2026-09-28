@@ -49,10 +49,7 @@ use super::ticcmd::{
 /// lifetime of the returned pointer.
 #[doc(alias = "DEH_String")]
 #[inline]
-pub(super) unsafe fn deh_string(s: *const c_char) -> *const c_char
-{
-    s
-}
+pub(super) unsafe fn deh_string(s: *const c_char) -> *const c_char { s }
 
 // ---------------------------------------------------------------------------
 // G_Responder
@@ -84,62 +81,49 @@ pub unsafe extern "C" fn responder(ev: *mut event_t) -> boolean
     let ev = &*ev;
 
     // Spy mode changes even during demo
-    if gamestate == GS_LEVEL
-        && ev.type_ == 0 // ev_keydown
-        && ev.data1 == key_spy
-        && (singledemo != 0 || deathmatch == 0)
-    {
-        loop
+    if gamestate == GS_LEVEL &&
+        ev.type_ == 0 && // ev_keydown
+        ev.data1 == key_spy &&
+        (singledemo != 0 || deathmatch == 0)
         {
-            displayplayer += 1;
-            if displayplayer == MAXPLAYERS as c_int
+            loop
             {
-                displayplayer = 0;
+                displayplayer += 1;
+                if displayplayer == MAXPLAYERS as c_int
+                {
+                    displayplayer = 0;
+                }
+                if playeringame[displayplayer as usize] != 0 || displayplayer == consoleplayer
+                {
+                    break;
+                }
             }
-            if playeringame[displayplayer as usize] != 0 || displayplayer == consoleplayer
-            {
-                break;
-            }
+            return 1;
         }
-        return 1;
-    }
 
     // Any key pops up menu if in demos
-    if gameaction == ga_nothing
-        && singledemo == 0
-        && (demoplayback != 0 || gamestate == GS_DEMOSCREEN)
-    {
-        if ev.type_ == 0 // ev_keydown
-            || (ev.type_ == 2 && ev.data1 != 0) // ev_mouse with buttons
-            || (ev.type_ == 3 && ev.data1 != 0)
-        // ev_joystick with buttons
+    if gameaction == ga_nothing &&
+        singledemo == 0 &&
+        (demoplayback != 0 || gamestate == GS_DEMOSCREEN)
         {
-            M_StartControlPanel();
-            return 1;
+            if ev.type_ == 0 || // ev_keydown
+                (ev.type_ == 2 && ev.data1 != 0) || // ev_mouse with buttons
+                (ev.type_ == 3 && ev.data1 != 0)    // ev_joystick with buttons
+                {
+                    M_StartControlPanel();
+                    return 1;
+                }
+            return 0;
         }
-        return 0;
-    }
 
     if gamestate == GS_LEVEL
     {
-        if HU_Responder(ev as *const event_t as *mut event_t) != 0
-        {
-            return 1;
-        }
-        if ST_Responder(ev as *const event_t as *mut event_t) != 0
-        {
-            return 1;
-        }
-        if AM_Responder(ev as *const event_t as *mut event_t) != 0
-        {
-            return 1;
-        }
+        if HU_Responder(ev as *const event_t as *mut event_t) != 0 { return 1; }
+        if ST_Responder(ev as *const event_t as *mut event_t) != 0 { return 1; }
+        if AM_Responder(ev as *const event_t as *mut event_t) != 0 { return 1; }
     }
 
-    if gamestate == GS_FINALE && F_Responder(ev as *const event_t as *mut event_t) != 0
-    {
-        return 1;
-    }
+    if gamestate == GS_FINALE && F_Responder(ev as *const event_t as *mut event_t) != 0 { return 1; }
 
     if testcontrols != 0 && ev.type_ == 2
     {
@@ -148,37 +132,22 @@ pub unsafe extern "C" fn responder(ev: *mut event_t) -> boolean
     }
 
     // Prev/next weapon keys
-    if ev.type_ == 0 && ev.data1 == key_prevweapon
-    {
-        NEXT_WEAPON = -1;
-    }
-    else if ev.type_ == 0 && ev.data1 == key_nextweapon
-    {
-        NEXT_WEAPON = 1;
-    }
+    if ev.type_ == 0 && ev.data1 == key_prevweapon { NEXT_WEAPON = -1; }
+    else if ev.type_ == 0 && ev.data1 == key_nextweapon { NEXT_WEAPON = 1; }
 
     match ev.type_
     {
         0 =>
         {
             // ev_keydown
-            if ev.data1 == key_pause
-            {
-                sendpause = 1;
-            }
-            else if (ev.data1 as usize) < NUMKEYS
-            {
-                GAMEKEYDOWN[ev.data1 as usize] = 1;
-            }
+            if ev.data1 == key_pause { sendpause = 1; }
+            else if (ev.data1 as usize) < NUMKEYS { GAMEKEYDOWN[ev.data1 as usize] = 1; }
             return 1;
         }
         1 =>
         {
             // ev_keyup
-            if (ev.data1 as usize) < NUMKEYS
-            {
-                GAMEKEYDOWN[ev.data1 as usize] = 0;
-            }
+            if (ev.data1 as usize) < NUMKEYS { GAMEKEYDOWN[ev.data1 as usize] = 0; }
             return 0;
         }
         2 =>
@@ -198,8 +167,7 @@ pub unsafe extern "C" fn responder(ev: *mut event_t) -> boolean
             JOYSTRAFEMOVE = ev.data4;
             return 1;
         }
-        _ =>
-        {}
+        _ => {}
     }
     0
 }

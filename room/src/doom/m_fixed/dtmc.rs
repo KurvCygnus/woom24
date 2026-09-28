@@ -28,10 +28,7 @@ use super::{fixed_t, FRACBITS};
 /// playback depends on. Pure computation -- no state, no threading
 /// assumptions.
 #[doc(alias = "FixedMul")]
-pub extern "C" fn fixed_mul(a: fixed_t, b: fixed_t) -> fixed_t
-{
-    ((a as i64 * b as i64) >> FRACBITS) as fixed_t
-}
+pub extern "C" fn fixed_mul(a: fixed_t, b: fixed_t) -> fixed_t { ((a as i64 * b as i64) >> FRACBITS) as fixed_t }
 
 /// 16.16 fixed-point division with the upstream saturation guard,
 /// bit-exact with upstream `FixedDiv`
@@ -64,21 +61,12 @@ pub extern "C" fn fixed_mul(a: fixed_t, b: fixed_t) -> fixed_t
 #[doc(alias = "FixedDiv")]
 pub extern "C" fn fixed_div(a: fixed_t, b: fixed_t) -> fixed_t
 {
-    if (a.wrapping_abs() >> 14) >= b.wrapping_abs()
+    if(a.wrapping_abs() >> 14) >= b.wrapping_abs()
     {
-        if (a ^ b) < 0
-        {
-            i32::MIN
-        }
-        else
-        {
-            i32::MAX
-        }
+        if(a ^ b) < 0 { i32::MIN }
+        else { i32::MAX }
     }
-    else
-    {
-        (((a as i64) << 16) / b as i64) as fixed_t
-    }
+    else { (((a as i64) << 16) / b as i64) as fixed_t }
 }
 
 #[cfg(test)]
@@ -164,53 +152,32 @@ mod tests
 
     /// `1.0 * 1.0 == 1.0` in 16.16.
     #[test]
-    fn mul_identity()
-    {
-        assert_eq!(fixed_mul(1 << 16, 1 << 16), 1 << 16);
-    }
+    fn mul_identity() { assert_eq!(fixed_mul(1 << 16, 1 << 16), 1 << 16); }
 
     /// `0.5 * 2.0 == 1.0` in 16.16.
     #[test]
-    fn mul_half_times_two()
-    {
-        assert_eq!(fixed_mul(1 << 15, 2 << 16), 1 << 16);
-    }
+    fn mul_half_times_two() { assert_eq!(fixed_mul(1 << 15, 2 << 16), 1 << 16); }
 
     /// `-1.0 * 1.0 == -1.0` in 16.16 (sign preserved through `>>`).
     #[test]
-    fn mul_negative()
-    {
-        assert_eq!(fixed_mul(-(1 << 16), 1 << 16), -(1 << 16));
-    }
+    fn mul_negative() { assert_eq!(fixed_mul(-(1 << 16), 1 << 16), -(1 << 16)); }
 
     /// `3.0 / 1.0 == 3.0` in 16.16.
     #[test]
-    fn div_one()
-    {
-        assert_eq!(fixed_div(3 << 16, 1 << 16), 3 << 16);
-    }
+    fn div_one() { assert_eq!(fixed_div(3 << 16, 1 << 16), 3 << 16); }
 
     /// Positive overflow saturates to `INT_MAX`.
     #[test]
-    fn div_saturates_pos()
-    {
-        assert_eq!(fixed_div(i32::MAX, 1), i32::MAX);
-    }
+    fn div_saturates_pos() { assert_eq!(fixed_div(i32::MAX, 1), i32::MAX); }
 
     /// Negative overflow (positive / negative) saturates to `INT_MIN`.
     #[test]
-    fn div_saturates_neg()
-    {
-        assert_eq!(fixed_div(i32::MAX, -1), i32::MIN);
-    }
+    fn div_saturates_neg() { assert_eq!(fixed_div(i32::MAX, -1), i32::MIN); }
 
     /// Regression guard: `fixed_div(INT_MIN, x)` must not panic on the
     /// `abs(INT_MIN)` step; Rust's `wrapping_abs` keeps the call defined.
     #[test]
-    fn div_min_no_panic()
-    {
-        let _ = fixed_div(i32::MIN, 1 << 16);
-    }
+    fn div_min_no_panic() { let _ = fixed_div(i32::MIN, 1 << 16); }
 
     /// Any operand of 0 yields 0.
     #[test]

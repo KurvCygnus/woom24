@@ -21,9 +21,9 @@ use super::malloc;
 /// (the pointed-to `iwad_t` entries must not be freed). Corresponds to
 /// `D_FindAllIWADs` in `d_iwad.c`.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below.
-//* Dead-but-exported (zero callers in the tree): kept for symbol-set
-//* byte-identity, retires with the freeze zone (p_spec precedent).
+/// The pre-move export symbol is kept with `#[export_name]` below.
+/// Dead-but-exported (zero callers in the tree): kept for symbol-set
+/// byte-identity, retires with the freeze zone (p_spec precedent).
 ///
 /// # Safety
 /// The returned pointer must be freed with `free` when no longer needed.
@@ -31,16 +31,12 @@ use super::malloc;
 #[export_name = "D_FindAllIWADs"]
 pub unsafe extern "C" fn find_all_iwads(mask: c_int) -> *mut *const iwad_t
 {
-    let result =
-        malloc(std::mem::size_of::<*const iwad_t>() * (IWADS.len() + 1)) as *mut *const iwad_t;
+    let result = malloc(size_of::<*const iwad_t>() * (IWADS.len() + 1)) as *mut *const iwad_t;
     let mut result_len: usize = 0;
 
     for i in 0..IWADS.len()
     {
-        if ((1 << IWADS[i].mission) & mask) == 0
-        {
-            continue;
-        }
+        if((1 << IWADS[i].mission) & mask) == 0 { continue; }
 
         let filename = super::find::find_wad_by_name(IWADS[i].name);
 
@@ -66,20 +62,14 @@ pub unsafe extern "C" fn find_all_iwads(mask: c_int) -> *mut *const iwad_t
 ///
 /// Called from `d_main.c`.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below;
-//* the freeze-zone caller `d_main.rs` imports the upstream name
-//* through the root shim.
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// the freeze-zone caller `d_main.rs` imports the upstream name
+/// through the root shim.
 #[doc(alias = "D_SaveGameIWADName")]
 #[export_name = "D_SaveGameIWADName"]
 pub unsafe extern "C" fn save_game_iwad_name(gamemission: c_int) -> *mut c_char
 {
-    for i in 0..IWADS.len()
-    {
-        if gamemission == IWADS[i].mission
-        {
-            return IWADS[i].name;
-        }
-    }
+    for i in 0..IWADS.len() { if gamemission == IWADS[i].mission { return IWADS[i].name; } }
     c"unknown.wad".as_ptr().cast_mut()
 }
 
@@ -90,20 +80,14 @@ pub unsafe extern "C" fn save_game_iwad_name(gamemission: c_int) -> *mut c_char
 /// found. The returned pointer points into a static string and must not be
 /// freed. Corresponds to `D_SuggestIWADName` in `d_iwad.c`.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below.
-//* Dead-but-exported (zero callers in the tree): kept for symbol-set
-//* byte-identity, retires with the freeze zone (p_spec precedent).
+/// The pre-move export symbol is kept with `#[export_name]` below.
+/// Dead-but-exported (zero callers in the tree): kept for symbol-set
+/// byte-identity, retires with the freeze zone (p_spec precedent).
 #[doc(alias = "D_SuggestIWADName")]
 #[export_name = "D_SuggestIWADName"]
 pub unsafe extern "C" fn suggest_iwad_name(mission: c_int, mode: c_int) -> *mut c_char
 {
-    for i in 0..IWADS.len()
-    {
-        if IWADS[i].mission == mission && IWADS[i].mode == mode
-        {
-            return IWADS[i].name;
-        }
-    }
+    for i in 0..IWADS.len() { if IWADS[i].mission == mission && IWADS[i].mode == mode { return IWADS[i].name; } }
     c"unknown.wad".as_ptr().cast_mut()
 }
 
@@ -115,9 +99,9 @@ pub unsafe extern "C" fn suggest_iwad_name(mission: c_int, mode: c_int) -> *mut 
 /// found. The returned pointer points into a static string and must not be
 /// freed. Called from `w_wad.c`.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below;
-//* the graduated consumer `w_wad/iwad.rs` imports the upstream name
-//* through the root shim.
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// the graduated consumer `w_wad/iwad.rs` imports the upstream name
+/// through the root shim.
 #[doc(alias = "D_SuggestGameName")]
 #[export_name = "D_SuggestGameName"]
 pub unsafe extern "C" fn suggest_game_name(mission: c_int, mode: c_int) -> *mut c_char
@@ -137,13 +121,10 @@ pub unsafe extern "C" fn suggest_game_name(mission: c_int, mode: c_int) -> *mut 
 /// This function is intentionally a no-op. The C original also provides an
 /// empty implementation in the doomgeneric fork. No validation is performed.
 ///
-//* The pre-move export symbol is kept with `#[export_name]` below;
-//* the pre-move signature is SAFE `pub extern "C"` and stays safe
-//* (signature-parity rule). Dead-but-exported: retires with the
-//* freeze zone. See the module-root archaeology note.
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// the pre-move signature is SAFE `pub extern "C"` and stays safe
+/// (signature-parity rule). Dead-but-exported: retires with the
+/// freeze zone. See the module-root archaeology note.
 #[doc(alias = "D_CheckCorrectIWAD")]
 #[export_name = "D_CheckCorrectIWAD"]
-pub extern "C" fn check_correct_iwad(_mission: c_int)
-{
-    // Not implemented in original C codebase.
-}
+pub extern "C" fn check_correct_iwad(_mission: c_int) { /* Not implemented in original C codebase. */ }

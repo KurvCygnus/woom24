@@ -98,7 +98,8 @@ pub mod ticcmd;
 // d_player.rs:220-232 (see the extern-by-symbol contract above).
 // ---------------------------------------------------------------------------
 
-extern "C" {
+extern "C"
+{
     /// Global array of player state structs; defined in C (`g_game.c`).
     ///
     /// Index 0 is the local player when `consoleplayer == 0`.  Slots

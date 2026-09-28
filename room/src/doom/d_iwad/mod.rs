@@ -129,7 +129,8 @@ use std::ffi::{c_char, c_int, c_void};
 // declarer). Never re-point to Rust paths while the freeze zone exists.
 // ---------------------------------------------------------------------------
 
-extern "C" {
+extern "C"
+{
     /// Returns non-zero if `filename` names an existing regular file.
     fn M_FileExists(filename: *mut c_char) -> c_int;
 

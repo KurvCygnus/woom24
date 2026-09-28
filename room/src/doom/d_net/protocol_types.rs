@@ -38,7 +38,8 @@ const SHA1_DIGEST_SIZE: usize = 20;
 /// `tests` module.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NetConnectDataT {
+pub struct NetConnectDataT
+{
     /// Integer encoding of `GameMode_t` (shareware, registered, commercial, …).
     pub gamemode: c_int,
     /// Integer encoding of `GameMission_t` (doom, doom2, heretic, …).
@@ -74,7 +75,8 @@ pub struct NetConnectDataT {
 /// `tests` module.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct NetGameSettingsT {
+pub struct NetGameSettingsT
+{
     /// Number of game tics to duplicate per network packet (for lag
     /// compensation). Always 1 in single-player.
     pub ticdup: c_int,
@@ -126,7 +128,8 @@ pub struct NetGameSettingsT {
 /// `tests` module.
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct LoopInterfaceT {
+pub struct LoopInterfaceT
+{
     /// Called once per tic to drain the event queue. Bound to `D_ProcessEvents`.
     pub ProcessEvents: Option<unsafe extern "C" fn()>,
     /// Called to build a new [`TiccmdT`] from current input state. Bound to
@@ -158,10 +161,10 @@ mod tests
     {
         let _g = LOCK.lock().unwrap();
         assert_eq!(
-            std::mem::size_of::<NetConnectDataT>(),
+            size_of::<NetConnectDataT>(),
             NET_CONNECT_DATA_T_SIZEOF,
             "NetConnectDataT size mismatch: Rust={}, expected={}",
-            std::mem::size_of::<NetConnectDataT>(),
+            size_of::<NetConnectDataT>(),
             NET_CONNECT_DATA_T_SIZEOF,
         );
     }
@@ -171,10 +174,10 @@ mod tests
     {
         let _g = LOCK.lock().unwrap();
         assert_eq!(
-            std::mem::size_of::<NetGameSettingsT>(),
+            size_of::<NetGameSettingsT>(),
             NET_GAMESETTINGS_T_SIZEOF,
             "NetGameSettingsT size mismatch: Rust={}, expected={}",
-            std::mem::size_of::<NetGameSettingsT>(),
+            size_of::<NetGameSettingsT>(),
             NET_GAMESETTINGS_T_SIZEOF,
         );
     }
@@ -184,10 +187,10 @@ mod tests
     {
         let _g = LOCK.lock().unwrap();
         assert_eq!(
-            std::mem::size_of::<LoopInterfaceT>(),
+            size_of::<LoopInterfaceT>(),
             LOOP_INTERFACE_T_SIZEOF,
             "LoopInterfaceT size mismatch: Rust={}, expected={}",
-            std::mem::size_of::<LoopInterfaceT>(),
+            size_of::<LoopInterfaceT>(),
             LOOP_INTERFACE_T_SIZEOF,
         );
     }

@@ -1,9 +1,9 @@
 //! The cheat-matcher vocabulary: the `cheatseq_t` state struct and its
 //! length constants. The struct is consumer-owned state -- instances
 //! live in `st_stuff` / `am_map` statics, never here.
-
-// Belt-and-suspenders (see p_spec/anims.rs): `cheatseq_t` and the C-suffix
-// type names carry the allow regardless of toolchain lint probing.
+//!
+//! Belt-and-suspenders (see p_spec/anims.rs): `cheatseq_t` and the C-suffix
+//! type names carry the allow regardless of toolchain lint probing.
 #![allow(non_camel_case_types)]
 
 use std::ffi::{c_char, c_int};
@@ -41,11 +41,12 @@ pub const MAX_CHEAT_PARAMS: usize = 5;
 ///   (padding 3)       -> offset 49-51
 /// Total: 52 bytes
 ///
-//* The layout comments and the size asserts below are LP64-policy
-//* model-aware guards (spec 3); the c_tests LP64 gate reads these
-//* conventions -- keep them intact.
+/// The layout comments and the size asserts below are LP64-policy
+/// model-aware guards (spec 3); the c_tests LP64 gate reads these
+/// conventions -- keep them intact.
 #[repr(C)]
-pub struct cheatseq_t {
+pub struct cheatseq_t
+{
     /// NUL-terminated cheat sequence bytes (e.g. `"IDKFA"`).
     pub sequence: [c_char; MAX_CHEAT_LEN],
     /// Declared sequence length (vanilla uses this to suppress short
@@ -64,12 +65,12 @@ pub struct cheatseq_t {
 
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(
-    std::mem::size_of::<cheatseq_t>() == 72,
+    size_of::<cheatseq_t>() == 72,
     "cheatseq_t size mismatch on 64-bit platform"
 );
 
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(
-    std::mem::size_of::<cheatseq_t>() == 52,
+    size_of::<cheatseq_t>() == 52,
     "cheatseq_t size mismatch on 32-bit platform"
 );

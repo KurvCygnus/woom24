@@ -17,10 +17,7 @@ use super::state::{prndindex, rndindex};
 pub extern "C" fn P_Random() -> c_int
 {
     let (idx, val) = dtmc::random_advance(unsafe { prndindex });
-    unsafe
-    {
-        prndindex = idx;
-    }
+    unsafe { prndindex = idx; }
     val
 }
 
@@ -32,10 +29,7 @@ pub extern "C" fn P_Random() -> c_int
 pub extern "C" fn M_Random() -> c_int
 {
     let (idx, val) = dtmc::random_advance(unsafe { rndindex });
-    unsafe
-    {
-        rndindex = idx;
-    }
+    unsafe { rndindex = idx; }
     val
 }
 
@@ -98,10 +92,7 @@ mod tests
         M_Random();
         P_Random();
         M_ClearRandom();
-        unsafe
-        {
-            assert_eq!(rndindex, 0);
-        }
+        unsafe { assert_eq!(rndindex, 0); }
     }
 
     /// Two `P_Random` calls should leave `prndindex` at 2 and return
@@ -113,10 +104,7 @@ mod tests
         M_ClearRandom();
         assert_eq!(P_Random(), RNDTABLE[1] as c_int);
         assert_eq!(P_Random(), RNDTABLE[2] as c_int);
-        unsafe
-        {
-            assert_eq!(prndindex, 2);
-        }
+        unsafe { assert_eq!(prndindex, 2); }
     }
 
     /// `M_ClearRandom` must zero `prndindex` (in addition to `rndindex`,
@@ -128,10 +116,7 @@ mod tests
         P_Random();
         P_Random();
         M_ClearRandom();
-        unsafe
-        {
-            assert_eq!(prndindex, 0);
-        }
+        unsafe { assert_eq!(prndindex, 0); }
     }
 
     /// After exactly 256 calls to M_Random the index wraps back to 0,
@@ -143,15 +128,9 @@ mod tests
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         let first = M_Random();
-        for _ in 1..256
-        {
-            M_Random();
-        }
+        for _ in 1..256 { M_Random(); }
         // 256 calls done; rndindex = (0 + 256) & 0xFF = 0
-        unsafe
-        {
-            assert_eq!(rndindex, 0);
-        }
+        unsafe { assert_eq!(rndindex, 0); }
         // 257th call should match the first (RNDTABLE[1])
         assert_eq!(M_Random(), first);
     }
@@ -164,10 +143,7 @@ mod tests
         let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         M_ClearRandom();
         // advance M five steps
-        for _ in 0..5
-        {
-            M_Random();
-        }
+        for _ in 0..5 { M_Random(); }
         // P cursor is still at 0; first P_Random returns RNDTABLE[1]
         assert_eq!(P_Random(), RNDTABLE[1] as c_int);
     }

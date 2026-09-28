@@ -58,13 +58,9 @@ unsafe fn handle_player_quit(player_idx: usize)
     EXITMSG[7] += player_idx as c_char;
 
     playeringame[player_idx] = 0;
-    (*std::ptr::addr_of_mut!(players[0]).offset(consoleplayer as isize)).message =
-        std::ptr::addr_of_mut!(EXITMSG[0]);
+    (*std::ptr::addr_of_mut!(players[0]).offset(consoleplayer as isize)).message = std::ptr::addr_of_mut!(EXITMSG[0]);
 
-    if demorecording != 0
-    {
-        G_CheckDemoStatus();
-    }
+    if demorecording != 0 { G_CheckDemoStatus(); }
 }
 
 /// Advance the game by one tic using the provided player commands.
@@ -87,26 +83,18 @@ unsafe fn handle_player_quit(player_idx: usize)
 #[doc(alias = "RunTic")]
 unsafe extern "C" fn run_tic(cmds: *mut TiccmdT, ingame: *mut c_int)
 {
-    for i in 0..MAXPLAYERS
-    {
-        if demoplayback == 0 && playeringame[i] != 0 && *ingame.add(i) == 0
-        {
-            handle_player_quit(i);
-        }
-    }
+    for i in 0..MAXPLAYERS { if demoplayback == 0 && playeringame[i] != 0 && *ingame.add(i) == 0 { handle_player_quit(i); } }
 
     netcmds = cmds;
 
-    extern "C" {
+    extern "C"
+    {
         /// Flag set by the attract-mode sequencer when the demo loop should
         /// advance to the next entry (next demo, intermission screen, etc.).
         /// Defined in `d_main.c`; consumed here to call `D_DoAdvanceDemo`.
         static mut advancedemo: c_int;
     }
-    if advancedemo != 0
-    {
-        D_DoAdvanceDemo();
-    }
+    if advancedemo != 0 { D_DoAdvanceDemo(); }
 
     G_Ticker();
 }

@@ -113,39 +113,48 @@ struct WeaponOrder
 /// scan direction: indices 0..=8 are walked clockwise (forward direction)
 /// or counter-clockwise (back), skipping unavailable weapons.
 static WEAPON_ORDER_TABLE: [WeaponOrder; 9] = [
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: wp_fist,
         weapon_num: wp_fist,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: wp_chainsaw,
         weapon_num: wp_fist,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: wp_pistol,
         weapon_num: wp_pistol,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: 3,
         /* shotgun */ weapon_num: 3,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: 8,
         /* supershotgun */ weapon_num: 3,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: 4,
         /* chaingun */ weapon_num: 4,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: wp_plasma - 1,
-        /* missile */ weapon_num: wp_plasma - 1,
+        /* rocket */ weapon_num: wp_plasma - 1,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: wp_plasma,
         weapon_num: wp_plasma,
     },
-    WeaponOrder {
+    WeaponOrder
+    {
         weapon: wp_bfg,
         weapon_num: wp_bfg,
     },
@@ -168,14 +177,8 @@ static WEAPON_ORDER_TABLE: [WeaponOrder; 9] = [
 unsafe fn logical_gamemission() -> c_int
 {
     use crate::doom::d_mode::{doom2, pack_plut, pack_tnt};
-    if gamemission == pack_tnt || gamemission == pack_plut
-    {
-        doom2
-    }
-    else
-    {
-        gamemission
-    }
+    if gamemission == pack_tnt || gamemission == pack_plut { doom2 }
+    else { gamemission }
 }
 
 // ---------------------------------------------------------------------------
@@ -201,10 +204,7 @@ unsafe fn logical_gamemission() -> c_int
 #[inline]
 unsafe fn mouse_button(n: c_int) -> boolean
 {
-    if n < 0 || n >= MAX_MOUSE_BUTTONS as c_int
-    {
-        return 0;
-    }
+    if n < 0 || n >= MAX_MOUSE_BUTTONS as c_int { return 0; }
     MOUSEARRAY[(n + 1) as usize]
 }
 
@@ -216,10 +216,7 @@ unsafe fn mouse_button(n: c_int) -> boolean
 #[inline]
 unsafe fn joy_button(n: c_int) -> boolean
 {
-    if n < 0 || n >= MAX_JOY_BUTTONS as c_int
-    {
-        return 0;
-    }
+    if n < 0 || n >= MAX_JOY_BUTTONS as c_int { return 0; }
     JOYARRAY[(n + 1) as usize]
 }
 
@@ -246,27 +243,15 @@ unsafe fn joy_button(n: c_int) -> boolean
 unsafe fn weapon_selectable(weapon: c_int) -> bool
 {
     // Can't select supershotgun in Doom 1.
-    if weapon == wp_supershotgun && logical_gamemission() == doom
-    {
-        return false;
-    }
+    if weapon == wp_supershotgun && logical_gamemission() == doom { return false; }
     // Plasma and BFG unavailable in shareware.
-    if (weapon == wp_plasma || weapon == wp_bfg) && gamemission == doom && gamemode == shareware
-    {
-        return false;
-    }
+    if (weapon == wp_plasma || weapon == wp_bfg) && gamemission == doom && gamemode == shareware { return false; }
     let cp = consoleplayer as usize;
-    if players[cp].weaponowned[weapon as usize] == 0
-    {
-        return false;
-    }
+    if players[cp].weaponowned[weapon as usize] == 0 { return false; }
     // Can't select fist if we have chainsaw, unless we also have berserk.
-    if weapon == wp_fist
-        && players[cp].weaponowned[wp_chainsaw as usize] != 0
-        && players[cp].powers[pw_strength] == 0
-    {
-        return false;
-    }
+    if weapon == wp_fist &&
+        players[cp].weaponowned[wp_chainsaw as usize] != 0 &&
+        players[cp].powers[pw_strength] == 0 { return false; }
     true
 }
 
@@ -292,23 +277,14 @@ unsafe fn weapon_selectable(weapon: c_int) -> bool
 unsafe fn next_weapon_slot(direction: c_int) -> c_int
 {
     let cp = consoleplayer as usize;
-    let weapon = if players[cp].pendingweapon == wp_nochange
-    {
-        players[cp].readyweapon
-    }
-    else
-    {
-        players[cp].pendingweapon
-    };
+    let weapon = if players[cp].pendingweapon == wp_nochange { players[cp].readyweapon }
+    else { players[cp].pendingweapon };
 
     let n = WEAPON_ORDER_TABLE.len() as c_int;
     let mut i = 0;
     while i < n
     {
-        if WEAPON_ORDER_TABLE[i as usize].weapon == weapon
-        {
-            break;
-        }
+        if WEAPON_ORDER_TABLE[i as usize].weapon == weapon { break; }
         i += 1;
     }
 
@@ -317,10 +293,7 @@ unsafe fn next_weapon_slot(direction: c_int) -> c_int
     {
         i += direction;
         i = (i + n) % n;
-        if i == start_i || weapon_selectable(WEAPON_ORDER_TABLE[i as usize].weapon)
-        {
-            break;
-        }
+        if i == start_i || weapon_selectable(WEAPON_ORDER_TABLE[i as usize].weapon) { break; }
     }
     WEAPON_ORDER_TABLE[i as usize].weapon_num
 }
@@ -367,112 +340,61 @@ pub unsafe extern "C" fn build_ticcmd(cmd: *mut TiccmdT, maketic: c_int)
 
     cmd.consistancy = consistancy[consoleplayer as usize][(maketic as usize) % BACKUPTICS];
 
-    let strafe = (GAMEKEYDOWN[key_strafe as usize] != 0)
-        || (mouse_button(mousebstrafe) != 0)
-        || (joy_button(joybstrafe) != 0);
+    let strafe = (GAMEKEYDOWN[key_strafe as usize] != 0) ||
+        (mouse_button(mousebstrafe) != 0) ||
+        (joy_button(joybstrafe) != 0);
 
     // "joyb_speed = 31" autorun hack: key_speed >= NUMKEYS means always running
-    let speed = (key_speed >= NUMKEYS as c_int)
-        || (joybspeed >= MAX_JOY_BUTTONS as c_int)
-        || (GAMEKEYDOWN[key_speed as usize] != 0)
-        || (joy_button(joybspeed) != 0);
+    let speed = (key_speed >= NUMKEYS as c_int) ||
+        (joybspeed >= MAX_JOY_BUTTONS as c_int) ||
+        (GAMEKEYDOWN[key_speed as usize] != 0) ||
+        (joy_button(joybspeed) != 0);
     let speed = speed as usize;
 
     let mut forward: c_int = 0;
     let mut side: c_int = 0;
 
     // Two-stage accelerative turning
-    if JOYXMOVE != 0 || GAMEKEYDOWN[key_right as usize] != 0 || GAMEKEYDOWN[key_left as usize] != 0
-    {
-        TURNHELD += ticdup;
-    }
-    else
-    {
-        TURNHELD = 0;
-    }
+    if JOYXMOVE != 0 || GAMEKEYDOWN[key_right as usize] != 0 || GAMEKEYDOWN[key_left as usize] != 0 { TURNHELD += ticdup; }
+    else { TURNHELD = 0; }
 
     let tspeed = if TURNHELD < 6 { 2usize } else { speed };
 
     if strafe
     {
-        if GAMEKEYDOWN[key_right as usize] != 0
-        {
-            side += sidemove[speed];
-        }
-        if GAMEKEYDOWN[key_left as usize] != 0
-        {
-            side -= sidemove[speed];
-        }
-        if JOYXMOVE > 0
-        {
-            side += sidemove[speed];
-        }
-        if JOYXMOVE < 0
-        {
-            side -= sidemove[speed];
-        }
+        if GAMEKEYDOWN[key_right as usize] != 0 { side += sidemove[speed]; }
+        if GAMEKEYDOWN[key_left as usize] != 0 { side -= sidemove[speed]; }
+        if JOYXMOVE > 0 { side += sidemove[speed]; }
+        if JOYXMOVE < 0 { side -= sidemove[speed]; }
     }
     else
     {
-        if GAMEKEYDOWN[key_right as usize] != 0
-        {
-            cmd.angleturn -= angleturn[tspeed] as i16;
-        }
-        if GAMEKEYDOWN[key_left as usize] != 0
-        {
-            cmd.angleturn += angleturn[tspeed] as i16;
-        }
-        if JOYXMOVE > 0
-        {
-            cmd.angleturn -= angleturn[tspeed] as i16;
-        }
-        if JOYXMOVE < 0
-        {
-            cmd.angleturn += angleturn[tspeed] as i16;
-        }
+        if GAMEKEYDOWN[key_right as usize] != 0 { cmd.angleturn -= angleturn[tspeed] as i16; }
+        if GAMEKEYDOWN[key_left as usize] != 0 { cmd.angleturn += angleturn[tspeed] as i16; }
+        if JOYXMOVE > 0 { cmd.angleturn -= angleturn[tspeed] as i16; }
+        if JOYXMOVE < 0 { cmd.angleturn += angleturn[tspeed] as i16; }
     }
 
-    if GAMEKEYDOWN[key_up as usize] != 0
-    {
-        forward += forwardmove[speed];
-    }
-    if GAMEKEYDOWN[key_down as usize] != 0
-    {
-        forward -= forwardmove[speed];
-    }
-    if JOYYMOVE < 0
-    {
-        forward += forwardmove[speed];
-    }
-    if JOYYMOVE > 0
-    {
-        forward -= forwardmove[speed];
-    }
+    if GAMEKEYDOWN[key_up as usize] != 0 { forward += forwardmove[speed]; }
+    if GAMEKEYDOWN[key_down as usize] != 0 { forward -= forwardmove[speed]; }
+    if JOYYMOVE < 0 { forward += forwardmove[speed]; }
+    if JOYYMOVE > 0 { forward -= forwardmove[speed]; }
 
-    if GAMEKEYDOWN[key_strafeleft as usize] != 0
-        || joy_button(joybstrafeleft) != 0
-        || mouse_button(mousebstrafeleft) != 0
-        || JOYSTRAFEMOVE < 0
-    {
-        side -= sidemove[speed];
-    }
-    if GAMEKEYDOWN[key_straferight as usize] != 0
-        || joy_button(joybstraferight) != 0
-        || mouse_button(mousebstraferight) != 0
-        || JOYSTRAFEMOVE > 0
-    {
-        side += sidemove[speed];
-    }
+    if GAMEKEYDOWN[key_strafeleft as usize] != 0 ||
+        joy_button(joybstrafeleft) != 0 ||
+        mouse_button(mousebstrafeleft) != 0 ||
+        JOYSTRAFEMOVE < 0 { side -= sidemove[speed]; }
+    if GAMEKEYDOWN[key_straferight as usize] != 0 ||
+        joy_button(joybstraferight) != 0 ||
+        mouse_button(mousebstraferight) != 0 ||
+        JOYSTRAFEMOVE > 0 { side += sidemove[speed]; }
 
     // Buttons
     cmd.chatchar = HU_dequeueChatChar() as u8;
 
-    if GAMEKEYDOWN[key_fire as usize] != 0
-        || mouse_button(mousebfire) != 0
-        || joy_button(joybfire) != 0
-    {
-        cmd.buttons |= BT_ATTACK;
-    }
+    if GAMEKEYDOWN[key_fire as usize] != 0 ||
+        mouse_button(mousebfire) != 0 ||
+        joy_button(joybfire) != 0 { cmd.buttons |= BT_ATTACK; }
 
     if GAMEKEYDOWN[key_use as usize] != 0 || joy_button(joybuse) != 0 || mouse_button(mousebuse) != 0
     {
@@ -512,14 +434,8 @@ pub unsafe extern "C" fn build_ticcmd(cmd: *mut TiccmdT, maketic: c_int)
     NEXT_WEAPON = 0;
 
     // Mouse forward/backward
-    if mouse_button(mousebforward) != 0
-    {
-        forward += forwardmove[speed];
-    }
-    if mouse_button(mousebbackward) != 0
-    {
-        forward -= forwardmove[speed];
-    }
+    if mouse_button(mousebforward) != 0 { forward += forwardmove[speed]; }
+    if mouse_button(mousebbackward) != 0 { forward -= forwardmove[speed]; }
 
     // Double-click use
     if dclick_use != 0
@@ -527,19 +443,13 @@ pub unsafe extern "C" fn build_ticcmd(cmd: *mut TiccmdT, maketic: c_int)
         if mouse_button(mousebforward) != DCLICKSTATE && DCLICKTIME > 1
         {
             DCLICKSTATE = mouse_button(mousebforward);
-            if DCLICKSTATE != 0
-            {
-                DCLICKS += 1;
-            }
+            if DCLICKSTATE != 0 { DCLICKS += 1; }
             if DCLICKS == 2
             {
                 cmd.buttons |= BT_USE;
                 DCLICKS = 0;
             }
-            else
-            {
-                DCLICKTIME = 0;
-            }
+            else { DCLICKTIME = 0; }
         }
         else
         {
@@ -555,19 +465,13 @@ pub unsafe extern "C" fn build_ticcmd(cmd: *mut TiccmdT, maketic: c_int)
         if bstrafe != DCLICKSTATE2 && DCLICKTIME2 > 1
         {
             DCLICKSTATE2 = bstrafe;
-            if DCLICKSTATE2 != 0
-            {
-                DCLICKS2 += 1;
-            }
+            if DCLICKSTATE2 != 0 { DCLICKS2 += 1; }
             if DCLICKS2 == 2
             {
                 cmd.buttons |= BT_USE;
                 DCLICKS2 = 0;
             }
-            else
-            {
-                DCLICKTIME2 = 0;
-            }
+            else { DCLICKTIME2 = 0; }
         }
         else
         {
@@ -581,40 +485,19 @@ pub unsafe extern "C" fn build_ticcmd(cmd: *mut TiccmdT, maketic: c_int)
     }
 
     forward += MOUSEY;
-    if strafe
-    {
-        side += MOUSEX * 2;
-    }
-    else
-    {
-        cmd.angleturn -= (MOUSEX * 0x8) as i16;
-    }
+    if strafe { side += MOUSEX * 2; }
+    else { cmd.angleturn -= (MOUSEX * 0x8) as i16; }
 
-    if MOUSEX == 0
-    {
-        testcontrols_mousespeed = 0;
-    }
+    if MOUSEX == 0 { testcontrols_mousespeed = 0; }
     MOUSEX = 0;
     MOUSEY = 0;
 
     // Clamp movement
     let maxplmove = forwardmove[1];
-    if forward > maxplmove
-    {
-        forward = maxplmove;
-    }
-    else if forward < -maxplmove
-    {
-        forward = -maxplmove;
-    }
-    if side > maxplmove
-    {
-        side = maxplmove;
-    }
-    else if side < -maxplmove
-    {
-        side = -maxplmove;
-    }
+    if forward > maxplmove { forward = maxplmove; }
+    else if forward < -maxplmove { forward = -maxplmove; }
+    if side > maxplmove { side = maxplmove; }
+    else if side < -maxplmove { side = -maxplmove; }
 
     cmd.forwardmove = (cmd.forwardmove as c_int + forward) as i8;
     cmd.sidemove = (cmd.sidemove as c_int + side) as i8;
@@ -659,14 +542,8 @@ pub(super) unsafe fn set_joy_buttons(buttons_mask: c_uint)
         let button_on = ((buttons_mask >> i) & 1) != 0;
         if JOYARRAY[i + 1] == 0 && button_on
         {
-            if i as c_int == joybprevweapon
-            {
-                NEXT_WEAPON = -1;
-            }
-            else if i as c_int == joybnextweapon
-            {
-                NEXT_WEAPON = 1;
-            }
+            if i as c_int == joybprevweapon { NEXT_WEAPON = -1; }
+            else if i as c_int == joybnextweapon { NEXT_WEAPON = 1; }
         }
         JOYARRAY[i + 1] = button_on as boolean;
     }
@@ -686,14 +563,8 @@ pub(super) unsafe fn set_mouse_buttons(buttons_mask: c_uint)
         let button_on = ((buttons_mask >> i) & 1) != 0;
         if MOUSEARRAY[i + 1] == 0 && button_on
         {
-            if i as c_int == mousebprevweapon
-            {
-                NEXT_WEAPON = -1;
-            }
-            else if i as c_int == mousebnextweapon
-            {
-                NEXT_WEAPON = 1;
-            }
+            if i as c_int == mousebprevweapon { NEXT_WEAPON = -1; }
+            else if i as c_int == mousebnextweapon { NEXT_WEAPON = 1; }
         }
         MOUSEARRAY[i + 1] = button_on as boolean;
     }
@@ -710,10 +581,7 @@ mod tests
     use crate::doom::m_controls::key_right;
 
     /// Helper returning a freshly zeroed [`TiccmdT`] for test assembly.
-    fn zeroed_cmd() -> TiccmdT
-    {
-        unsafe { std::mem::zeroed() }
-    }
+    fn zeroed_cmd() -> TiccmdT { unsafe { std::mem::zeroed() } }
 
     /// The live `build_ticcmd` lowres path produces exactly the pure
     /// vectors pinned in `dtmc::lowres_turn_round_baseline_vectors` --

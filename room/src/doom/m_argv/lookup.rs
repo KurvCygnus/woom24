@@ -14,9 +14,9 @@ use crate::doom::crt::strcasecmp;
 /// Returns the matched argument index (1..argc-num_args) or 0 if not
 /// present. Comparison is case-insensitive.
 ///
-//* Freeze-zone legacy `extern "C"` blocks link this function by its
-//* upstream C symbol (`d_iwad.rs`), so the symbol is pinned with
-//* `#[export_name]` instead of being dropped with the rename.
+/// Freeze-zone legacy `extern "C"` blocks link this function by its
+/// upstream C symbol (`d_iwad.rs`), so the symbol is pinned with
+/// `#[export_name]` instead of being dropped with the rename.
 ///
 /// # Safety
 /// - `myargv` must either be null (empty command line) or point at
@@ -31,10 +31,7 @@ pub extern "C" fn check_parm_with_args(check: *const c_char, num_args: c_int) ->
         let mut i: c_int = 1;
         while i < myargc - num_args
         {
-            if strcasecmp(check, *myargv.offset(i as isize) as *const c_char) == 0
-            {
-                return i;
-            }
+            if strcasecmp(check, *myargv.offset(i as isize) as *const c_char) == 0 { return i; }
             i += 1;
         }
         0
@@ -50,10 +47,7 @@ pub extern "C" fn check_parm_with_args(check: *const c_char, num_args: c_int) ->
 /// # Safety
 /// - Same preconditions as [`check_parm_with_args`].
 #[doc(alias = "M_ParmExists")]
-pub extern "C" fn parm_exists(check: *const c_char) -> c_int
-{
-    (check_parm(check) != 0) as c_int
-}
+pub extern "C" fn parm_exists(check: *const c_char) -> c_int { (check_parm(check) != 0) as c_int }
 
 /// `int M_CheckParm(char *check)` — convenience wrapper for
 /// `M_CheckParmWithArgs(check, 0)`.
@@ -68,10 +62,7 @@ pub extern "C" fn parm_exists(check: *const c_char) -> c_int
 /// - Same preconditions as [`check_parm_with_args`].
 #[doc(alias = "M_CheckParm")]
 #[export_name = "M_CheckParm"]
-pub extern "C" fn check_parm(check: *const c_char) -> c_int
-{
-    check_parm_with_args(check, 0)
-}
+pub extern "C" fn check_parm(check: *const c_char) -> c_int { check_parm_with_args(check, 0) }
 
 /// Baseline vectors for the pure command-line parm lookup, written
 /// against the pre-move `M_CheckParmWithArgs` body and re-pointed to
@@ -97,10 +88,10 @@ mod tests
     //* globals afterwards.
     unsafe fn install_argv(args: &[&str])
     {
-        let ptrs: Vec<*mut c_char> = args
-            .iter()
-            .map(|s| CString::new(*s).unwrap().into_raw())
-            .collect();
+        let ptrs: Vec<*mut c_char> = args.
+            iter().
+            map(|s| CString::new(*s).unwrap().into_raw()).
+            collect();
         myargv = Vec::leak(ptrs).as_mut_ptr();
         myargc = args.len() as c_int;
     }

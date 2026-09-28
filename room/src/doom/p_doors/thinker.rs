@@ -38,15 +38,15 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
 {
     let res: c_int;
 
-    match (*door).direction
+    match(*door).direction
     {
         0 =>
         {
             // WAITING
             (*door).topcountdown -= 1;
-            if (*door).topcountdown == 0
+            if(*door).topcountdown == 0
             {
-                match (*door).r#type
+                match(*door).r#type
                 {
                     x if x == vld_blazeRaise =>
                     {
@@ -72,8 +72,7 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
                             Sfx::Doropn as c_int,
                         );
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
         }
@@ -81,9 +80,9 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
         {
             // INITIAL WAIT
             (*door).topcountdown -= 1;
-            if (*door).topcountdown == 0
+            if(*door).topcountdown == 0
             {
-                match (*door).r#type
+                match(*door).r#type
                 {
                     x if x == vld_raiseIn5Mins =>
                     {
@@ -94,8 +93,7 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
                             Sfx::Doropn as c_int,
                         );
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
         }
@@ -112,7 +110,7 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
             );
             if res == result_pastdest
             {
-                match (*door).r#type
+                match(*door).r#type
                 {
                     x if x == vld_blazeRaise || x == vld_blazeClose =>
                     {
@@ -133,18 +131,14 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
                         (*door).direction = 0;
                         (*door).topcountdown = TICRATE * 30;
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
             else if res == result_crushed
             {
                 match (*door).r#type
                 {
-                    x if x == vld_blazeClose || x == vld_close =>
-                    {
-                        // DO NOT GO BACK UP!
-                    }
+                    x if x == vld_blazeClose || x == vld_close => { /* DO NOT GO BACK UP! */ }
                     _ =>
                     {
                         (*door).direction = 1;
@@ -162,7 +156,7 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
             res = T_MovePlane((*door).sector, (*door).speed, (*door).topheight, 0, 1, 1);
             if res == result_pastdest
             {
-                match (*door).r#type
+                match(*door).r#type
                 {
                     x if x == vld_blazeRaise || x == vld_normal =>
                     {
@@ -174,12 +168,10 @@ pub unsafe extern "C" fn T_VerticalDoor(door: *mut vldoor_t)
                         (*(*door).sector).specialdata = std::ptr::null_mut();
                         P_RemoveThinker(&mut (*door).thinker);
                     }
-                    _ =>
-                    {}
+                    _ => {}
                 }
             }
         }
-        _ =>
-        {}
+        _ => {}
     }
 }

@@ -31,14 +31,8 @@ type CffiMobj = super::consts::CffiMobj;
 #[inline]
 fn abs(x: c_int) -> c_int
 {
-    if x < 0
-    {
-        -x
-    }
-    else
-    {
-        x
-    }
+    if x < 0 { -x }
+    else { x }
 }
 
 /// The corpse most recently selected by `PIT_VileCheck` for resurrection; written by
@@ -75,39 +69,25 @@ pub static mut viletryy: fixed_t = 0;
 #[export_name = "PIT_VileCheck"]
 pub unsafe extern "C" fn pit_vile_check(thing: *mut mobj_t) -> Boolean
 {
-    if (*thing).flags & MF_CORPSE as c_int == 0
-    {
-        return Boolean::TRUE;
-    }
-    if (*thing).tics != -1 as c_int
-    {
-        return Boolean::TRUE;
-    }
-    if (*((*thing).info as *mut MobjInfo)).raisestate == S_NULL as c_int
-    {
-        return Boolean::TRUE;
-    }
-    let maxdist: c_int =
-        (*((*thing).info as *mut MobjInfo)).radius + mobjinfo[MT_VILE as c_int as usize].radius;
-    if ((*thing).x as c_int - viletryx as c_int).abs() > maxdist
-        || ((*thing).y as c_int - viletryy as c_int).abs() > maxdist
-    {
-        return Boolean::TRUE;
-    }
+    if(*thing).flags & MF_CORPSE as c_int == 0 { return Boolean::TRUE; }
+    if(*thing).tics != -1 as c_int { return Boolean::TRUE; }
+    if(*((*thing).info as *mut MobjInfo)).raisestate == S_NULL as c_int { return Boolean::TRUE; }
+    let maxdist: c_int = (*((*thing).info as *mut MobjInfo)).radius + mobjinfo[MT_VILE as c_int as usize].radius;
+    
+    if((*thing).x as c_int - viletryx as c_int).abs() > maxdist || ((*thing).y as c_int - viletryy as c_int).abs() > maxdist { return Boolean::TRUE; }
     corpsehit = thing;
     (*corpsehit).momy = 0 as c_int as fixed_t;
     (*corpsehit).momx = (*corpsehit).momy;
     (*corpsehit).height <<= 2 as c_int;
-    let check: Boolean = Boolean::from_raw(P_CheckPosition(
-        corpsehit as *mut CffiMobj,
-        (*corpsehit).x,
-        (*corpsehit).y,
-    ));
+    let check: Boolean = Boolean::from_raw(
+        P_CheckPosition(
+            corpsehit as *mut CffiMobj,
+            (*corpsehit).x,
+            (*corpsehit).y,
+        )
+    );
     (*corpsehit).height >>= 2 as c_int;
-    if check.is_false()
-    {
-        return Boolean::TRUE;
-    }
+    if check.is_false() { return Boolean::TRUE; }
     Boolean::FALSE
 }
 
@@ -141,26 +121,14 @@ pub unsafe extern "C" fn action_vile_chase(actor: *mut mobj_t)
 
     let temp: *mut mobj_t;
 
-    if (*actor).movedir != DI_NODIR as c_int
+    if(*actor).movedir != DI_NODIR as c_int
     {
-        viletryx = (*actor).x
-            + (*((*actor).info as *mut MobjInfo)).speed as fixed_t
-                * xspeed[(*actor).movedir as usize];
-        viletryy = (*actor).y
-            + (*((*actor).info as *mut MobjInfo)).speed as fixed_t
-                * yspeed[(*actor).movedir as usize];
-        xl = (viletryx as c_int - bmaporgx as c_int - 32 as c_int * FRACUNIT
-            * 2 as c_int)
-            >> MAPBLOCKSHIFT;
-        xh = (viletryx as c_int - bmaporgx as c_int + 32 as c_int * FRACUNIT
-            * 2 as c_int)
-            >> MAPBLOCKSHIFT;
-        yl = (viletryy as c_int - bmaporgy as c_int - 32 as c_int * FRACUNIT
-            * 2 as c_int)
-            >> MAPBLOCKSHIFT;
-        yh = (viletryy as c_int - bmaporgy as c_int + 32 as c_int * FRACUNIT
-            * 2 as c_int)
-            >> MAPBLOCKSHIFT;
+        viletryx = (*actor).x + (*((*actor).info as *mut MobjInfo)).speed as fixed_t             * xspeed[(*actor).movedir as usize];
+        viletryy = (*actor).y + (*((*actor).info as *mut MobjInfo)).speed as fixed_t * yspeed[(*actor).movedir as usize];
+        xl = (viletryx as c_int - bmaporgx as c_int - 32 as c_int * FRACUNIT * 2 as c_int) >> MAPBLOCKSHIFT;
+        xh = (viletryx as c_int - bmaporgx as c_int + 32 as c_int * FRACUNIT * 2 as c_int) >> MAPBLOCKSHIFT;
+        yl = (viletryy as c_int - bmaporgy as c_int - 32 as c_int * FRACUNIT * 2 as c_int) >> MAPBLOCKSHIFT;
+        yh = (viletryy as c_int - bmaporgy as c_int + 32 as c_int * FRACUNIT * 2 as c_int) >> MAPBLOCKSHIFT;
         vileobj = actor;
         bx = xl;
         while bx <= xh
@@ -171,10 +139,12 @@ pub unsafe extern "C" fn action_vile_chase(actor: *mut mobj_t)
                 if P_BlockThingsIterator(
                     bx,
                     by,
-                    Some(core::mem::transmute::<
-                        unsafe extern "C" fn(*mut mobj_t) -> Boolean,
-                        unsafe extern "C" fn(*mut CffiMobj) -> c_uint,
-                    >(pit_vile_check)),
+                    Some(
+                        core::mem::transmute::<
+                            unsafe extern "C" fn(*mut mobj_t) -> Boolean,
+                            unsafe extern "C" fn(*mut CffiMobj) -> c_uint,
+                        >(pit_vile_check)
+                    ),
                 ) == 0
                 {
                     temp = (*actor).target;
@@ -188,7 +158,7 @@ pub unsafe extern "C" fn action_vile_chase(actor: *mut mobj_t)
                     (*corpsehit).height <<= 2 as c_int;
                     (*corpsehit).flags = (*info).flags;
                     (*corpsehit).health = (*info).spawnhealth;
-                    (*corpsehit).target = ::core::ptr::null_mut::<mobj_t>();
+                    (*corpsehit).target = core::ptr::null_mut::<mobj_t>();
                     return;
                 }
                 by += 1;

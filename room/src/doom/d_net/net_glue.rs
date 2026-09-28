@@ -53,14 +53,8 @@ unsafe fn load_game_settings(settings: *mut NetGameSettingsT)
 
     for i in 0..MAXPLAYERS
     {
-        playeringame[i] = if i < (*settings).num_players as usize
-        {
-            1
-        }
-        else
-        {
-            0
-        };
+        playeringame[i] = if i < (*settings).num_players as usize { 1 }
+        else { 0 };
     }
 }
 
@@ -91,14 +85,8 @@ unsafe fn save_game_settings(settings: *mut NetGameSettingsT)
     (*settings).respawn_monsters = respawnparm;
     (*settings).timelimit = timelimit;
     (*settings).lowres_turn =
-        if M_CheckParm(c"-record".as_ptr()) > 0 && M_CheckParm(c"-longtics".as_ptr()) == 0
-        {
-            1
-        }
-        else
-        {
-            0
-        };
+        if M_CheckParm(c"-record".as_ptr()) > 0 && M_CheckParm(c"-longtics".as_ptr()) == 0 { 1 }
+        else { 0 };
 }
 
 /// Populate a `NetConnectDataT` from the current engine state and command line.
@@ -140,26 +128,14 @@ unsafe fn init_connect_data(connect_data: *mut NetConnectDataT)
     (*connect_data).gamemission = gamemission;
 
     (*connect_data).lowres_turn =
-        if M_CheckParm(c"-record".as_ptr()) > 0 && M_CheckParm(c"-longtics".as_ptr()) == 0
-        {
-            1
-        }
-        else
-        {
-            0
-        };
+        if M_CheckParm(c"-record".as_ptr()) > 0 && M_CheckParm(c"-longtics".as_ptr()) == 0 { 1 }
+        else { 0 };
 
     W_Checksum((*connect_data).wad_sha1sum.as_mut_ptr());
 
     let name = b"FREEDOOM\0";
-    (*connect_data).is_freedoom = if W_CheckNumForName(name.as_ptr() as *const c_char) >= 0
-    {
-        1
-    }
-    else
-    {
-        0
-    };
+    (*connect_data).is_freedoom = if W_CheckNumForName(name.as_ptr() as *const c_char) >= 0 { 1 }
+    else { 0 };
 }
 
 /// Default "Player N left the game" message template.
@@ -177,10 +153,7 @@ pub(super) static EXIT_MSG: [u8; 23] = *b"Player 1 left the game\0";
 /// Corresponds to `DEH_String` from `deh_main.h`.
 #[doc(alias = "DEH_String")]
 #[inline(always)]
-pub(super) unsafe fn deh_string(s: *const c_char) -> *const c_char
-{
-    s
-}
+pub(super) unsafe fn deh_string(s: *const c_char) -> *const c_char { s }
 
 /// Initialise the network connection and determine whether a net game is active.
 ///
@@ -194,9 +167,9 @@ pub(super) unsafe fn deh_string(s: *const c_char) -> *const c_char
 /// upstream symbol (`d_main.c` calls it directly, `d_main.rs:1818`).
 /// Corresponds to `D_ConnectNetGame` in `d_net.c`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below
-//* (`#[no_mangle]` drops with the rename; the symbol name set stays
-//* byte-identical).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below
+/// (`#[no_mangle]` drops with the rename; the symbol name set stays
+/// byte-identical).
 #[doc(alias = "D_ConnectNetGame")]
 #[export_name = "D_ConnectNetGame"]
 pub extern "C" fn connect_net_game()
@@ -207,10 +180,7 @@ pub extern "C" fn connect_net_game()
         init_connect_data(&mut connect_data);
         netgame = D_InitNetGame(&mut connect_data);
 
-        if M_CheckParm(c"-solo-net".as_ptr()) > 0
-        {
-            netgame = 1;
-        }
+        if M_CheckParm(c"-solo-net".as_ptr()) > 0 { netgame = 1; }
     }
 }
 
@@ -229,19 +199,16 @@ pub extern "C" fn connect_net_game()
 /// pinned upstream symbol (`d_main.c` calls it directly, `d_main.rs:1901`).
 /// Corresponds to `D_CheckNetGame` in `d_net.c`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below
-//* (`#[no_mangle]` drops with the rename; the symbol name set stays
-//* byte-identical).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below
+/// (`#[no_mangle]` drops with the rename; the symbol name set stays
+/// byte-identical).
 #[doc(alias = "D_CheckNetGame")]
 #[export_name = "D_CheckNetGame"]
 pub extern "C" fn check_net_game()
 {
     unsafe
     {
-        if netgame != 0
-        {
-            autostart = 1;
-        }
+        if netgame != 0 { autostart = 1; }
 
         D_RegisterLoopCallbacks(&raw mut super::loop_table::DOOM_LOOP_INTERFACE);
 

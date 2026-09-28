@@ -35,10 +35,7 @@ use super::{
 pub(super) unsafe fn get_adjusted_time() -> c_int
 {
     let mut time_ms = I_GetTimeMS();
-    if NEW_SYNC != 0
-    {
-        time_ms += offsetms / FRACUNIT;
-    }
+    if NEW_SYNC != 0 { time_ms += offsetms / FRACUNIT; }
     (time_ms * TICRATE) / 1000
 }
 
@@ -72,29 +69,14 @@ unsafe fn build_new_tic() -> bool
     // Always run the menu
     iface.RunMenu.unwrap()();
 
-    if drone != 0
-    {
-        return false;
-    }
+    if drone != 0 { return false; }
 
     if NEW_SYNC != 0
     {
-        if net_client_connected == 0 && MAKETIC - gameticdiv > 2
-        {
-            return false;
-        }
-        if MAKETIC - gameticdiv > 8
-        {
-            return false;
-        }
+        if net_client_connected == 0 && MAKETIC - gameticdiv > 2 { return false; }
+        if MAKETIC - gameticdiv > 8 { return false; }
     }
-    else
-    {
-        if MAKETIC - gameticdiv >= 5
-        {
-            return false;
-        }
-    }
+    else { if MAKETIC - gameticdiv >= 5 { return false; } }
 
     let mut cmd = std::mem::zeroed::<TiccmdT>();
     iface.BuildTiccmd.unwrap()(&mut cmd, MAKETIC);
@@ -117,19 +99,16 @@ unsafe fn build_new_tic() -> bool
 /// expected to call `build_new_tic` directly). Corresponds to `NetUpdate` in
 /// `d_loop.c`. Called from `d_main.c` and `r_main.c`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below
-//* (`#[no_mangle]` drops with the rename; the symbol name set stays
-//* byte-identical).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below
+/// (`#[no_mangle]` drops with the rename; the symbol name set stays
+/// byte-identical).
 #[doc(alias = "NetUpdate")]
 #[export_name = "NetUpdate"]
 pub extern "C" fn net_update()
 {
     unsafe
     {
-        if singletics != 0
-        {
-            return;
-        }
+        if singletics != 0 { return; }
 
         let nowtime = get_adjusted_time() / ticdup;
         let mut newtics = nowtime - LASTTIME;
@@ -146,13 +125,7 @@ pub extern "C" fn net_update()
             newtics = 0;
         }
 
-        for _ in 0..newtics
-        {
-            if !build_new_tic()
-            {
-                break;
-            }
-        }
+        for _ in 0..newtics { if !build_new_tic() { break; } }
     }
 }
 
@@ -169,10 +142,7 @@ pub extern "C" fn net_update()
 unsafe fn get_low_tic() -> c_int
 {
     let mut lowtic = MAKETIC;
-    if net_client_connected != 0 && (drone != 0 || RECVTIC < lowtic)
-    {
-        lowtic = RECVTIC;
-    }
+    if net_client_connected != 0 && (drone != 0 || RECVTIC < lowtic) { lowtic = RECVTIC; }
     lowtic
 }
 
@@ -203,29 +173,17 @@ unsafe fn old_net_sync()
         }
     }
 
-    if keyplayer < 0
-    {
-        return;
-    }
+    if keyplayer < 0 { return; }
 
-    if LOCALPLAYER == keyplayer
-    {
-        // the key player does not adapt
-    }
+    if LOCALPLAYER == keyplayer { /* the key player does not adapt */ }
     else
     {
-        if MAKETIC <= RECVTIC
-        {
-            LASTTIME -= 1;
-        }
+        if MAKETIC <= RECVTIC { LASTTIME -= 1; }
 
         FRAMESKIP[(FRAMEON & 3) as usize] = (OLDNETTICS > RECVTIC) as c_int;
         OLDNETTICS = MAKETIC;
 
-        if FRAMESKIP[0] != 0 && FRAMESKIP[1] != 0 && FRAMESKIP[2] != 0 && FRAMESKIP[3] != 0
-        {
-            SKIPTICS = 1;
-        }
+        if FRAMESKIP[0] != 0 && FRAMESKIP[1] != 0 && FRAMESKIP[2] != 0 && FRAMESKIP[3] != 0 { SKIPTICS = 1; }
     }
 }
 
@@ -243,17 +201,8 @@ unsafe fn old_net_sync()
 unsafe fn players_in_game() -> bool
 {
     let mut result = false;
-    if net_client_connected != 0
-    {
-        for i in 0..NET_MAXPLAYERS
-        {
-            result = result || LOCAL_PLAYERINGAME[i] != 0;
-        }
-    }
-    if drone == 0
-    {
-        result = true;
-    }
+    if net_client_connected != 0 { for i in 0..NET_MAXPLAYERS { result = result || LOCAL_PLAYERINGAME[i] != 0; } }
+    if drone == 0 { result = true; }
     result
 }
 
@@ -274,10 +223,7 @@ unsafe fn ticdup_squash(set: *mut TiccmdSetT)
     {
         let cmd = &mut (*set).cmds[i];
         cmd.chatchar = 0;
-        if cmd.buttons & BT_SPECIAL != 0
-        {
-            cmd.buttons = 0;
-        }
+        if cmd.buttons & BT_SPECIAL != 0 { cmd.buttons = 0; }
     }
 }
 
@@ -288,16 +234,7 @@ unsafe fn ticdup_squash(set: *mut TiccmdSetT)
 ///
 /// # Safety
 /// `set` must be a valid, non-null pointer to a `TiccmdSetT`.
-unsafe fn single_player_clear(set: *mut TiccmdSetT)
-{
-    for i in 0..NET_MAXPLAYERS
-    {
-        if i != LOCALPLAYER as usize
-        {
-            (*set).ingame[i] = 0;
-        }
-    }
-}
+unsafe fn single_player_clear(set: *mut TiccmdSetT) { for i in 0..NET_MAXPLAYERS { if i != LOCALPLAYER as usize { (*set).ingame[i] = 0; } } }
 
 /// Attempts to advance the game by as many tics as time permits.
 ///
@@ -315,9 +252,9 @@ unsafe fn single_player_clear(set: *mut TiccmdSetT)
 ///
 /// Called from `d_main.c`. Corresponds to `TryRunTics` in `d_loop.c`.
 ///
-//* The pre-move wasm/extern symbol is kept with `#[export_name]` below
-//* (`#[no_mangle]` drops with the rename; the symbol name set stays
-//* byte-identical).
+/// The pre-move wasm/extern symbol is kept with `#[export_name]` below
+/// (`#[no_mangle]` drops with the rename; the symbol name set stays
+/// byte-identical).
 #[doc(alias = "TryRunTics")]
 #[export_name = "TryRunTics"]
 pub extern "C" fn try_run_tics()
@@ -329,47 +266,23 @@ pub extern "C" fn try_run_tics()
         let realtics = entertic - OLDENTERTICS;
         OLDENTERTICS = entertic;
 
-        if singletics != 0
-        {
-            build_new_tic();
-        }
-        else
-        {
-            net_update();
-        }
+        if singletics != 0 { build_new_tic(); }
+        else { net_update(); }
 
         let mut lowtic = get_low_tic();
         let availabletics = lowtic - gametic / ticdup;
 
-        let counts: c_int = if NEW_SYNC != 0
-        {
-            availabletics
-        }
+        let counts: c_int = if NEW_SYNC != 0 { availabletics }
         else
         {
             let mut c: c_int;
-            if realtics < availabletics - 1
-            {
-                c = realtics + 1;
-            }
-            else if realtics < availabletics
-            {
-                c = realtics;
-            }
-            else
-            {
-                c = availabletics;
-            }
+            if realtics < availabletics - 1 { c = realtics + 1; }
+            else if realtics < availabletics { c = realtics; }
+            else { c = availabletics; }
 
-            if c < 1
-            {
-                c = 1;
-            }
+            if c < 1 { c = 1; }
 
-            if net_client_connected != 0
-            {
-                old_net_sync();
-            }
+            if net_client_connected != 0 { old_net_sync(); }
 
             c
         };
@@ -378,20 +291,14 @@ pub extern "C" fn try_run_tics()
 
         // Frame/pump cap (woom24 F1 M1 policy — see `pump_tic_cap`). The
         // vanilla path leaves the cap at 0 and is untouched.
-        if pump_tic_cap > 0 && counts > pump_tic_cap
-        {
-            counts = pump_tic_cap;
-        }
+        if pump_tic_cap > 0 && counts > pump_tic_cap { counts = pump_tic_cap; }
 
         while !players_in_game() || lowtic < gametic / ticdup + counts
         {
             net_update();
             lowtic = get_low_tic();
 
-            if lowtic < gametic / ticdup
-            {
-                i_error!("TryRunTics: lowtic < gametic");
-            }
+            if lowtic < gametic / ticdup { i_error!("TryRunTics: lowtic < gametic"); }
 
             // Still no tics to run? Sleep until some are available. The give
             // up is gated on still being short AND on MAX_NETGAME_STALL_TICS
@@ -403,10 +310,7 @@ pub extern "C" fn try_run_tics()
             // window - see task-8-report.md).
             if lowtic < gametic / ticdup + counts
             {
-                if I_GetTime() / ticdup - entertic >= MAX_NETGAME_STALL_TICS
-                {
-                    return;
-                }
+                if I_GetTime() / ticdup - entertic >= MAX_NETGAME_STALL_TICS { return; }
 
                 I_Sleep(1);
             }
@@ -416,29 +320,17 @@ pub extern "C" fn try_run_tics()
         {
             counts -= 1;
 
-            if !players_in_game()
-            {
-                return;
-            }
+            if !players_in_game() { return; }
 
             let set = &mut TICDATA[((gametic / ticdup) as usize) % BACKUPTICS] as *mut TiccmdSetT;
 
-            if net_client_connected == 0
-            {
-                single_player_clear(set);
-            }
+            if net_client_connected == 0 { single_player_clear(set); }
 
             for _ in 0..ticdup
             {
-                if gametic / ticdup > lowtic
-                {
-                    i_error!("gametic>lowtic");
-                }
+                if gametic / ticdup > lowtic { i_error!("gametic>lowtic"); }
 
-                for i in 0..NET_MAXPLAYERS
-                {
-                    LOCAL_PLAYERINGAME[i] = (*set).ingame[i];
-                }
+                for i in 0..NET_MAXPLAYERS { LOCAL_PLAYERINGAME[i] = (*set).ingame[i]; }
 
                 // Render-side interpolation latch (F1 M1): the oldleveltime
                 // mirror + board aging happen BEFORE the tic's movement, the

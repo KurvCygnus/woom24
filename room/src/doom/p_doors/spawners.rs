@@ -30,7 +30,7 @@ use crate::doom::z_zone::{Z_Malloc, PU_LEVSPEC};
 pub unsafe extern "C" fn P_SpawnDoorCloseIn30(sec: *mut sector_t)
 {
     let door = Z_Malloc(
-        std::mem::size_of::<vldoor_t>() as c_int,
+        size_of::<vldoor_t>() as c_int,
         PU_LEVSPEC,
         std::ptr::null_mut(),
     ) as *mut vldoor_t;
@@ -40,10 +40,12 @@ pub unsafe extern "C" fn P_SpawnDoorCloseIn30(sec: *mut sector_t)
     (*sec).specialdata = door as *mut c_void;
     (*sec).special = 0;
 
-    (*door).thinker.function.acp1 = Some(core::mem::transmute::<
-        unsafe extern "C" fn(*mut vldoor_t),
-        unsafe extern "C" fn(*mut c_void),
-    >(T_VerticalDoor));
+    (*door).thinker.function.acp1 = Some(
+        core::mem::transmute::<
+            unsafe extern "C" fn(*mut vldoor_t),
+            unsafe extern "C" fn(*mut c_void),
+        >(T_VerticalDoor)
+    );
     (*door).sector = sec;
     (*door).direction = 0;
     (*door).r#type = vld_normal;
@@ -65,7 +67,7 @@ pub unsafe extern "C" fn P_SpawnDoorCloseIn30(sec: *mut sector_t)
 pub unsafe extern "C" fn P_SpawnDoorRaiseIn5Mins(sec: *mut sector_t, _secnum: c_int)
 {
     let door = Z_Malloc(
-        std::mem::size_of::<vldoor_t>() as c_int,
+        size_of::<vldoor_t>() as c_int,
         PU_LEVSPEC,
         std::ptr::null_mut(),
     ) as *mut vldoor_t;
@@ -75,10 +77,12 @@ pub unsafe extern "C" fn P_SpawnDoorRaiseIn5Mins(sec: *mut sector_t, _secnum: c_
     (*sec).specialdata = door as *mut c_void;
     (*sec).special = 0;
 
-    (*door).thinker.function.acp1 = Some(core::mem::transmute::<
-        unsafe extern "C" fn(*mut vldoor_t),
-        unsafe extern "C" fn(*mut c_void),
-    >(T_VerticalDoor));
+    (*door).thinker.function.acp1 = Some(
+        core::mem::transmute::<
+            unsafe extern "C" fn(*mut vldoor_t),
+            unsafe extern "C" fn(*mut c_void),
+        >(T_VerticalDoor)
+    );
     (*door).sector = sec;
     (*door).direction = 2;
     (*door).r#type = vld_raiseIn5Mins;

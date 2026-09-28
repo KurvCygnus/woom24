@@ -52,13 +52,10 @@ use super::state::cpars;
 #[export_name = "G_CmdChecksum"]
 pub unsafe extern "C" fn ticcmd_checksum(cmd: *const TiccmdT) -> c_int
 {
-    let n = std::mem::size_of::<TiccmdT>() / 4 - 1;
+    let n = size_of::<TiccmdT>() / 4 - 1;
     let words = cmd as *const c_int;
     let mut sum: c_int = 0;
-    for i in 0..n
-    {
-        sum = sum.wrapping_add(*words.add(i));
-    }
+    for i in 0..n { sum = sum.wrapping_add(*words.add(i)); }
     sum
 }
 
@@ -172,20 +169,20 @@ pub fn lowres_turn_round(angleturn: i16, carry: i16) -> (i16, i16)
     (rounded, desired.wrapping_sub(rounded))
 }
 
-//* Teleport-fog offset lookup, extracted from `G_CheckSpot` so the
-//* vanilla-overflow case table is unit-testable without a live level
-//* (the caller needs blockmap, subsectors and the mobj zone).
-//*
-//* Vanilla compiled `(ANG45 * (angle/45)) >> ANGLETOFINESHIFT` with a signed
-//* shift: for angles >= 180 the multiply overflows into the sign bit, so
-//* `an` goes negative and the table lookups land in `finetangent[]`
-//* (docs/vanilla-workarounds.md #6). Chocolate reproduces the observable
-//* values with the switch below, transcribed from
-//* reference/chocolate-doom/src/doom/g_game.c:1223-1268: it deliberately
-//* avoids the overflow and switches on the positive scale
-//* `an = (ANG45 >> ANGLETOFINESHIFT) * (angle/45)` = `1024 * angle/45`,
-//* whose 4096/5120/6144/7168 cases name the overrun indices explicitly.
-//* `None` is chocolate's `default:` arm (`I_Error` in the caller).
+/// Teleport-fog offset lookup, extracted from `G_CheckSpot` so the
+/// vanilla-overflow case table is unit-testable without a live level
+/// (the caller needs blockmap, subsectors and the mobj zone).
+///
+/// Vanilla compiled `(ANG45 * (angle/45)) >> ANGLETOFINESHIFT` with a signed
+/// shift: for angles >= 180 the multiply overflows into the sign bit, so
+/// `an` goes negative and the table lookups land in `finetangent[]`
+/// (docs/vanilla-workarounds.md #6). Chocolate reproduces the observable
+/// values with the switch below, transcribed from
+/// reference/chocolate-doom/src/doom/g_game.c:1223-1268: it deliberately
+/// avoids the overflow and switches on the positive scale
+/// `an = (ANG45 >> ANGLETOFINESHIFT) * (angle/45)` = `1024 * angle/45`,
+/// whose 4096/5120/6144/7168 cases name the overrun indices explicitly.
+/// `None` is chocolate's `default:` arm (`I_Error` in the caller).
 ///
 /// ## Technical Details
 ///
@@ -248,19 +245,19 @@ pub fn teleport_fog_offset(angle: c_int) -> Option<(fixed_t, fixed_t)>
     }
 }
 
-//* Commercial par-time selection for `G_DoCompleted`, extracted so the map33
-//* emulation is unit-testable without a live level completion (same pattern
-//* as `g_check_spot_fog_offset`).
-//*
-//* Chocolate has no special case either: doom2.exe just evaluates
-//* `cpars[gamemap-1]`, and for map 33 that index lands one int past the
-//* array, in the first four bytes of the GAMMALVL0 rodata string adjacent to
-//* `cpars` in the DOS binary. Rust's bounds check would turn that read into
-//* a panic, so the overrun is reproduced explicitly
-//* (docs/vanilla-workarounds.md #9). `None` is the guard arm for maps the
-//* references assign no value to (map <= 0 or > 33): chocolate does a plain
-//* unguarded read there, which we cannot model; the caller raises I_Error.
-//* (The parameter cannot be named `gamemap`: that would shadow the static.)
+/// Commercial par-time selection for `G_DoCompleted`, extracted so the map33
+/// emulation is unit-testable without a live level completion (same pattern
+/// as `g_check_spot_fog_offset`).
+///
+/// Chocolate has no special case either: doom2.exe just evaluates
+/// `cpars[gamemap-1]`, and for map 33 that index lands one int past the
+/// array, in the first four bytes of the GAMMALVL0 rodata string adjacent to
+/// `cpars` in the DOS binary. Rust's bounds check would turn that read into
+/// a panic, so the overrun is reproduced explicitly
+/// (docs/vanilla-workarounds.md #9). `None` is the guard arm for maps the
+/// references assign no value to (map <= 0 or > 33): chocolate does a plain
+/// unguarded read there, which we cannot model; the caller raises I_Error.
+/// (The parameter cannot be named `gamemap`: that would shadow the static.)
 ///
 /// ## Technical Details
 ///
@@ -277,10 +274,13 @@ pub fn commercial_partime(map: c_int) -> Option<c_int>
 {
     match map
     {
-        1..=32 => Some(35 * unsafe {
-            // SAFETY: plain read of a compile-time-initialized table.
-            cpars[(map - 1) as usize]
-        }),
+        1..=32 => Some(
+            35 * unsafe
+            {
+                // SAFETY: plain read of a compile-time-initialized table.
+                cpars[(map - 1) as usize]
+            }
+        ),
         33 =>
         {
             violations::record(VanillaViolation::ParTimeOverrun);
@@ -290,15 +290,15 @@ pub fn commercial_partime(map: c_int) -> Option<c_int>
     }
 }
 
-//* The port's GAMMALVL0 equivalent: the first gamma message ("Gamma
-//* correction OFF", `gammamsg[0]` in m_menu.rs). Reading the live static --
-//* not a frozen copy of the text -- mirrors chocolate's
-//* `DEH_String(GAMMALVL0)` indirection, so a future DSDHacked string
-//* replacement would move map33's par time exactly as chocolate's does.
-//* Chocolate loads the first `sizeof(int)` bytes of the string and runs the
-//* result through `LONG()`, i.e. it interprets the four bytes as
-//* little-endian on every host; `from_le_bytes` is the same
-//* host-independent model.
+/// The port's GAMMALVL0 equivalent: the first gamma message ("Gamma
+/// correction OFF", `gammamsg[0]` in m_menu.rs). Reading the live static --
+/// not a frozen copy of the text -- mirrors chocolate's
+/// `DEH_String(GAMMALVL0)` indirection, so a future DSDHacked string
+/// replacement would move map33's par time exactly as chocolate's does.
+/// Chocolate loads the first `sizeof(int)` bytes of the string and runs the
+/// result through `LONG()`, i.e. it interprets the four bytes as
+/// little-endian on every host; `from_le_bytes` is the same
+/// host-independent model.
 ///
 /// ## Technical Details
 ///
@@ -311,7 +311,8 @@ pub fn commercial_partime(map: c_int) -> Option<c_int>
 /// Reads only; safe under the single-threaded engine convention.
 fn gammalvl0_prefix_i32() -> c_int
 {
-    let bytes = unsafe {
+    let bytes = unsafe
+    {
         // SAFETY: read-only access to a const-initialized table; nothing
         // writes `gammamsg` after initialization.
         [
@@ -351,10 +352,7 @@ mod tests
     use crate::doom::violations::{self, VanillaViolation};
 
     /// Helper returning a freshly zeroed [`TiccmdT`] for test assembly.
-    fn zeroed_cmd() -> TiccmdT
-    {
-        unsafe { std::mem::zeroed() }
-    }
+    fn zeroed_cmd() -> TiccmdT { unsafe { std::mem::zeroed() } }
 
     // --- G_CmdChecksum ---
 
@@ -363,10 +361,7 @@ mod tests
     fn cmdchecksum_all_zeros_is_zero()
     {
         let cmd = zeroed_cmd();
-        unsafe
-        {
-            assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 0);
-        }
+        unsafe { assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 0); }
     }
 
     /// `forwardmove = 1` produces a single bit in the first 4-byte word.
@@ -378,10 +373,7 @@ mod tests
         // With forwardmove=1, rest zero: first int = 0x00_00_00_01 = 1 (little-endian).
         let mut cmd = zeroed_cmd();
         cmd.forwardmove = 1;
-        unsafe
-        {
-            assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 1);
-        }
+        unsafe { assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 1); }
     }
 
     /// The tail-word `lookfly` / `arti` / `_pad` fields are excluded from the sum.
@@ -393,10 +385,7 @@ mod tests
         let mut cmd = zeroed_cmd();
         cmd.lookfly = 0x12;
         cmd.arti = 0x34;
-        unsafe
-        {
-            assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 0);
-        }
+        unsafe { assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 0); }
     }
 
     /// `inventory` sits in word 2 and is included in the checksum.
@@ -406,10 +395,7 @@ mod tests
         // inventory is at bytes 8-11 (word 2), which IS included in the sum.
         let mut cmd = zeroed_cmd();
         cmd.inventory = 1;
-        unsafe
-        {
-            assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 1);
-        }
+        unsafe { assert_eq!(ticcmd_checksum(&cmd as *const TiccmdT), 1); }
     }
 
     // --- G_ReadDemoTiccmd (non-longtics) ---
@@ -532,31 +518,19 @@ mod tests
 
     /// Doom v1.6/v1.666 maps to demo version code 106.
     #[test]
-    fn vanilla_version_exe_doom_1_666_is_106()
-    {
-        assert_eq!(vanilla_version_code_for(exe_doom_1_666), 106);
-    }
+    fn vanilla_version_exe_doom_1_666_is_106() { assert_eq!(vanilla_version_code_for(exe_doom_1_666), 106); }
 
     /// Doom v1.7/v1.7a maps to demo version code 107.
     #[test]
-    fn vanilla_version_exe_doom_1_7_is_107()
-    {
-        assert_eq!(vanilla_version_code_for(exe_doom_1_7), 107);
-    }
+    fn vanilla_version_exe_doom_1_7_is_107() { assert_eq!(vanilla_version_code_for(exe_doom_1_7), 107); }
 
     /// Doom v1.8 maps to demo version code 108.
     #[test]
-    fn vanilla_version_exe_doom_1_8_is_108()
-    {
-        assert_eq!(vanilla_version_code_for(exe_doom_1_8), 108);
-    }
+    fn vanilla_version_exe_doom_1_8_is_108() { assert_eq!(vanilla_version_code_for(exe_doom_1_8), 108); }
 
     /// Doom v1.9 maps to demo version code 109.
     #[test]
-    fn vanilla_version_exe_doom_1_9_is_109()
-    {
-        assert_eq!(vanilla_version_code_for(exe_doom_1_9), 109);
-    }
+    fn vanilla_version_exe_doom_1_9_is_109() { assert_eq!(vanilla_version_code_for(exe_doom_1_9), 109); }
 
     /// Ultimate Doom and later variants share v1.9's demo code (109).
     #[test]
@@ -568,10 +542,7 @@ mod tests
 
     /// Final Doom (`exe_final2`) shares v1.9's demo code (109).
     #[test]
-    fn vanilla_version_exe_final2_is_109()
-    {
-        assert_eq!(vanilla_version_code_for(exe_final2), 109);
-    }
+    fn vanilla_version_exe_final2_is_109() { assert_eq!(vanilla_version_code_for(exe_final2), 109); }
 
     // --- Low-resolution turn rounding (G_BuildTiccmd dtmc extraction) ---
 
@@ -663,9 +634,9 @@ mod tests
         // census, docs/vanilla-workarounds.md #6). The crate-wide census
         // lock spans the snapshot/assert window: no sibling census test's
         // reset_all() may zero the counter in between (see violations.rs).
-        let _census = violations::CENSUS_TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _census = violations::CENSUS_TEST_LOCK.
+            lock().
+            unwrap_or_else(|e| e.into_inner());
         let before = violations::hits(VanillaViolation::TeleportFogAngleOverrun);
         assert!(teleport_fog_offset(180).is_some());
         assert!(
@@ -728,9 +699,9 @@ mod tests
             // overflows the int; debug Rust must wrap, not panic). The
             // crate-wide census lock spans the snapshot/assert window
             // (see violations.rs).
-            let _census = violations::CENSUS_TEST_LOCK
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
+            let _census = violations::CENSUS_TEST_LOCK.
+                lock().
+                unwrap_or_else(|e| e.into_inner());
             let before = violations::hits(VanillaViolation::ParTimeOverrun);
             assert_eq!(commercial_partime(33), Some(35i32.wrapping_mul(cpars32)));
             assert!(

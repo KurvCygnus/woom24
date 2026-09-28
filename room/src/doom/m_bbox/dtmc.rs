@@ -65,22 +65,10 @@ pub fn clear_box(bbox: &mut [fixed_t])
 #[doc(alias = "M_AddToBox")]
 pub fn add_to_box(bbox: &mut [fixed_t], x: fixed_t, y: fixed_t)
 {
-    if x < bbox[BBox::LEFT]
-    {
-        bbox[BBox::LEFT] = x;
-    }
-    else if x > bbox[BBox::RIGHT]
-    {
-        bbox[BBox::RIGHT] = x;
-    }
-    if y < bbox[BBox::BOTTOM]
-    {
-        bbox[BBox::BOTTOM] = y;
-    }
-    else if y > bbox[BBox::TOP]
-    {
-        bbox[BBox::TOP] = y;
-    }
+    if x < bbox[BBox::LEFT] { bbox[BBox::LEFT] = x; }
+    else if x > bbox[BBox::RIGHT] { bbox[BBox::RIGHT] = x; }
+    if y < bbox[BBox::BOTTOM] { bbox[BBox::BOTTOM] = y; }
+    else if y > bbox[BBox::TOP] { bbox[BBox::TOP] = y; }
 }
 
 #[cfg(test)]

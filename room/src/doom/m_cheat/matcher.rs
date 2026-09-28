@@ -14,10 +14,7 @@ use super::types::cheatseq_t;
 ///
 /// Already plain-English snake_case, so it keeps its name (m_random
 /// precedent: no rename, so no shim).
-fn raw_strlen(buf: &[c_char]) -> usize
-{
-    buf.iter().position(|&c| c == 0).unwrap_or(buf.len())
-}
+fn raw_strlen(buf: &[c_char]) -> usize { buf.iter().position(|&c| c == 0).unwrap_or(buf.len()) }
 
 /// `int cht_CheckCheat(cheatseq_t *cht, char key)` — feed one keystroke
 /// into the matcher; returns 1 (true) if the cheat was successfully
@@ -41,23 +38,14 @@ pub extern "C" fn check_cheat(cht: *mut cheatseq_t, key: c_char) -> c_int
 
     // If we make a short sequence on a cheat with parameters, this
     // will not work in vanilla doom. Behave the same.
-    if cht.parameter_chars > 0 && seq_len < cht.sequence_len
-    {
-        return 0; // false
-    }
+    if cht.parameter_chars > 0 && seq_len < cht.sequence_len { return 0; /* false */ }
 
     if cht.chars_read < seq_len
     {
         // Still reading characters from the cheat code and verifying.
         // Reset back to the beginning if a key is wrong.
-        if key == cht.sequence[cht.chars_read]
-        {
-            cht.chars_read += 1;
-        }
-        else
-        {
-            cht.chars_read = 0;
-        }
+        if key == cht.sequence[cht.chars_read] { cht.chars_read += 1; }
+        else { cht.chars_read = 0; }
         cht.param_chars_read = 0;
     }
     else if cht.param_chars_read < cht.parameter_chars
@@ -114,10 +102,7 @@ mod tests
     {
         let mut sequence = [0i8; MAX_CHEAT_LEN];
         let bytes = seq.as_bytes();
-        for (i, &b) in bytes.iter().enumerate()
-        {
-            sequence[i] = b as c_char;
-        }
+        for(i, &b) in bytes.iter().enumerate() { sequence[i] = b as c_char; }
         cheatseq_t
         {
             sequence,
@@ -176,14 +161,8 @@ mod tests
             let result = check_cheat(&mut cheat, *ch as c_char);
             // The cheat has 1 param char, so after typing the sequence
             // we need to also type a param character
-            if *ch == b'A'
-            {
-                assert_eq!(result, 0); // need param still
-            }
-            else
-            {
-                assert_eq!(result, 0);
-            }
+            if *ch == b'A' { assert_eq!(result, 0); /* need param still */ }
+            else { assert_eq!(result, 0); }
         }
         // Now type a param char
         assert_eq!(check_cheat(&mut cheat, b'7' as c_char), 1); // matched!
@@ -195,10 +174,7 @@ mod tests
     fn get_param_copies_buffer()
     {
         let mut cheat = make_cheat("IDKFA", 1);
-        for ch in b"IDKFA"
-        {
-            check_cheat(&mut cheat, *ch as c_char);
-        }
+        for ch in b"IDKFA" { check_cheat(&mut cheat, *ch as c_char); }
         check_cheat(&mut cheat, b'7' as c_char); // completes the cheat
 
         let mut param_buf = [0i8; MAX_CHEAT_PARAMS];
@@ -210,19 +186,13 @@ mod tests
     /// 72 bytes (matches the layout comment on the struct).
     #[test]
     #[cfg(target_pointer_width = "64")]
-    fn struct_size_assertion()
-    {
-        assert_eq!(std::mem::size_of::<cheatseq_t>(), 72);
-    }
+    fn struct_size_assertion() { assert_eq!(size_of::<cheatseq_t>(), 72); }
 
     /// Runtime check that the 32-bit `cheatseq_t` layout still totals
     /// 52 bytes (matches the layout comment on the struct).
     #[test]
     #[cfg(target_pointer_width = "32")]
-    fn struct_size_assertion()
-    {
-        assert_eq!(std::mem::size_of::<cheatseq_t>(), 52);
-    }
+    fn struct_size_assertion() { assert_eq!(std::mem::size_of::<cheatseq_t>(), 52); }
 
     /// Vanilla quirk (m_cheat.c:39-43, Rust guard at the
     /// `parameter_chars > 0` branch): a sequence SHORTER than the
@@ -237,10 +207,7 @@ mod tests
         // guard `seq_len < sequence_len` trips on every keystroke.
         let mut cheat = make_cheat("IDKFA", 2);
         cheat.sequence_len = 6;
-        for ch in b"IDKFA"
-        {
-            assert_eq!(check_cheat(&mut cheat, *ch as c_char), 0);
-        }
+        for ch in b"IDKFA" { assert_eq!(check_cheat(&mut cheat, *ch as c_char), 0); }
         // Even the trailing parameter characters cannot rescue it.
         assert_eq!(check_cheat(&mut cheat, b'0' as c_char), 0);
         assert_eq!(check_cheat(&mut cheat, b'1' as c_char), 0);
@@ -248,10 +215,7 @@ mod tests
         // Positive control: declared length EQUAL to the real
         // sequence fires normally once the parameters are typed.
         let mut control = make_cheat("IDKFA", 2);
-        for ch in b"IDKFA"
-        {
-            assert_eq!(check_cheat(&mut control, *ch as c_char), 0);
-        }
+        for ch in b"IDKFA" { assert_eq!(check_cheat(&mut control, *ch as c_char), 0); }
         assert_eq!(check_cheat(&mut control, b'0' as c_char), 0);
         assert_eq!(check_cheat(&mut control, b'1' as c_char), 1);
     }

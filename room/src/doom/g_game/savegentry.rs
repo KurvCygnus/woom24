@@ -50,7 +50,7 @@ use super::state::{
 #[export_name = "G_LoadGame"]
 pub unsafe extern "C" fn load_game(name: *mut c_char)
 {
-    M_StringCopy(std::ptr::addr_of_mut!(savename[0]), name, 256);
+    M_StringCopy(ptr::addr_of_mut!(savename[0]), name, 256);
     gameaction = ga_loadgame;
 }
 
@@ -74,13 +74,10 @@ pub unsafe extern "C" fn do_load_game()
     gameaction = ga_nothing;
 
     save_stream = libc::fopen(
-        std::ptr::addr_of!(savename[0]),
-        c"rb".as_ptr() as *const libc::c_char,
+        ptr::addr_of!(savename[0]),
+        c"rb".as_ptr() as *const c_char,
     );
-    if save_stream.is_null()
-    {
-        return;
-    }
+    if save_stream.is_null() { return; }
 
     savegame_error = 0;
 
@@ -101,17 +98,11 @@ pub unsafe extern "C" fn do_load_game()
     P_UnArchiveThinkers();
     P_UnArchiveSpecials();
 
-    if P_ReadSaveGameEOF() == 0
-    {
-        I_Error(c"Bad savegame".as_ptr());
-    }
+    if P_ReadSaveGameEOF() == 0 { I_Error(c"Bad savegame".as_ptr()); }
 
     libc::fclose(save_stream);
 
-    if setsizeneeded.is_truthy()
-    {
-        R_ExecuteSetViewSize();
-    }
+    if setsizeneeded.is_truthy() { R_ExecuteSetViewSize(); }
 
     R_FillBackScreen();
 }
@@ -133,7 +124,7 @@ pub unsafe extern "C" fn do_load_game()
 pub unsafe extern "C" fn save_game(slot: c_int, description: *const c_char)
 {
     SAVEGAMESLOT = slot;
-    M_StringCopy(std::ptr::addr_of_mut!(SAVEDESCRIPTION[0]), description, 32);
+    M_StringCopy(ptr::addr_of_mut!(SAVEDESCRIPTION[0]), description, 32);
     sendsave = 1;
 }
 
@@ -163,13 +154,13 @@ pub unsafe extern "C" fn do_save_game()
     let temp_savegame_file = P_TempSaveGameFile();
     let savegame_file = P_SaveGameFile(SAVEGAMESLOT);
 
-    save_stream = libc::fopen(temp_savegame_file, c"wb".as_ptr() as *const libc::c_char);
+    save_stream = libc::fopen(temp_savegame_file, c"wb".as_ptr() as *const c_char);
 
     if save_stream.is_null()
     {
         let recovery = M_TempFile(c"recovery.dsg".as_ptr().cast_mut());
         recovery_savegame_file = recovery;
-        save_stream = libc::fopen(recovery, c"wb".as_ptr() as *const libc::c_char);
+        save_stream = libc::fopen(recovery, c"wb".as_ptr() as *const c_char);
         if save_stream.is_null()
         {
             I_Error(
@@ -177,24 +168,18 @@ pub unsafe extern "C" fn do_save_game()
             );
         }
     }
-    else
-    {
-        recovery_savegame_file = ptr::null_mut();
-    }
+    else { recovery_savegame_file = ptr::null_mut(); }
 
     savegame_error = 0;
 
-    P_WriteSaveGameHeader(std::ptr::addr_of_mut!(SAVEDESCRIPTION[0]));
+    P_WriteSaveGameHeader(ptr::addr_of_mut!(SAVEDESCRIPTION[0]));
     P_ArchivePlayers();
     P_ArchiveWorld();
     P_ArchiveThinkers();
     P_ArchiveSpecials();
     P_WriteSaveGameEOF();
 
-    if vanilla_savegame_limit != 0 && libc::ftell(save_stream) > SAVEGAMESIZE
-    {
-        I_Error(c"Savegame buffer overrun".as_ptr());
-    }
+    if vanilla_savegame_limit != 0 && libc::ftell(save_stream) > SAVEGAMESIZE { I_Error(c"Savegame buffer overrun".as_ptr()); }
 
     libc::fclose(save_stream);
 
@@ -209,7 +194,7 @@ pub unsafe extern "C" fn do_save_game()
     libc::rename(temp_savegame_file, savegame_file);
 
     gameaction = ga_nothing;
-    M_StringCopy(std::ptr::addr_of_mut!(SAVEDESCRIPTION[0]), c"".as_ptr(), 32);
+    M_StringCopy(ptr::addr_of_mut!(SAVEDESCRIPTION[0]), c"".as_ptr(), 32);
 
     players[consoleplayer as usize].message = deh_string(c"game saved.".as_ptr()) as *mut c_char;
 

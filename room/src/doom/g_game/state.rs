@@ -253,15 +253,19 @@ pub static mut wminfo: wbstartstruct_t = wbstartstruct_t {
     maxfrags: 0,
     partime: 0,
     pnum: 0,
-    plyr: [wbplayerstruct_t {
-        in_: 0,
-        skills: 0,
-        sitems: 0,
-        ssecret: 0,
-        stime: 0,
-        frags: [0; 4],
-        score: 0,
-    }; MAXPLAYERS],
+    plyr: [
+        wbplayerstruct_t
+        {
+            in_: 0,
+            skills: 0,
+            sitems: 0,
+            ssecret: 0,
+            stime: 0,
+            frags: [0; 4],
+            score: 0,
+        };
+        MAXPLAYERS
+    ],
 };
 
 /// Net consistency check ring: `consistancy[player][gametic/ticdup % BACKUPTICS]`.
@@ -374,43 +378,19 @@ mod tests
 
     /// `forwardmove[0]` (slow) baseline of 0x19 - guards against accidental edits.
     #[test]
-    fn forwardmove_slow_is_0x19()
-    {
-        unsafe
-        {
-            assert_eq!(forwardmove[0], 0x19);
-        }
-    }
+    fn forwardmove_slow_is_0x19() { unsafe { assert_eq!(forwardmove[0], 0x19); } }
 
     /// `forwardmove[1]` (fast) baseline of 0x32 - also the turbo threshold.
     #[test]
-    fn forwardmove_fast_is_0x32()
-    {
-        unsafe
-        {
-            assert_eq!(forwardmove[1], 0x32);
-        }
-    }
+    fn forwardmove_fast_is_0x32() { unsafe { assert_eq!(forwardmove[1], 0x32); } }
 
     /// `sidemove[0]` (slow) baseline of 0x18.
     #[test]
-    fn sidemove_slow_is_0x18()
-    {
-        unsafe
-        {
-            assert_eq!(sidemove[0], 0x18);
-        }
-    }
+    fn sidemove_slow_is_0x18() { unsafe { assert_eq!(sidemove[0], 0x18); } }
 
     /// `sidemove[1]` (fast) baseline of 0x28.
     #[test]
-    fn sidemove_fast_is_0x28()
-    {
-        unsafe
-        {
-            assert_eq!(sidemove[1], 0x28);
-        }
-    }
+    fn sidemove_fast_is_0x28() { unsafe { assert_eq!(sidemove[1], 0x28); } }
 
     /// `angleturn[]` baseline values (normal / fast / slow).
     #[test]

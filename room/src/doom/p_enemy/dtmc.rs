@@ -40,50 +40,17 @@ use super::consts::mobjtype_t;
 /// re-rolling the byte is a demo desync by construction.
 pub(super) fn spawn_fly_pick(r: c_int) -> mobjtype_t
 {
-    if r < 50 as c_int
-    {
-        MT_TROOP
-    }
-    else if r < 90 as c_int
-    {
-        MT_SERGEANT
-    }
-    else if r < 120 as c_int
-    {
-        MT_SHADOWS
-    }
-    else if r < 130 as c_int
-    {
-        MT_PAIN
-    }
-    else if r < 160 as c_int
-    {
-        MT_HEAD
-    }
-    else if r < 162 as c_int
-    {
-        MT_VILE
-    }
-    else if r < 172 as c_int
-    {
-        MT_UNDEAD
-    }
-    else if r < 192 as c_int
-    {
-        MT_BABY
-    }
-    else if r < 222 as c_int
-    {
-        MT_FATSO
-    }
-    else if r < 246 as c_int
-    {
-        MT_KNIGHT
-    }
-    else
-    {
-        MT_BRUISER
-    }
+    if r < 50 as c_int { MT_TROOP }
+    else if r < 90 as c_int { MT_SERGEANT }
+    else if r < 120 as c_int { MT_SHADOWS }
+    else if r < 130 as c_int { MT_PAIN }
+    else if r < 160 as c_int { MT_HEAD }
+    else if r < 162 as c_int { MT_VILE }
+    else if r < 172 as c_int { MT_UNDEAD }
+    else if r < 192 as c_int { MT_BABY }
+    else if r < 222 as c_int { MT_FATSO }
+    else if r < 246 as c_int { MT_KNIGHT }
+    else { MT_BRUISER }
 }
 
 #[cfg(test)]

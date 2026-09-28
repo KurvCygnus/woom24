@@ -28,7 +28,8 @@ use std::os::raw::c_int;
 /// required here to reach the ABI size on x86-64 Linux.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct TiccmdT {
+pub struct TiccmdT
+{
     /// Signed forward/backward movement unit; multiply by 2048 to get fixed-point speed.
     pub forwardmove: i8,
     /// Signed strafe movement unit; multiply by 2048 to get fixed-point speed.

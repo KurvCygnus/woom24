@@ -13,7 +13,8 @@ use super::player::state_t;
 /// and `ps_flash`), stored in `PlayerT::psprites`.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct PspdefT {
+pub struct PspdefT
+{
     /// Pointer to the current animation state for this sprite overlay.
     pub state: *mut state_t,
     /// Remaining tics in the current animation state; 0 means advance to next.
