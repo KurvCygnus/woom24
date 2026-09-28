@@ -59,10 +59,7 @@ pub unsafe extern "C" fn EV_DoPlat(line: *mut line_t, plattype: c_int, amount: c
 
     match plattype
     {
-        x if x == perpetualRaise =>
-        {
-            P_ActivateInStasis((*line).tag as c_int);
-        }
+        x if x == perpetualRaise => { P_ActivateInStasis((*line).tag as c_int); }
         _ => {}
     }
 
@@ -74,10 +71,7 @@ pub unsafe extern "C" fn EV_DoPlat(line: *mut line_t, plattype: c_int, amount: c
     {
         let sec = sectors.add(secnum as usize);
 
-        if !(*sec).specialdata.is_null()
-        {
-            continue;
-        }
+        if !(*sec).specialdata.is_null() { continue; }
 
         rtn = 1;
         let plat = Z_Malloc(
@@ -130,10 +124,7 @@ pub unsafe extern "C" fn EV_DoPlat(line: *mut line_t, plattype: c_int, amount: c
             {
                 (*plat).speed = PLATSPEED * 4;
                 (*plat).low = P_FindLowestFloorSurrounding(sec);
-                if (*plat).low > (*sec).floorheight
-                {
-                    (*plat).low = (*sec).floorheight;
-                }
+                if(*plat).low > (*sec).floorheight { (*plat).low = (*sec).floorheight; }
                 (*plat).high = (*sec).floorheight;
                 (*plat).wait = TICRATE * PLATWAIT;
                 (*plat).status = down;
@@ -146,10 +137,7 @@ pub unsafe extern "C" fn EV_DoPlat(line: *mut line_t, plattype: c_int, amount: c
             {
                 (*plat).speed = PLATSPEED * 8;
                 (*plat).low = P_FindLowestFloorSurrounding(sec);
-                if (*plat).low > (*sec).floorheight
-                {
-                    (*plat).low = (*sec).floorheight;
-                }
+                if(*plat).low > (*sec).floorheight { (*plat).low = (*sec).floorheight; }
                 (*plat).high = (*sec).floorheight;
                 (*plat).wait = TICRATE * PLATWAIT;
                 (*plat).status = down;
@@ -162,15 +150,9 @@ pub unsafe extern "C" fn EV_DoPlat(line: *mut line_t, plattype: c_int, amount: c
             {
                 (*plat).speed = PLATSPEED;
                 (*plat).low = P_FindLowestFloorSurrounding(sec);
-                if (*plat).low > (*sec).floorheight
-                {
-                    (*plat).low = (*sec).floorheight;
-                }
+                if(*plat).low > (*sec).floorheight { (*plat).low = (*sec).floorheight; }
                 (*plat).high = P_FindHighestFloorSurrounding(sec);
-                if (*plat).high < (*sec).floorheight
-                {
-                    (*plat).high = (*sec).floorheight;
-                }
+                if(*plat).high < (*sec).floorheight { (*plat).high = (*sec).floorheight; }
                 (*plat).wait = TICRATE * PLATWAIT;
                 (*plat).status = P_Random() & 1;
                 S_StartSound(

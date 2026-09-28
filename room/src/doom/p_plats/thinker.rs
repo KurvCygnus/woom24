@@ -90,13 +90,7 @@ pub unsafe extern "C" fn T_PlatRaise(plat: *mut plat_t)
 
                 match (*plat).r#type
                 {
-                    x if x == blazeDWUS
-                        || x == downWaitUpStay
-                        || x == raiseAndChange
-                        || x == raiseToNearestAndChange =>
-                    {
-                        P_RemoveActivePlat(plat);
-                    }
+                    x if x == blazeDWUS || x == downWaitUpStay || x == raiseAndChange || x == raiseToNearestAndChange => { P_RemoveActivePlat(plat); }
                     _ => {}
                 }
             }
