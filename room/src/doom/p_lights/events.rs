@@ -27,15 +27,9 @@ pub extern "C" fn EV_StartLightStrobing(line: *mut line_t)
         loop
         {
             secnum = P_FindSectorFromLineTag(line as *mut cffi::line_t, secnum);
-            if secnum < 0
-            {
-                break;
-            }
+            if secnum < 0 { break; }
             let sec = sectors.add(secnum as usize);
-            if !(*sec).specialdata.is_null()
-            {
-                continue;
-            }
+            if !(*sec).specialdata.is_null() { continue; }
             P_SpawnStrobeFlash(sec as *mut sector_t, SLOWDARK, 0);
         }
     }
@@ -53,25 +47,16 @@ pub extern "C" fn EV_TurnTagLightsOff(line: *mut line_t)
         for j in 0..numsectors as usize
         {
             let sec = sectors.add(j);
-            if (*sec).tag != (*line).tag
-            {
-                continue;
-            }
+            if(*sec).tag != (*line).tag { continue; }
 
             let mut min = (*sec).lightlevel as c_int;
             for i in 0..(*sec).linecount as usize
             {
                 let templine = *(*sec).lines.add(i);
                 let tsec = getNextSector(templine as *mut cffi::line_t, sec);
-                if tsec.is_null()
-                {
-                    continue;
-                }
+                if tsec.is_null() { continue; }
                 let tl = (*tsec).lightlevel as c_int;
-                if tl < min
-                {
-                    min = tl;
-                }
+                if tl < min { min = tl; }
             }
             (*sec).lightlevel = min as i16;
         }
@@ -91,10 +76,7 @@ pub extern "C" fn EV_LightTurnOn(line: *mut line_t, bright: c_int)
         for i in 0..numsectors as usize
         {
             let sec = sectors.add(i);
-            if (*sec).tag != (*line).tag
-            {
-                continue;
-            }
+            if(*sec).tag != (*line).tag { continue; }
 
             if bright == 0
             {
@@ -102,15 +84,9 @@ pub extern "C" fn EV_LightTurnOn(line: *mut line_t, bright: c_int)
                 {
                     let templine = *(*sec).lines.add(j);
                     let temp = getNextSector(templine as *mut cffi::line_t, sec);
-                    if temp.is_null()
-                    {
-                        continue;
-                    }
+                    if temp.is_null() { continue; }
                     let tl = (*temp).lightlevel as c_int;
-                    if tl > bright
-                    {
-                        bright = tl;
-                    }
+                    if tl > bright { bright = tl; }
                 }
             }
             (*sec).lightlevel = bright as i16;

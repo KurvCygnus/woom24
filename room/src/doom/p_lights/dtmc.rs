@@ -32,10 +32,7 @@ use std::ffi::c_int;
 /// reorder the draws: each call site draws exactly once, at the point
 /// the original body drew, interleaved with the sector `lightlevel`
 /// writes.
-pub fn flash_duration(rand: c_int, mask: c_int) -> c_int
-{
-    (rand & mask) + 1
-}
+pub fn flash_duration(rand: c_int, mask: c_int) -> c_int { (rand & mask) + 1 }
 
 /// The fire-flicker light step: compute the sector `lightlevel` a
 /// `T_FireFlicker` thinker writes on a fired tic -- the amount
@@ -67,14 +64,8 @@ pub fn flash_duration(rand: c_int, mask: c_int) -> c_int
 pub fn fire_flicker_level(cur_level: c_int, maxlight: c_int, minlight: c_int, rand: c_int) -> c_int
 {
     let amount = (rand & 3) * 16;
-    if cur_level - amount < minlight
-    {
-        minlight
-    }
-    else
-    {
-        maxlight - amount
-    }
+    if cur_level - amount < minlight { minlight }
+    else { maxlight - amount }
 }
 
 #[cfg(test)]
@@ -92,10 +83,7 @@ mod tests
     /// Read the `prndindex` cursor for assertions without creating a
     /// shared reference to the mutable static (the `static_mut_refs`
     /// hazard a direct `assert_eq!(prndindex, ...)` would trigger).
-    fn prnd_index() -> c_int
-    {
-        unsafe { std::ptr::addr_of!(prndindex).read() }
-    }
+    fn prnd_index() -> c_int { unsafe { std::ptr::addr_of!(prndindex).read() } }
 
     /// Baseline contract (F10 wave A2): these vectors were written
     /// and run against the original in-file draw sites BEFORE the

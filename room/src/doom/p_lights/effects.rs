@@ -136,10 +136,7 @@ pub struct glow_t
 pub unsafe extern "C" fn T_FireFlicker(flick: *mut fireflicker_t)
 {
     (*flick).count -= 1;
-    if (*flick).count != 0
-    {
-        return;
-    }
+    if(*flick).count != 0 { return; }
 
     let sec = &mut *(*flick).sector;
     sec.lightlevel = dtmc::fire_flicker_level(
@@ -199,10 +196,7 @@ pub extern "C" fn P_SpawnFireFlicker(sector: *mut sector_t)
 pub unsafe extern "C" fn T_LightFlash(flash: *mut lightflash_t)
 {
     (*flash).count -= 1;
-    if (*flash).count != 0
-    {
-        return;
-    }
+    if(*flash).count != 0 { return; }
 
     let sec = &mut *(*flash).sector;
 
@@ -267,10 +261,7 @@ pub extern "C" fn P_SpawnLightFlash(sector: *mut sector_t)
 pub unsafe extern "C" fn T_StrobeFlash(flash: *mut strobe_t)
 {
     (*flash).count -= 1;
-    if (*flash).count != 0
-    {
-        return;
-    }
+    if(*flash).count != 0 { return; }
 
     let sec = &mut *(*flash).sector;
 
@@ -316,21 +307,12 @@ pub extern "C" fn P_SpawnStrobeFlash(sector: *mut sector_t, fastOrSlow: c_int, i
         (*flash).minlight =
             P_FindMinSurroundingLight(sector as *mut cffi::sector_t, (*sector).lightlevel as c_int);
 
-        if (*flash).minlight == (*flash).maxlight
-        {
-            (*flash).minlight = 0;
-        }
+        if(*flash).minlight == (*flash).maxlight { (*flash).minlight = 0; }
 
         (*sector).special = 0;
 
-        if inSync == 0
-        {
-            (*flash).count = dtmc::flash_duration(P_Random(), 7);
-        }
-        else
-        {
-            (*flash).count = 1;
-        }
+        if inSync == 0 { (*flash).count = dtmc::flash_duration(P_Random(), 7); }
+        else { (*flash).count = 1; }
     }
 }
 
@@ -368,8 +350,7 @@ pub unsafe extern "C" fn T_Glow(g: *mut glow_t)
                 (*g).direction = -1;
             }
         }
-        _ =>
-        {}
+        _ => {}
     }
 }
 
