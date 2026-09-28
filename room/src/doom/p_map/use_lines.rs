@@ -66,10 +66,7 @@ pub unsafe extern "C" fn ptr_use_traverse(in_: *mut intercept_t) -> c_uint
         return 1;
     }
     let mut side = 0;
-    if P_PointOnLineSide((*usething).x, (*usething).y, in_.d.line) == 1
-    {
-        side = 1;
-    }
+    if P_PointOnLineSide((*usething).x, (*usething).y, in_.d.line) == 1 { side = 1; }
     P_UseSpecialLine(
         usething as *mut c_void,
         //? Crosses into the not-yet-graduated p_lights mirror types (the

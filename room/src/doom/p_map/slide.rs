@@ -107,16 +107,10 @@ pub unsafe extern "C" fn hit_slide_line(ld: *mut line_t)
     }
     let side = P_PointOnLineSide((*slidemo).x, (*slidemo).y, ld as *const _ as *mut _);
     let mut lineangle = R_PointToAngle2(0, 0, ld.dx, ld.dy);
-    if side == 1
-    {
-        lineangle = lineangle.wrapping_add(ANG180);
-    }
+    if side == 1 { lineangle = lineangle.wrapping_add(ANG180); }
     let moveangle = R_PointToAngle2(0, 0, tmxmove, tmymove);
     let mut deltaangle = moveangle.wrapping_sub(lineangle);
-    if deltaangle > ANG180
-    {
-        deltaangle = deltaangle.wrapping_add(ANG180);
-    }
+    if deltaangle > ANG180 { deltaangle = deltaangle.wrapping_add(ANG180); }
     let lineangle = (lineangle >> ANGLETOFINESHIFT) as usize;
     let deltaangle = (deltaangle >> ANGLETOFINESHIFT) as usize;
     let movelen = P_AproxDistance(tmxmove, tmymove);
@@ -159,18 +153,9 @@ pub unsafe extern "C" fn hit_slide_line(ld: *mut line_t)
 pub unsafe extern "C" fn ptr_slide_traverse(in_: *mut intercept_t) -> c_uint
 {
     let in_ = &*in_;
-    if in_.isaline == 0
-    {
-        i_error!("PTR_SlideTraverse: not a line?");
-    }
+    if in_.isaline == 0 { i_error!("PTR_SlideTraverse: not a line?"); }
     let li = in_.d.line;
-    if (*li).flags as c_int & LinedefFlag::TWOSIDED as c_int == 0
-    {
-        if P_PointOnLineSide((*slidemo).x, (*slidemo).y, li) != 0
-        {
-            return 1;
-        }
-    }
+    if(*li).flags as c_int & LinedefFlag::TWOSIDED as c_int == 0 { if P_PointOnLineSide((*slidemo).x, (*slidemo).y, li) != 0 { return 1; } }
     else
     {
         P_LineOpening(li);
@@ -232,10 +217,7 @@ pub unsafe extern "C" fn slide_move(mo: *mut mobj_t)
         if hitcount == 3
         {
             // stairstep
-            if try_move(mo, (*mo).x, (*mo).y + (*mo).momy) == 0
-            {
-                try_move(mo, (*mo).x + (*mo).momx, (*mo).y);
-            }
+            if try_move(mo, (*mo).x, (*mo).y + (*mo).momy) == 0 { try_move(mo, (*mo).x + (*mo).momx, (*mo).y); }
             return;
         }
 
@@ -243,18 +225,12 @@ pub unsafe extern "C" fn slide_move(mo: *mut mobj_t)
         {
             ((*mo).x + (*mo).radius, (*mo).x - (*mo).radius)
         }
-        else
-        {
-            ((*mo).x - (*mo).radius, (*mo).x + (*mo).radius)
-        };
+        else { ((*mo).x - (*mo).radius, (*mo).x + (*mo).radius) };
         let (leady, traily) = if (*mo).momy > 0
         {
             ((*mo).y + (*mo).radius, (*mo).y - (*mo).radius)
         }
-        else
-        {
-            ((*mo).y - (*mo).radius, (*mo).y + (*mo).radius)
-        };
+        else { ((*mo).y - (*mo).radius, (*mo).y + (*mo).radius) };
 
         bestslidefrac = FRACUNIT + 1;
 
@@ -286,10 +262,7 @@ pub unsafe extern "C" fn slide_move(mo: *mut mobj_t)
         if bestslidefrac == FRACUNIT + 1
         {
             // stairstep
-            if try_move(mo, (*mo).x, (*mo).y + (*mo).momy) == 0
-            {
-                try_move(mo, (*mo).x + (*mo).momx, (*mo).y);
-            }
+            if try_move(mo, (*mo).x, (*mo).y + (*mo).momy) == 0 { try_move(mo, (*mo).x + (*mo).momx, (*mo).y); }
             return;
         }
 
@@ -298,30 +271,18 @@ pub unsafe extern "C" fn slide_move(mo: *mut mobj_t)
         {
             let newx = FixedMul((*mo).momx, bestslidefrac);
             let newy = FixedMul((*mo).momy, bestslidefrac);
-            if try_move(mo, (*mo).x + newx, (*mo).y + newy) == 0
-            {
-                continue 'retry;
-            }
+            if try_move(mo, (*mo).x + newx, (*mo).y + newy) == 0 { continue 'retry; }
         }
 
         bestslidefrac = FRACUNIT - (bestslidefrac + 0x800);
-        if bestslidefrac > FRACUNIT
-        {
-            bestslidefrac = FRACUNIT;
-        }
-        if bestslidefrac <= 0
-        {
-            return;
-        }
+        if bestslidefrac > FRACUNIT { bestslidefrac = FRACUNIT; }
+        if bestslidefrac <= 0 { return; }
         tmxmove = FixedMul((*mo).momx, bestslidefrac);
         tmymove = FixedMul((*mo).momy, bestslidefrac);
         hit_slide_line(bestslideline);
         (*mo).momx = tmxmove;
         (*mo).momy = tmymove;
-        if try_move(mo, (*mo).x + tmxmove, (*mo).y + tmymove) == 0
-        {
-            continue 'retry;
-        }
+        if try_move(mo, (*mo).x + tmxmove, (*mo).y + tmymove) == 0 { continue 'retry; }
         return;
     }
 }

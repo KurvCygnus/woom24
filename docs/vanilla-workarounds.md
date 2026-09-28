@@ -79,7 +79,7 @@ corrupt a *non-vanilla* memory layout (see G2 for what that did in wasm).
 
 Three sites, all in `room/src/doom/`:
 
-- `p_map/move.rs:262-270` in `pit_check_line` (`PIT_CheckLine`; guarded store
+- `p_map/move.rs:226-228` in `pit_check_line` (`PIT_CheckLine`; guarded store
   + emulation trigger):
 
 ```rust
@@ -94,7 +94,7 @@ if numspechit > MAXSPECIALCROSS_ORIGINAL
 }
 ```
 
-- `p_map/move.rs:574-577` in `try_move` (`P_TryMove`) and
+- `p_map/move.rs:472` in `try_move` (`P_TryMove`) and
   `p_enemy/chase.rs:276-279` in `move_step` (`P_Move`; bounded drain
   reads; both loops decrement `numspechit` first and must skip indices
   the guarded push never stored):
@@ -106,15 +106,15 @@ if numspechit as usize >= MAXSPECIALCROSS
 }
 ```
 
-- `p_map/spechit.rs:59-89`, `spechit_overrun` (`SpechitOverrun`): computes
+- `p_map/spechit.rs:59-86`, `spechit_overrun` (`SpechitOverrun`): computes
   `addr = baseaddr + (ld - lines) * 0x3e` and, per `numspechit`, writes the
   address into `tmbbox[(numspechit - 9)]` for 9..=12, `crushchange` for 13,
   and `nofit` for 14. `baseaddr` defaults to `DEFAULT_SPECHIT_MAGIC`
   (`0x01C09C98`, `room/src/doom/c_ffi.rs:680-683`) overridable with
   `-spechit <n>`. The pure halves are extracted to `p_map/dtmc.rs:48`
-  (`spechit_trample_addr`, the addr formula) and `:73` (`trample_target`,
+  (`spechit_trample_addr`, the addr formula) and `:70` (`trample_target`,
   the case-table target selection); the whole-body baseline drives are
-  `p_map/spechit.rs:328` / `:354`.
+  `p_map/spechit.rs:325` / `:351`.
 
 Constants: `MAXSPECIALCROSS = 20` (`p_map/consts.rs:16`), the room-upstream array
 size; `MAXSPECIALCROSS_ORIGINAL = 8` (`p_map/consts.rs:23`), the vanilla bound that
@@ -145,9 +145,9 @@ Hybrid, deliberately assembled from two references:
 - Census: every emulation trigger records a
   `violations::VanillaViolation::SpechitOverrun` hit
   (`room/src/doom/violations.rs`); the hook test
-  `spechit_emulation_records_census_hit` (`p_map/spechit.rs:246`) proves the shared
+  `spechit_emulation_records_census_hit` (`p_map/spechit.rs:243`) proves the shared
   fixture below actually drives it.
-- Regression pin: `p_map/spechit.rs:239`
+- Regression pin: `p_map/spechit.rs:236`
   (`pit_check_line_push_stays_in_bounds_beyond_the_array`) drives
   `PIT_CheckLine` at `numspechit` 20 and 25 and asserts the 8 words after
   `spechit` are untouched. It failed (process killed by the overflow) on the
@@ -682,15 +682,15 @@ post-move special-line processing. Known demo families: compet-n
 ### Where we emulate it
 
 No additional site: the writes are entry 1's
-(`p_map/spechit.rs:59-89`, `spechit_overrun`), and the consumption is implied by
+(`p_map/spechit.rs:59-86`, `spechit_overrun`), and the consumption is implied by
 construction. Our `tmbbox`, `crushchange`, and `nofit` are live engine globals
 written at the identical control-flow point with the identical values
 (`baseaddr + (ld - lines) * 0x3e`), so every subsequent consumer in our engine
 reads the same trampled values vanilla read. Verified against the reference
 control flow: our `pit_check_line` (`PIT_CheckLine`) reads `tmbbox` before the
-push (`p_map/move.rs:212-219` vs `:253-271`) and `check_position`
+push (`p_map/move.rs:191-198` vs `:217-229`) and `check_position`
 (`P_CheckPosition`) re-initializes it
-(`p_map/move.rs:443-446`), matching chocolate line for line.
+(`p_map/move.rs:377-380`), matching chocolate line for line.
 
 Panic safety of the corrupted values: every consumer is integer fixed-point
 arithmetic (`P_PointOnLineSide` `p_maputl/dtmc.rs:72-106` (core, wrapper
@@ -764,7 +764,7 @@ only):
 
 | Store | Classification |
 |---|---|
-| `spechit[20]` push (`p_map/move.rs:264`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
+| `spechit[20]` push (`p_map/move.rs:226`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
 | `heightlist[20]` stores (`p_spec/geometry.rs:277-287`) | vanilla adjoining-sector overrun, catalog entry 13: writes at `h == 20`/`h == 21` are in-bounds of the `MAX+2` window, the `h == MAX+1` arm's write lands on `height` (emulated verbatim), and `h == MAX+2` is chocolate's `I_Error`; 20/21/22-boundary baseline-pinned in `geometry::tests` |
 | `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy/brain.rs:71`, `action_brain_awake`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
@@ -1209,7 +1209,7 @@ of them and no guard was stripped. Per-guard rationale:
 - Engine-created frame-entry latch (`doomgeneric.rs:214-222`) -- KEEP:
   host-lifecycle platform work; the `ticdup == 0` it fences comes from
   pre-init zeroing, not from any remaining OOB writer.
-- Guarded spechit store + bounded drains (`p_map/move.rs:262-270`, `:574-577`,
+- Guarded spechit store + bounded drains (`p_map/move.rs:226-228`, `:472`,
   `p_enemy/chase.rs:276-279`) -- KEEP: they are entry 1's emulation surface itself;
   stripping them would reintroduce the G2 silent trampler.
 

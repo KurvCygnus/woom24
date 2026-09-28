@@ -69,10 +69,7 @@ pub static mut nofit: c_int = 0; // boolean
 #[export_name = "PIT_ChangeSector"]
 pub unsafe extern "C" fn pit_change_sector(thing: *mut mobj_t) -> c_uint
 {
-    if thing_height_clip(thing) != 0
-    {
-        return 1;
-    }
+    if thing_height_clip(thing) != 0 { return 1; }
     let thing = &mut *thing;
     if thing.health <= 0
     {
@@ -87,10 +84,7 @@ pub unsafe extern "C" fn pit_change_sector(thing: *mut mobj_t) -> c_uint
         P_RemoveMobj(thing as *const _ as *mut TeleptMobj);
         return 1;
     }
-    if thing.flags & MF_SHOOTABLE == 0
-    {
-        return 1;
-    }
+    if thing.flags & MF_SHOOTABLE == 0 { return 1; }
     nofit = 1;
     if crushchange != 0 && leveltime & 3 == 0
     {
@@ -141,10 +135,7 @@ pub unsafe extern "C" fn change_sector(sector: *mut sector_t, crunch: c_int) -> 
     let sec = &*sector;
     for x in sec.blockbox[BBox::LEFT]..=sec.blockbox[BBox::RIGHT]
     {
-        for y in sec.blockbox[BBox::BOTTOM]..=sec.blockbox[BBox::TOP]
-        {
-            P_BlockThingsIterator(x, y, Some(pit_change_sector));
-        }
+        for y in sec.blockbox[BBox::BOTTOM]..=sec.blockbox[BBox::TOP] { P_BlockThingsIterator(x, y, Some(pit_change_sector)); }
     }
     nofit
 }

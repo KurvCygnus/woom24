@@ -102,71 +102,38 @@ pub unsafe extern "C" fn ptr_aim_traverse(in_: *mut intercept_t) -> c_uint
     if in_.isaline != 0
     {
         let li = in_.d.line;
-        if (*li).flags as c_int & LinedefFlag::TWOSIDED as c_int == 0
-        {
-            return 0;
-        }
+        if(*li).flags as c_int & LinedefFlag::TWOSIDED as c_int == 0 { return 0; }
         P_LineOpening(li);
-        if openbottom >= opentop
-        {
-            return 0;
-        }
+        if openbottom >= opentop { return 0; }
         let dist = FixedMul(attackrange, in_.frac);
         let front = (*li).frontsector as *mut sector_t;
         let back = (*li).backsector as *mut sector_t;
         if back.is_null() || (*front).floorheight != (*back).floorheight
         {
             let slope = FixedDiv(openbottom - shootz, dist);
-            if slope > bottomslope
-            {
-                bottomslope = slope;
-            }
+            if slope > bottomslope { bottomslope = slope; }
         }
         if back.is_null() || (*front).ceilingheight != (*back).ceilingheight
         {
             let slope = FixedDiv(opentop - shootz, dist);
-            if slope < topslope
-            {
-                topslope = slope;
-            }
+            if slope < topslope { topslope = slope; }
         }
-        if topslope <= bottomslope
-        {
-            return 0;
-        }
+        if topslope <= bottomslope { return 0; }
         return 1;
     }
 
     let th = in_.d.thing as *mut mobj_t;
-    if th == shootthing
-    {
-        return 1;
-    }
-    if (*th).flags & MF_SHOOTABLE == 0
-    {
-        return 1;
-    }
+    if th == shootthing { return 1; }
+    if(*th).flags & MF_SHOOTABLE == 0 { return 1; }
     let dist = FixedMul(attackrange, in_.frac);
     let thingtopslope = FixedDiv((*th).z + (*th).height - shootz, dist);
-    if thingtopslope < bottomslope
-    {
-        return 1;
-    }
+    if thingtopslope < bottomslope { return 1; }
     let thingbottomslope = FixedDiv((*th).z - shootz, dist);
-    if thingbottomslope > topslope
-    {
-        return 1;
-    }
+    if thingbottomslope > topslope { return 1; }
     let mut thingtopslope = thingtopslope;
     let mut thingbottomslope = thingbottomslope;
-    if thingtopslope > topslope
-    {
-        thingtopslope = topslope;
-    }
-    if thingbottomslope < bottomslope
-    {
-        thingbottomslope = bottomslope;
-    }
+    if thingtopslope > topslope { thingtopslope = topslope; }
+    if thingbottomslope < bottomslope { thingbottomslope = bottomslope; }
     aimslope = (thingtopslope + thingbottomslope) / 2;
     linetarget = th;
     0
@@ -211,10 +178,7 @@ pub unsafe extern "C" fn ptr_shoot_traverse(in_: *mut intercept_t) -> c_uint
     if in_.isaline != 0
     {
         let li = in_.d.line;
-        if (*li).special != 0
-        {
-            P_ShootSpecialLine(shootthing, li);
-        }
+        if(*li).special != 0 { P_ShootSpecialLine(shootthing, li); }
         if (*li).flags as c_int & LinedefFlag::TWOSIDED as c_int != 0
         {
             P_LineOpening(li);
@@ -264,38 +228,20 @@ pub unsafe extern "C" fn ptr_shoot_traverse(in_: *mut intercept_t) -> c_uint
     }
 
     let th = in_.d.thing as *mut mobj_t;
-    if th == shootthing
-    {
-        return 1;
-    }
-    if (*th).flags & MF_SHOOTABLE == 0
-    {
-        return 1;
-    }
+    if th == shootthing { return 1; }
+    if(*th).flags & MF_SHOOTABLE == 0 { return 1; }
     let dist = FixedMul(attackrange, in_.frac);
     let thingtopslope = FixedDiv((*th).z + (*th).height - shootz, dist);
-    if thingtopslope < aimslope
-    {
-        return 1;
-    }
+    if thingtopslope < aimslope { return 1; }
     let thingbottomslope = FixedDiv((*th).z - shootz, dist);
-    if thingbottomslope > aimslope
-    {
-        return 1;
-    }
+    if thingbottomslope > aimslope { return 1; }
 
     let frac = in_.frac - FixedDiv(10 * FRACUNIT, attackrange);
     let x = crate::doom::p_maputl::trace.x + FixedMul(crate::doom::p_maputl::trace.dx, frac);
     let y = crate::doom::p_maputl::trace.y + FixedMul(crate::doom::p_maputl::trace.dy, frac);
     let z = shootz + FixedMul(aimslope, FixedMul(frac, attackrange));
-    if (*th).flags & MF_NOBLOOD != 0
-    {
-        P_SpawnPuff(x, y, z);
-    }
-    else
-    {
-        P_SpawnBlood(x, y, z, la_damage);
-    }
+    if(*th).flags & MF_NOBLOOD != 0 { P_SpawnPuff(x, y, z); }
+    else { P_SpawnBlood(x, y, z, la_damage); }
     if la_damage != 0
     {
         P_DamageMobj(
@@ -344,15 +290,9 @@ unsafe fn spawn_wall_puff(li: *mut line_t, in_: &intercept_t)
     let front = (*li).frontsector as *mut sector_t;
     if (*front).ceilingpic as c_int == skyflatnum
     {
-        if z > (*front).ceilingheight
-        {
-            return;
-        }
+        if z > (*front).ceilingheight { return; }
         let back = (*li).backsector as *mut sector_t;
-        if !back.is_null() && (*back).ceilingpic as c_int == skyflatnum
-        {
-            return;
-        }
+        if !back.is_null() && (*back).ceilingpic as c_int == skyflatnum { return; }
     }
     P_SpawnPuff(x, y, z);
 }
@@ -409,10 +349,7 @@ pub unsafe extern "C" fn aim_line_attack(
         PT_ADDLINES | PT_ADDTHINGS,
         Some(ptr_aim_traverse),
     );
-    if !linetarget.is_null()
-    {
-        return aimslope;
-    }
+    if !linetarget.is_null() { return aimslope; }
     0
 }
 

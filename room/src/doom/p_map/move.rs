@@ -67,23 +67,11 @@ use super::state::{
 pub unsafe extern "C" fn pit_stomp_thing(thing: *mut mobj_t) -> c_uint
 {
     let thing = &*thing;
-    if thing.flags & MF_SHOOTABLE == 0
-    {
-        return 1;
-    }
+    if thing.flags & MF_SHOOTABLE == 0 { return 1; }
     let blockdist = thing.radius + (*tmthing).radius;
-    if (thing.x - tmx).wrapping_abs() >= blockdist || (thing.y - tmy).wrapping_abs() >= blockdist
-    {
-        return 1;
-    }
-    if std::ptr::eq(thing, tmthing)
-    {
-        return 1;
-    }
-    if (*tmthing).player.is_null() && gamemap != 30
-    {
-        return 0;
-    }
+    if(thing.x - tmx).wrapping_abs() >= blockdist || (thing.y - tmy).wrapping_abs() >= blockdist { return 1; }
+    if std::ptr::eq(thing, tmthing) { return 1; }
+    if(*tmthing).player.is_null() && gamemap != 30 { return 0; }
     P_DamageMobj(
         thing as *const _ as *mut TeleptMobj,
         tmthing as *mut TeleptMobj,
@@ -147,16 +135,7 @@ pub unsafe extern "C" fn teleport_move(thing: *mut mobj_t, x: fixed_t, y: fixed_
     let yl = (tmbbox[BBox::BOTTOM] - bmaporgy - MAXRADIUS) >> MAPBLOCKSHIFT;
     let yh = (tmbbox[BBox::TOP] - bmaporgy + MAXRADIUS) >> MAPBLOCKSHIFT;
 
-    for bx in xl..=xh
-    {
-        for by in yl..=yh
-        {
-            if P_BlockThingsIterator(bx, by, Some(pit_stomp_thing)) == 0
-            {
-                return 0;
-            }
-        }
-    }
+    for bx in xl..=xh { for by in yl..=yh { if P_BlockThingsIterator(bx, by, Some(pit_stomp_thing)) == 0 { return 0; } } }
 
     P_UnsetThingPosition(thing);
     (*thing).floorz = tmfloorz;
@@ -216,20 +195,11 @@ pub unsafe extern "C" fn pit_check_line(ld: *mut line_t) -> c_uint
     {
         return 1;
     }
-    if P_BoxOnLineSide(std::ptr::addr_of_mut!(tmbbox[0]), ld as *const _ as *mut _) != -1
-    {
-        return 1;
-    }
-    if ld.backsector.is_null()
-    {
-        return 0;
-    }
+    if P_BoxOnLineSide(std::ptr::addr_of_mut!(tmbbox[0]), ld as *const _ as *mut _) != -1 { return 1; }
+    if ld.backsector.is_null() { return 0; }
     if (*tmthing).flags & MF_MISSILE == 0
     {
-        if (ld.flags as c_int) & (LinedefFlag::BLOCKING as c_int) != 0
-        {
-            return 0;
-        }
+        if(ld.flags as c_int) & (LinedefFlag::BLOCKING as c_int) != 0 { return 0; }
         if (*tmthing).player.is_null()
             && (ld.flags as c_int) & (LinedefFlag::BLOCKMONSTERS as c_int) != 0
         {
@@ -242,14 +212,8 @@ pub unsafe extern "C" fn pit_check_line(ld: *mut line_t) -> c_uint
         tmceilingz = opentop;
         ceilingline = ld as *const _ as *mut _;
     }
-    if openbottom > tmfloorz
-    {
-        tmfloorz = openbottom;
-    }
-    if lowfloor < tmdropoffz
-    {
-        tmdropoffz = lowfloor;
-    }
+    if openbottom > tmfloorz { tmfloorz = openbottom; }
+    if lowfloor < tmdropoffz { tmdropoffz = lowfloor; }
     if ld.special != 0
     {
         //? Bounds-guarded push (mirrors woof/dsda-prboom2, where the spechit
@@ -259,15 +223,9 @@ pub unsafe extern "C" fn pit_check_line(ld: *mut line_t) -> c_uint
         //? would clobber arbitrary wasm .bss neighbors instead (observed as
         //? the browser ticdup=0 freeze). Demo compatibility for overrun
         //? demos is preserved by SpechitOverrun's emulated writes below.
-        if numspechit >= 0 && (numspechit as usize) < MAXSPECIALCROSS
-        {
-            spechit[numspechit as usize] = ld as *const _ as *mut _;
-        }
+        if numspechit >= 0 && (numspechit as usize) < MAXSPECIALCROSS { spechit[numspechit as usize] = ld as *const _ as *mut _; }
         numspechit += 1;
-        if numspechit > MAXSPECIALCROSS_ORIGINAL
-        {
-            spechit_overrun(ld as *const _ as *mut _);
-        }
+        if numspechit > MAXSPECIALCROSS_ORIGINAL { spechit_overrun(ld as *const _ as *mut _); }
     }
     1
 }
@@ -306,19 +264,10 @@ pub unsafe extern "C" fn pit_check_line(ld: *mut line_t) -> c_uint
 pub unsafe extern "C" fn pit_check_thing(thing: *mut mobj_t) -> c_uint
 {
     let thing = &*thing;
-    if thing.flags & (MF_SOLID | MF_SPECIAL | MF_SHOOTABLE) == 0
-    {
-        return 1;
-    }
+    if thing.flags & (MF_SOLID | MF_SPECIAL | MF_SHOOTABLE) == 0 { return 1; }
     let blockdist = thing.radius + (*tmthing).radius;
-    if (thing.x - tmx).wrapping_abs() >= blockdist || (thing.y - tmy).wrapping_abs() >= blockdist
-    {
-        return 1;
-    }
-    if std::ptr::eq(thing, tmthing)
-    {
-        return 1;
-    }
+    if(thing.x - tmx).wrapping_abs() >= blockdist || (thing.y - tmy).wrapping_abs() >= blockdist { return 1; }
+    if std::ptr::eq(thing, tmthing) { return 1; }
 
     // check for skulls slamming into things
     if (*tmthing).flags & MF_SKULLFLY != 0
@@ -344,14 +293,8 @@ pub unsafe extern "C" fn pit_check_thing(thing: *mut mobj_t) -> c_uint
     // missiles can hit other things
     if (*tmthing).flags & MF_MISSILE != 0
     {
-        if (*tmthing).z > thing.z + thing.height
-        {
-            return 1;
-        }
-        if (*tmthing).z + (*tmthing).height < thing.z
-        {
-            return 1;
-        }
+        if(*tmthing).z > thing.z + thing.height { return 1; }
+        if(*tmthing).z + (*tmthing).height < thing.z { return 1; }
         if !(*tmthing).target.is_null()
         {
             let target = (*tmthing).target as *mut mobj_t;
@@ -361,20 +304,11 @@ pub unsafe extern "C" fn pit_check_thing(thing: *mut mobj_t) -> c_uint
                 || (target_type == MT_KNIGHT && thing_type == MT_BRUISER)
                 || (target_type == MT_BRUISER && thing_type == MT_KNIGHT)
             {
-                if std::ptr::eq(thing, target)
-                {
-                    return 1;
-                }
-                if thing_type != MT_PLAYER && DEH_DEFAULT_SPECIES_INFIGHTING == 0
-                {
-                    return 0;
-                }
+                if std::ptr::eq(thing, target) { return 1; }
+                if thing_type != MT_PLAYER && DEH_DEFAULT_SPECIES_INFIGHTING == 0 { return 0; }
             }
         }
-        if thing.flags & MF_SHOOTABLE == 0
-        {
-            return (thing.flags & MF_SOLID == 0) as c_uint;
-        }
+        if thing.flags & MF_SHOOTABLE == 0 { return (thing.flags & MF_SOLID == 0) as c_uint; }
         let damage = ((P_Random() % 8) + 1) * (*((*tmthing).info as *mut MobjInfo)).damage;
         let target = (*tmthing).target as *mut TeleptMobj;
         P_DamageMobj(
@@ -455,42 +389,21 @@ pub unsafe extern "C" fn check_position(thing: *mut mobj_t, x: fixed_t, y: fixed
     validcount = validcount.wrapping_add(1);
     numspechit = 0;
 
-    if tmflags & MF_NOCLIP != 0
-    {
-        return 1;
-    }
+    if tmflags & MF_NOCLIP != 0 { return 1; }
 
     let xl = (tmbbox[BBox::LEFT] - bmaporgx - MAXRADIUS) >> MAPBLOCKSHIFT;
     let xh = (tmbbox[BBox::RIGHT] - bmaporgx + MAXRADIUS) >> MAPBLOCKSHIFT;
     let yl = (tmbbox[BBox::BOTTOM] - bmaporgy - MAXRADIUS) >> MAPBLOCKSHIFT;
     let yh = (tmbbox[BBox::TOP] - bmaporgy + MAXRADIUS) >> MAPBLOCKSHIFT;
 
-    for bx in xl..=xh
-    {
-        for by in yl..=yh
-        {
-            if P_BlockThingsIterator(bx, by, Some(pit_check_thing)) == 0
-            {
-                return 0;
-            }
-        }
-    }
+    for bx in xl..=xh { for by in yl..=yh { if P_BlockThingsIterator(bx, by, Some(pit_check_thing)) == 0 { return 0; } } }
 
     let xl = (tmbbox[BBox::LEFT] - bmaporgx) >> MAPBLOCKSHIFT;
     let xh = (tmbbox[BBox::RIGHT] - bmaporgx) >> MAPBLOCKSHIFT;
     let yl = (tmbbox[BBox::BOTTOM] - bmaporgy) >> MAPBLOCKSHIFT;
     let yh = (tmbbox[BBox::TOP] - bmaporgy) >> MAPBLOCKSHIFT;
 
-    for bx in xl..=xh
-    {
-        for by in yl..=yh
-        {
-            if P_BlockLinesIterator(bx, by, Some(pit_check_line)) == 0
-            {
-                return 0;
-            }
-        }
-    }
+    for bx in xl..=xh { for by in yl..=yh { if P_BlockLinesIterator(bx, by, Some(pit_check_line)) == 0 { return 0; } } }
 
     1
 }
@@ -530,29 +443,14 @@ pub unsafe extern "C" fn check_position(thing: *mut mobj_t, x: fixed_t, y: fixed
 pub unsafe extern "C" fn try_move(thing: *mut mobj_t, x: fixed_t, y: fixed_t) -> c_uint
 {
     floatok = 0;
-    if check_position(thing, x, y) == 0
-    {
-        return 0;
-    }
+    if check_position(thing, x, y) == 0 { return 0; }
     if (*thing).flags & MF_NOCLIP == 0
     {
-        if tmceilingz - tmfloorz < (*thing).height
-        {
-            return 0;
-        }
+        if tmceilingz - tmfloorz < (*thing).height { return 0; }
         floatok = 1;
-        if (*thing).flags & MF_TELEPORT == 0 && tmceilingz - (*thing).z < (*thing).height
-        {
-            return 0;
-        }
-        if (*thing).flags & MF_TELEPORT == 0 && tmfloorz - (*thing).z > 24 * FRACUNIT
-        {
-            return 0;
-        }
-        if (*thing).flags & (MF_DROPOFF | MF_FLOAT) == 0 && tmfloorz - tmdropoffz > 24 * FRACUNIT
-        {
-            return 0;
-        }
+        if(*thing).flags & MF_TELEPORT == 0 && tmceilingz - (*thing).z < (*thing).height { return 0; }
+        if(*thing).flags & MF_TELEPORT == 0 && tmfloorz - (*thing).z > 24 * FRACUNIT { return 0; }
+        if(*thing).flags & (MF_DROPOFF | MF_FLOAT) == 0 && tmfloorz - tmdropoffz > 24 * FRACUNIT { return 0; }
     }
 
     P_UnsetThingPosition(thing);
@@ -571,10 +469,7 @@ pub unsafe extern "C" fn try_move(thing: *mut mobj_t, x: fixed_t, y: fixed_t) ->
             numspechit -= 1;
             //? Entries beyond the array were never stored (see the guarded
             //? push in PIT_CheckLine); skip them instead of reading OOB.
-            if numspechit as usize >= MAXSPECIALCROSS
-            {
-                continue;
-            }
+            if numspechit as usize >= MAXSPECIALCROSS { continue; }
             let ld = spechit[numspechit as usize];
             let side = P_PointOnLineSide((*thing).x, (*thing).y, ld);
             let oldside = P_PointOnLineSide(oldx, oldy, ld);
@@ -622,17 +517,8 @@ pub unsafe extern "C" fn thing_height_clip(thing: *mut mobj_t) -> c_uint
     check_position(thing, (*thing).x, (*thing).y);
     (*thing).floorz = tmfloorz;
     (*thing).ceilingz = tmceilingz;
-    if onfloor
-    {
-        (*thing).z = (*thing).floorz;
-    }
-    else if (*thing).z + (*thing).height > (*thing).ceilingz
-    {
-        (*thing).z = (*thing).ceilingz - (*thing).height;
-    }
-    if (*thing).ceilingz - (*thing).floorz < (*thing).height
-    {
-        return 0;
-    }
+    if onfloor { (*thing).z = (*thing).floorz; }
+    else if(*thing).z + (*thing).height > (*thing).ceilingz { (*thing).z = (*thing).ceilingz - (*thing).height; }
+    if(*thing).ceilingz - (*thing).floorz < (*thing).height { return 0; }
     1
 }

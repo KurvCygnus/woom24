@@ -70,10 +70,7 @@ pub(super) unsafe fn spechit_overrun(ld: *mut line_t)
                 &raw mut baseaddr as *mut c_int,
             );
         }
-        else
-        {
-            baseaddr = DEFAULT_SPECHIT_MAGIC;
-        }
+        else { baseaddr = DEFAULT_SPECHIT_MAGIC; }
     }
     let addr = spechit_trample_addr(ld.offset_from(lines) as usize, baseaddr as c_int);
     match trample_target(numspechit)
@@ -368,10 +365,7 @@ mod tests
                     {
                         magic + (slot as c_int) * 0x3e
                     }
-                    else
-                    {
-                        sentinels[i]
-                    };
+                    else { sentinels[i] };
                     assert_eq!(tmb[i], expected, "count {count}: tmbbox[{i}]");
                 }
                 assert_eq!(cc, 0x5555_0000, "crushchange untouched at count {count}");

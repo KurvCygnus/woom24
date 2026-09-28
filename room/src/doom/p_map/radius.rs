@@ -70,33 +70,18 @@ pub static mut bombdamage: c_int = 0;
 pub unsafe extern "C" fn pit_radius_attack(thing: *mut mobj_t) -> c_uint
 {
     let thing = &*thing;
-    if thing.flags & MF_SHOOTABLE == 0
-    {
-        return 1;
-    }
-    if thing.type_ == MT_CYBORG || thing.type_ == MT_SPIDER
-    {
-        return 1;
-    }
+    if thing.flags & MF_SHOOTABLE == 0 { return 1; }
+    if thing.type_ == MT_CYBORG || thing.type_ == MT_SPIDER { return 1; }
     let dx = (thing.x - (*bombspot).x).wrapping_abs();
     let dy = (thing.y - (*bombspot).y).wrapping_abs();
     let mut dist = if dx > dy
     {
         dx
     }
-    else
-    {
-        dy
-    };
+    else { dy };
     dist = (dist - thing.radius) >> FRACBITS;
-    if dist < 0
-    {
-        dist = 0;
-    }
-    if dist >= bombdamage
-    {
-        return 1;
-    }
+    if dist < 0 { dist = 0; }
+    if dist >= bombdamage { return 1; }
     let pt_mobj_t = thing as *const _ as *mut crate::doom::p_telept::mobj_t;
     let pt_bombspot = bombspot as *mut crate::doom::p_telept::mobj_t;
     if P_CheckSight(pt_mobj_t, pt_bombspot) != 0
@@ -149,11 +134,5 @@ pub unsafe extern "C" fn radius_attack(spot: *mut mobj_t, source: *mut mobj_t, d
     bombspot = spot;
     bombsource = source;
     bombdamage = damage;
-    for y in yl..=yh
-    {
-        for x in xl..=xh
-        {
-            P_BlockThingsIterator(x, y, Some(pit_radius_attack));
-        }
-    }
+    for y in yl..=yh { for x in xl..=xh { P_BlockThingsIterator(x, y, Some(pit_radius_attack)); } }
 }

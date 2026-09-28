@@ -45,10 +45,7 @@ pub enum TrampleTarget
 /// 0x01C09C98`). Never debug-assert on overflow: the wrap IS the pinned
 /// behavior demo playback depends on. Pure computation -- no state, no
 /// threading assumptions.
-pub fn spechit_trample_addr(line_index: usize, baseaddr: c_int) -> c_int
-{
-    baseaddr.wrapping_add(line_index.wrapping_mul(0x3e) as c_int)
-}
+pub fn spechit_trample_addr(line_index: usize, baseaddr: c_int) -> c_int { baseaddr.wrapping_add(line_index.wrapping_mul(0x3e) as c_int) }
 
 /// Decide which engine global a spechit overrun write with the given
 /// `numspechit` value lands in -- the pure half of upstream
