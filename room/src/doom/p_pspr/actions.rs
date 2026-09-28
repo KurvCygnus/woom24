@@ -73,10 +73,7 @@ pub unsafe extern "C" fn A_WeaponReady(player: *mut PlayerT, psp: *mut PspdefT)
             return;
         }
     }
-    else
-    {
-        (*player).attackdown = 0;
-    }
+    else { (*player).attackdown = 0; }
 
     // Bob the weapon based on movement speed.
     let mut angle = (128 * leveltime) as u32 & FINEMASK as u32;
@@ -119,10 +116,7 @@ pub unsafe extern "C" fn A_ReFire(player: *mut PlayerT, _psp: *mut PspdefT)
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn A_CheckReload(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    P_CheckAmmo(player);
-}
+pub unsafe extern "C" fn A_CheckReload(player: *mut PlayerT, _psp: *mut PspdefT) { P_CheckAmmo(player); }
 
 /// Weapon action: scroll the weapon psprite down by `LOWERSPEED` each tic.
 ///
@@ -139,10 +133,7 @@ pub unsafe extern "C" fn A_Lower(player: *mut PlayerT, psp: *mut PspdefT)
     (*psp).sy += LOWERSPEED;
 
     // Is already down.
-    if (*psp).sy < WEAPONBOTTOM
-    {
-        return;
-    }
+    if(*psp).sy < WEAPONBOTTOM { return; }
 
     // Player is dead.
     if (*player).playerstate == PST_DEAD
@@ -177,10 +168,7 @@ pub unsafe extern "C" fn A_Raise(player: *mut PlayerT, psp: *mut PspdefT)
 {
     (*psp).sy -= RAISESPEED;
 
-    if (*psp).sy > WEAPONTOP
-    {
-        return;
-    }
+    if(*psp).sy > WEAPONTOP { return; }
 
     (*psp).sy = WEAPONTOP;
 
@@ -213,10 +201,7 @@ pub unsafe extern "C" fn A_GunFlash(player: *mut PlayerT, _psp: *mut PspdefT)
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn A_Light0(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    (*player).extralight = 0;
-}
+pub unsafe extern "C" fn A_Light0(player: *mut PlayerT, _psp: *mut PspdefT) { (*player).extralight = 0; }
 
 /// Weapon action: set the extra-light boost to +1 (used by pistol/shotgun
 /// muzzle flash).
@@ -225,10 +210,7 @@ pub unsafe extern "C" fn A_Light0(player: *mut PlayerT, _psp: *mut PspdefT)
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn A_Light1(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    (*player).extralight = 1;
-}
+pub unsafe extern "C" fn A_Light1(player: *mut PlayerT, _psp: *mut PspdefT) { (*player).extralight = 1; }
 
 /// Weapon action: set the extra-light boost to +2 (used by plasma / BFG
 /// muzzle flash).
@@ -237,10 +219,7 @@ pub unsafe extern "C" fn A_Light1(player: *mut PlayerT, _psp: *mut PspdefT)
 ///
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`.
 #[no_mangle]
-pub unsafe extern "C" fn A_Light2(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    (*player).extralight = 2;
-}
+pub unsafe extern "C" fn A_Light2(player: *mut PlayerT, _psp: *mut PspdefT) { (*player).extralight = 2; }
 
 /// Weapon action: play the BFG charging sound.
 ///
@@ -249,10 +228,7 @@ pub unsafe extern "C" fn A_Light2(player: *mut PlayerT, _psp: *mut PspdefT)
 /// `player` must be a valid, non-null pointer to an initialised `PlayerT`
 /// whose `mo` field points to a valid `mobj_t`.
 #[no_mangle]
-pub unsafe extern "C" fn A_BFGsound(player: *mut PlayerT, _psp: *mut PspdefT)
-{
-    S_StartSound((*player).mo as *mut c_void, Sfx::Bfg as c_int);
-}
+pub unsafe extern "C" fn A_BFGsound(player: *mut PlayerT, _psp: *mut PspdefT) { S_StartSound((*player).mo as *mut c_void, Sfx::Bfg as c_int); }
 
 /// Subtract `amount` from the player's ammo for slot `ammonum`, emulating
 /// the original C array-overflow behaviour: if `ammonum >= NUMAMMO` the
@@ -267,12 +243,6 @@ pub unsafe extern "C" fn A_BFGsound(player: *mut PlayerT, _psp: *mut PspdefT)
 /// `ammonum` may legally exceed `NUMAMMO - 1`; the function handles that case.
 pub(super) unsafe fn DecreaseAmmo(player: *mut PlayerT, ammonum: c_int, amount: c_int)
 {
-    if ammonum < NUMAMMO as c_int
-    {
-        (*player).ammo[ammonum as usize] -= amount;
-    }
-    else
-    {
-        (*player).maxammo[(ammonum - NUMAMMO as c_int) as usize] -= amount;
-    }
+    if ammonum < NUMAMMO as c_int { (*player).ammo[ammonum as usize] -= amount; }
+    else { (*player).maxammo[(ammonum - NUMAMMO as c_int) as usize] -= amount; }
 }

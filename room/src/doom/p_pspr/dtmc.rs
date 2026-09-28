@@ -30,10 +30,7 @@ use std::ffi::c_int;
 /// the fist) into the damage argument of the attack. Never draw
 /// speculatively or batch the melee and spread draws -- the 3-byte
 /// order is pinned by demo goldens.
-pub fn melee_roll(rand: c_int) -> c_int
-{
-    ((rand % 10) + 1) << 1
-}
+pub fn melee_roll(rand: c_int) -> c_int { ((rand % 10) + 1) << 1 }
 
 /// The hitscan damage roll of `P_GunShot` and the `A_FireShotgun2`
 /// pellet loop: `5 * ((rand % 3) + 1)` -- five, ten, or fifteen
@@ -53,10 +50,7 @@ pub fn melee_roll(rand: c_int) -> c_int
 /// Pure integer computation: pass the byte just drawn from
 /// `P_Random()` at the original statement position and feed the
 /// result to `P_LineAttack` unchanged.
-pub fn gunshot_roll(rand: c_int) -> c_int
-{
-    5 * (rand % 3 + 1)
-}
+pub fn gunshot_roll(rand: c_int) -> c_int { 5 * (rand % 3 + 1) }
 
 /// The random horizontal spread pair of the gun attacks, pre-folded:
 /// `((r1 - r2) as u32) << shift`, where `r1` is the byte drawn FIRST
@@ -85,10 +79,7 @@ pub fn gunshot_roll(rand: c_int) -> c_int
 /// (first, second) and the site's shift (18 or 19), and
 /// `wrapping_add` the returned `u32` into the firing angle exactly
 /// where the original expression stood.
-pub fn spread_angle(r1: c_int, r2: c_int, shift: u32) -> u32
-{
-    ((r1 - r2) as u32) << shift
-}
+pub fn spread_angle(r1: c_int, r2: c_int, shift: u32) -> u32 { ((r1 - r2) as u32) << shift }
 
 /// One accumulator step of the `A_BFGSpray` damage ladder:
 /// `acc + (rand & 7) + 1` -- per hit target, fifteen draws build
@@ -110,10 +101,7 @@ pub fn spread_angle(r1: c_int, r2: c_int, shift: u32) -> u32
 /// Pure integer computation: fold each drawn byte in draw order
 /// (`damage = spray_step(damage, P_Random())`) exactly where the
 /// original `+=` stood, then pass the total to `P_DamageMobj`.
-pub fn spray_step(acc: c_int, rand: c_int) -> c_int
-{
-    acc + (rand & 7) + 1
-}
+pub fn spray_step(acc: c_int, rand: c_int) -> c_int { acc + (rand & 7) + 1 }
 
 #[cfg(test)]
 mod tests
@@ -143,10 +131,7 @@ mod tests
     /// Read the `prndindex` cursor for assertions without creating a
     /// shared reference to the mutable static (the `static_mut_refs`
     /// hazard a direct `assert_eq!(prndindex, ...)` would trigger).
-    fn prnd_index() -> c_int
-    {
-        unsafe { std::ptr::addr_of!(prndindex).read() }
-    }
+    fn prnd_index() -> c_int { unsafe { std::ptr::addr_of!(prndindex).read() } }
 
     /// Restores the shared statics captured at rig setup.
     struct RigGuard
@@ -515,16 +500,10 @@ mod tests
         assert_eq!(spray_step(105, 255), 113);
         // Full-ladder bounds: 15 draws of 1 and 15 draws of 8.
         let mut acc = 0;
-        for _ in 0..15
-        {
-            acc = spray_step(acc, 0);
-        }
+        for _ in 0..15 { acc = spray_step(acc, 0); }
         assert_eq!(acc, 15);
         acc = 0;
-        for _ in 0..15
-        {
-            acc = spray_step(acc, 255);
-        }
+        for _ in 0..15 { acc = spray_step(acc, 255); }
         assert_eq!(acc, 120);
     }
 }

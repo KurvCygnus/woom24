@@ -55,10 +55,7 @@ pub unsafe extern "C" fn A_Punch(player: *mut PlayerT, _psp: *mut PspdefT)
     let mo = (*player).mo as *mut mobj_t;
 
     let mut damage = dtmc::melee_roll(P_Random());
-    if (*player).powers[pw_strength] != 0
-    {
-        damage *= 10;
-    }
+    if(*player).powers[pw_strength] != 0 { damage *= 10; }
 
     let mut angle = (*mo).angle;
     angle = angle.wrapping_add(dtmc::spread_angle(P_Random(), P_Random(), 18));
@@ -119,25 +116,13 @@ pub unsafe extern "C" fn A_Saw(player: *mut PlayerT, _psp: *mut PspdefT)
     if delta > ANG180
     {
         let signed_delta = delta as i32;
-        if signed_delta < -(ANG90 as i32) / 20
-        {
-            (*mo).angle = angle.wrapping_add(ANG90 / 21);
-        }
-        else
-        {
-            (*mo).angle = (*mo).angle.wrapping_sub(ANG90 / 20);
-        }
+        if signed_delta < -(ANG90 as i32) / 20 { (*mo).angle = angle.wrapping_add(ANG90 / 21); }
+        else { (*mo).angle = (*mo).angle.wrapping_sub(ANG90 / 20); }
     }
     else
     {
-        if delta > ANG90 / 20
-        {
-            (*mo).angle = angle.wrapping_sub(ANG90 / 21);
-        }
-        else
-        {
-            (*mo).angle = (*mo).angle.wrapping_add(ANG90 / 20);
-        }
+        if delta > ANG90 / 20 { (*mo).angle = angle.wrapping_sub(ANG90 / 21); }
+        else { (*mo).angle = (*mo).angle.wrapping_add(ANG90 / 20); }
     }
     (*mo).flags |= MF_JUSTATTACKED;
 }
@@ -237,10 +222,7 @@ pub unsafe extern "C" fn P_GunShot(mo: *mut mobj_t, accurate: c_int)
     let damage = dtmc::gunshot_roll(P_Random());
     let mut angle = (*mo).angle;
 
-    if accurate == 0
-    {
-        angle = angle.wrapping_add(dtmc::spread_angle(P_Random(), P_Random(), 18));
-    }
+    if accurate == 0 { angle = angle.wrapping_add(dtmc::spread_angle(P_Random(), P_Random(), 18)); }
 
     P_LineAttack(
         mo as *mut _ as *mut CffiMobj,
@@ -299,10 +281,7 @@ pub unsafe extern "C" fn A_FireShotgun(player: *mut PlayerT, _psp: *mut PspdefT)
 
     P_BulletSlope(mo);
 
-    for _ in 0..7
-    {
-        P_GunShot(mo, 0);
-    }
+    for _ in 0..7 { P_GunShot(mo, 0); }
 }
 
 /// Weapon action: fire the super shotgun (20 pellets with extra spread, 2
@@ -359,10 +338,7 @@ pub unsafe extern "C" fn A_FireCGun(player: *mut PlayerT, psp: *mut PspdefT)
     let mo = (*player).mo as *mut mobj_t;
     S_StartSound(mo as *mut c_void, Sfx::Pistol as c_int);
 
-    if (*player).ammo[weaponinfo[(*player).readyweapon as usize].ammo as usize] == 0
-    {
-        return;
-    }
+    if(*player).ammo[weaponinfo[(*player).readyweapon as usize].ammo as usize] == 0 { return; }
 
     P_SetMobjState(mo, S_PLAY_ATK2);
     DecreaseAmmo(player, weaponinfo[(*player).readyweapon as usize].ammo, 1);
@@ -401,10 +377,7 @@ pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t)
             16 * 64 * FRACUNIT,
         );
 
-        if linetarget.is_null()
-        {
-            continue;
-        }
+        if linetarget.is_null() { continue; }
 
         P_SpawnMobj(
             (*linetarget).x,
@@ -417,10 +390,7 @@ pub unsafe extern "C" fn A_BFGSpray(mo: *mut mobj_t)
         //* The 15-draw ladder bound has no unit vector (a hit target needs
         //* a blockmap world); it is guarded by the demo goldens alone -- do
         //* not retune `0..15` casually.
-        for _ in 0..15
-        {
-            damage = dtmc::spray_step(damage, P_Random());
-        }
+        for _ in 0..15 { damage = dtmc::spray_step(damage, P_Random()); }
 
         P_DamageMobj(
             linetarget as *mut mobj_t,

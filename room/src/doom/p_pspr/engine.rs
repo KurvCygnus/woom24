@@ -74,19 +74,13 @@ pub unsafe extern "C" fn P_SetPsprite(player: *mut PlayerT, position: c_int, stn
             let action: unsafe extern "C" fn(*mut PlayerT, *mut PspdefT) =
                 std::mem::transmute(action);
             action(player, psp);
-            if (*psp).state.is_null()
-            {
-                break;
-            }
+            if(*psp).state.is_null() { break; }
         }
 
         // Read nextstate from psp->state (action may have changed it).
         stnum = ((*psp).state as *mut State).read().nextstate;
 
-        if (*psp).tics != 0
-        {
-            break;
-        }
+        if(*psp).tics != 0 { break; }
     }
 }
 
@@ -120,15 +114,9 @@ pub unsafe extern "C" fn P_CalcSwing(player: *mut PlayerT)
 #[no_mangle]
 pub unsafe extern "C" fn P_BringUpWeapon(player: *mut PlayerT)
 {
-    if (*player).pendingweapon == wp_nochange
-    {
-        (*player).pendingweapon = (*player).readyweapon;
-    }
+    if(*player).pendingweapon == wp_nochange { (*player).pendingweapon = (*player).readyweapon; }
 
-    if (*player).pendingweapon == wp_chainsaw
-    {
-        S_StartSound((*player).mo as *mut c_void, Sfx::Sawup as c_int);
-    }
+    if(*player).pendingweapon == wp_chainsaw { S_StartSound((*player).mo as *mut c_void, Sfx::Sawup as c_int); }
 
     let newstate = weaponinfo[(*player).pendingweapon as usize].upstate;
 
@@ -154,19 +142,10 @@ pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int
     {
         DEH_DEFAULT_BFG_CELLS_PER_SHOT
     }
-    else if (*player).readyweapon == wp_supershotgun
-    {
-        2
-    }
-    else
-    {
-        1
-    };
+    else if(*player).readyweapon == wp_supershotgun { 2 }
+    else { 1 };
 
-    if ammo == am_noammo || (*player).ammo[ammo as usize] >= count
-    {
-        return 1;
-    }
+    if ammo == am_noammo || (*player).ammo[ammo as usize] >= count { return 1; }
 
     // Out of ammo, pick a weapon to change to.
     loop
@@ -193,14 +172,8 @@ pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int
         {
             (*player).pendingweapon = wp_shotgun;
         }
-        else if (*player).ammo[am_clip as usize] != 0
-        {
-            (*player).pendingweapon = wp_pistol;
-        }
-        else if (*player).weaponowned[wp_chainsaw as usize] != 0
-        {
-            (*player).pendingweapon = wp_chainsaw;
-        }
+        else if(*player).ammo[am_clip as usize] != 0 { (*player).pendingweapon = wp_pistol; }
+        else if(*player).weaponowned[wp_chainsaw as usize] != 0 { (*player).pendingweapon = wp_chainsaw; }
         else if(*player).weaponowned[wp_missile as usize] != 0
             && (*player).ammo[am_misl as usize] != 0
         {
@@ -212,15 +185,9 @@ pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int
         {
             (*player).pendingweapon = wp_bfg;
         }
-        else
-        {
-            (*player).pendingweapon = wp_fist;
-        }
+        else { (*player).pendingweapon = wp_fist; }
 
-        if (*player).pendingweapon != wp_nochange
-        {
-            break;
-        }
+        if(*player).pendingweapon != wp_nochange { break; }
     }
 
     P_SetPsprite(
@@ -243,10 +210,7 @@ pub unsafe extern "C" fn P_CheckAmmo(player: *mut PlayerT) -> c_int
 #[no_mangle]
 pub unsafe extern "C" fn P_FireWeapon(player: *mut PlayerT)
 {
-    if P_CheckAmmo(player) == 0
-    {
-        return;
-    }
+    if P_CheckAmmo(player) == 0 { return; }
 
     P_SetMobjState((*player).mo as *mut mobj_t, S_PLAY_ATK1);
     let newstate = weaponinfo[(*player).readyweapon as usize].atkstate;
@@ -279,10 +243,7 @@ pub unsafe extern "C" fn P_DropWeapon(player: *mut PlayerT)
 #[no_mangle]
 pub unsafe extern "C" fn P_SetupPsprites(player: *mut PlayerT)
 {
-    for i in 0..NUMPSPRITES
-    {
-        (*player).psprites[i].state = std::ptr::null_mut();
-    }
+    for i in 0..NUMPSPRITES { (*player).psprites[i].state = std::ptr::null_mut(); }
 
     (*player).pendingweapon = (*player).readyweapon;
     P_BringUpWeapon(player);
@@ -309,10 +270,7 @@ pub unsafe extern "C" fn P_MovePsprites(player: *mut PlayerT)
             if (*psp).tics != -1
             {
                 (*psp).tics -= 1;
-                if (*psp).tics == 0
-                {
-                    P_SetPsprite(player, i as c_int, (*state).nextstate);
-                }
+                if(*psp).tics == 0 { P_SetPsprite(player, i as c_int, (*state).nextstate); }
             }
         }
         psp = psp.add(1);
