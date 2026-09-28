@@ -2044,4 +2044,63 @@ mod tests {
             assert_eq!(7, 7);
         }
     }
+
+    // -----------------------------------------------------------------------
+    // F10 wave C4 dtmc baseline: the `D_DoAdvanceDemo` attract
+    // sequence-count core, captured against the inline body BEFORE the
+    // graduation split (F10 §2.3). The transcription helper is deleted
+    // and the vectors re-pointed at `dtmc::attract_sequence_count` by
+    // the graduation commit.
+    // -----------------------------------------------------------------------
+
+    /// Transcription of the `max_seq` block inside `D_DoAdvanceDemo`
+    /// (this file, `:1126-1132`): the attract loop's page count -- 7 for
+    /// `exe_ultimate`/`exe_final`, 6 for every other gameversion.
+    fn attract_sequence_count_transcription(gv: c_int) -> c_int {
+        if gv == d_mode::exe_ultimate || gv == d_mode::exe_final { 7 } else { 6 }
+    }
+
+    /// Known vectors over every `GAME_VERSIONS` row plus the null
+    /// sentinel: only the ultimate/final executables run the 7-page
+    /// attract cycle.
+    #[test]
+    fn attract_sequence_count_baseline_vectors() {
+        let vectors: [(c_int, c_int); 10] = [
+            (d_mode::exe_doom_1_666, 6),
+            (d_mode::exe_doom_1_7, 6),
+            (d_mode::exe_doom_1_8, 6),
+            (d_mode::exe_doom_1_9, 6),
+            (d_mode::exe_hacx, 6),
+            (d_mode::exe_ultimate, 7),
+            (d_mode::exe_final, 7),
+            (d_mode::exe_final2, 6),
+            (d_mode::exe_chex, 6),
+            (0, 6), // the GAME_VERSIONS null-sentinel version
+        ];
+        for (version, expected) in vectors {
+            assert_eq!(attract_sequence_count_transcription(version), expected);
+        }
+    }
+
+    /// Drive the LIVE inline body through `D_DoAdvanceDemo` itself:
+    /// from `demosequence == 12` the wrap lands in a demo-play arm for
+    /// both page counts (`13 % 6 == 1`, `13 % 7 == 6`) and never in the
+    /// music arms (0/4), so the call is side-effect-safe in a unit test.
+    #[test]
+    fn attract_sequence_count_live_do_advance_demo_matches_vectors() {
+        unsafe {
+            let saved_version = gameversion;
+            for (version, max_seq) in
+                [(d_mode::exe_ultimate, 7), (d_mode::exe_final, 7), (d_mode::exe_doom_1_9, 6), (d_mode::exe_chex, 6)]
+            {
+                gameversion = version;
+                demosequence = 12;
+                D_DoAdvanceDemo();
+                assert_eq!(demosequence, 13 % max_seq);
+                assert_eq!(attract_sequence_count_transcription(version), max_seq);
+            }
+            gameversion = saved_version;
+            demosequence = 0;
+        }
+    }
 }
