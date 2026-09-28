@@ -93,10 +93,7 @@ pub unsafe extern "C" fn P_StartButton(line: *mut line_t, w: c_int, texture: c_i
     // See if button is already pressed
     for i in 0..MAXBUTTONS
     {
-        if buttonlist[i].btimer != 0 && buttonlist[i].line == line
-        {
-            return;
-        }
+        if buttonlist[i].btimer != 0 && buttonlist[i].line == line { return; }
     }
 
     for i in 0..MAXBUTTONS
@@ -136,10 +133,7 @@ pub unsafe extern "C" fn P_StartButton(line: *mut line_t, w: c_int, texture: c_i
 #[no_mangle]
 pub unsafe extern "C" fn P_ChangeSwitchTexture(line: *mut line_t, useAgain: c_int)
 {
-    if useAgain == 0
-    {
-        (*line).special = 0;
-    }
+    if useAgain == 0 { (*line).special = 0; }
 
     let sidenum = (*line).sidenum[0] as isize;
     let texTop = (*sides.offset(sidenum)).toptexture;
@@ -149,10 +143,7 @@ pub unsafe extern "C" fn P_ChangeSwitchTexture(line: *mut line_t, useAgain: c_in
     let mut sound = Sfx::Swtchn as c_int;
 
     // EXIT SWITCH?
-    if (*line).special == 11
-    {
-        sound = Sfx::Swtchx as c_int;
-    }
+    if(*line).special == 11 { sound = Sfx::Swtchx as c_int; }
 
     for i in 0..(numswitches * 2) as usize
     {
@@ -160,30 +151,21 @@ pub unsafe extern "C" fn P_ChangeSwitchTexture(line: *mut line_t, useAgain: c_in
         {
             S_StartSound(buttonlist[0].soundorg, sound);
             (*sides.offset(sidenum)).toptexture = switchlist[i ^ 1] as c_short;
-            if useAgain != 0
-            {
-                P_StartButton(line, top, switchlist[i], BUTTONTIME);
-            }
+            if useAgain != 0 { P_StartButton(line, top, switchlist[i], BUTTONTIME); }
             return;
         }
         else if switchlist[i] == texMid as c_int
         {
             S_StartSound(buttonlist[0].soundorg, sound);
             (*sides.offset(sidenum)).midtexture = switchlist[i ^ 1] as c_short;
-            if useAgain != 0
-            {
-                P_StartButton(line, middle, switchlist[i], BUTTONTIME);
-            }
+            if useAgain != 0 { P_StartButton(line, middle, switchlist[i], BUTTONTIME); }
             return;
         }
         else if switchlist[i] == texBot as c_int
         {
             S_StartSound(buttonlist[0].soundorg, sound);
             (*sides.offset(sidenum)).bottomtexture = switchlist[i ^ 1] as c_short;
-            if useAgain != 0
-            {
-                P_StartButton(line, bottom, switchlist[i], BUTTONTIME);
-            }
+            if useAgain != 0 { P_StartButton(line, bottom, switchlist[i], BUTTONTIME); }
             return;
         }
     }

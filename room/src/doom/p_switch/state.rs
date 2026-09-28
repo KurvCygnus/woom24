@@ -163,210 +163,251 @@ pub(super) struct SwitchDef
 /// `p_switch.c`.  The list is terminated by an entry with `episode == 0`.
 pub(super) const ALPH_SWITCH_LIST: [SwitchDef; 41] = [
     // Doom shareware episode 1 switches
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BRCOM\0",
         name2: b"SW2BRCOM\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BRN1\0",
         name2: b"SW2BRN1\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BRN2\0",
         name2: b"SW2BRN2\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BRNGN\0",
         name2: b"SW2BRNGN\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BROWN\0",
         name2: b"SW2BROWN\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1COMM\0",
         name2: b"SW2COMM\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1COMP\0",
         name2: b"SW2COMP\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1DIRT\0",
         name2: b"SW2DIRT\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1EXIT\0",
         name2: b"SW2EXIT\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1GRAY\0",
         name2: b"SW2GRAY\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1GRAY1\0",
         name2: b"SW2GRAY1\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1METAL\0",
         name2: b"SW2METAL\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1PIPE\0",
         name2: b"SW2PIPE\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1SLAD\0",
         name2: b"SW2SLAD\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1STARG\0",
         name2: b"SW2STARG\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1STON1\0",
         name2: b"SW2STON1\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1STON2\0",
         name2: b"SW2STON2\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1STONE\0",
         name2: b"SW2STONE\0",
         episode: 1,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1STRTN\0",
         name2: b"SW2STRTN\0",
         episode: 1,
     },
     // Doom registered episodes 2&3 switches
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BLUE\0",
         name2: b"SW2BLUE\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1CMT\0",
         name2: b"SW2CMT\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1GARG\0",
         name2: b"SW2GARG\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1GSTON\0",
         name2: b"SW2GSTON\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1HOT\0",
         name2: b"SW2HOT\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1LION\0",
         name2: b"SW2LION\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1SATYR\0",
         name2: b"SW2SATYR\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1SKIN\0",
         name2: b"SW2SKIN\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1VINE\0",
         name2: b"SW2VINE\0",
         episode: 2,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1WOOD\0",
         name2: b"SW2WOOD\0",
         episode: 2,
     },
     // Doom II switches
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1PANEL\0",
         name2: b"SW2PANEL\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1ROCK\0",
         name2: b"SW2ROCK\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1MET2\0",
         name2: b"SW2MET2\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1WDMET\0",
         name2: b"SW2WDMET\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1BRIK\0",
         name2: b"SW2BRIK\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1MOD1\0",
         name2: b"SW2MOD1\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1ZIM\0",
         name2: b"SW2ZIM\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1STON6\0",
         name2: b"SW2STON6\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1TEK\0",
         name2: b"SW2TEK\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1MARB\0",
         name2: b"SW2MARB\0",
         episode: 3,
     },
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"SW1SKULL\0",
         name2: b"SW2SKULL\0",
         episode: 3,
     },
     // terminator
-    SwitchDef {
+    SwitchDef
+    {
         name1: b"\0",
         name2: b"\0",
         episode: 0,
@@ -392,8 +433,8 @@ pub static mut numswitches: c_int = 0;
 /// reaches zero the original texture is restored.
 /// Matches `buttonlist[]` in `p_switch.c`.
 #[no_mangle]
-pub static mut buttonlist: [button_t; MAXBUTTONS] = [button_t {
-    line: std::ptr::null_mut(),
+pub static mut buttonlist: [button_t; MAXBUTTONS] = [button_t
+{    line: std::ptr::null_mut(),
     where_: 0,
     btexture: 0,
     btimer: 0,

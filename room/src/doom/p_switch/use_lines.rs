@@ -81,10 +81,7 @@ pub unsafe extern "C" fn P_UseSpecialLine(
     if (*mobj).player.is_null()
     {
         // never open secret doors
-        if (*line).flags & LinedefFlag::SECRET as i16 != 0
-        {
-            return 0;
-        }
+        if(*line).flags & LinedefFlag::SECRET as i16 != 0 { return 0; }
         match (*line).special
         {
             1 | 32 | 33 | 34 => {}
@@ -102,198 +99,63 @@ pub unsafe extern "C" fn P_UseSpecialLine(
         }
 
         // SWITCHES
-        7 if EV_BuildStairs(line, stair_build8) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        9 if EV_DoDonut(line as *mut CffiLine) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
+        7 if EV_BuildStairs(line, stair_build8) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        9 if EV_DoDonut(line as *mut CffiLine) != 0 => { P_ChangeSwitchTexture(line, 0); }
         11 =>
         {
             P_ChangeSwitchTexture(line, 0);
             G_ExitLevel();
         }
-        14 if EV_DoPlat(line, plat_raiseAndChange, 32) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        15 if EV_DoPlat(line, plat_raiseAndChange, 24) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        18 if EV_DoFloor(line, floor_raiseFloorToNearest) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        20 if EV_DoPlat(line, plat_raiseToNearestAndChange, 0) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        21 if EV_DoPlat(line, plat_downWaitUpStay, 0) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        23 if EV_DoFloor(line, floor_lowerFloorToLowest) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        29 if EV_DoDoor(line, vld_normal) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        41 if EV_DoCeiling(line, ceiling_lowerToFloor) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        71 if EV_DoFloor(line, floor_turboLower) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        49 if EV_DoCeiling(line, ceiling_crushAndRaise) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        50 if EV_DoDoor(line, vld_close) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
+        14 if EV_DoPlat(line, plat_raiseAndChange, 32) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        15 if EV_DoPlat(line, plat_raiseAndChange, 24) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        18 if EV_DoFloor(line, floor_raiseFloorToNearest) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        20 if EV_DoPlat(line, plat_raiseToNearestAndChange, 0) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        21 if EV_DoPlat(line, plat_downWaitUpStay, 0) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        23 if EV_DoFloor(line, floor_lowerFloorToLowest) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        29 if EV_DoDoor(line, vld_normal) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        41 if EV_DoCeiling(line, ceiling_lowerToFloor) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        71 if EV_DoFloor(line, floor_turboLower) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        49 if EV_DoCeiling(line, ceiling_crushAndRaise) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        50 if EV_DoDoor(line, vld_close) != 0 => { P_ChangeSwitchTexture(line, 0); }
         51 =>
         {
             P_ChangeSwitchTexture(line, 0);
             G_SecretExitLevel();
         }
-        55 if EV_DoFloor(line, floor_raiseFloorCrush) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        101 if EV_DoFloor(line, floor_raiseFloor) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        102 if EV_DoFloor(line, floor_lowerFloor) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        103 if EV_DoDoor(line, vld_open) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        111 if EV_DoDoor(line, vld_blazeRaise) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        112 if EV_DoDoor(line, vld_blazeOpen) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        113 if EV_DoDoor(line, vld_blazeClose) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        122 if EV_DoPlat(line, plat_blazeDWUS, 0) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        127 if EV_BuildStairs(line, stair_turbo16) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        131 if EV_DoFloor(line, floor_raiseFloorTurbo) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        133 | 135 | 137 if EV_DoLockedDoor(line, vld_blazeOpen, thing as *mut CffiMobj) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
-        140 if EV_DoFloor(line, floor_raiseFloor512) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 0);
-        }
+        55 if EV_DoFloor(line, floor_raiseFloorCrush) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        101 if EV_DoFloor(line, floor_raiseFloor) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        102 if EV_DoFloor(line, floor_lowerFloor) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        103 if EV_DoDoor(line, vld_open) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        111 if EV_DoDoor(line, vld_blazeRaise) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        112 if EV_DoDoor(line, vld_blazeOpen) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        113 if EV_DoDoor(line, vld_blazeClose) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        122 if EV_DoPlat(line, plat_blazeDWUS, 0) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        127 if EV_BuildStairs(line, stair_turbo16) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        131 if EV_DoFloor(line, floor_raiseFloorTurbo) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        133 | 135 | 137 if EV_DoLockedDoor(line, vld_blazeOpen, thing as *mut CffiMobj) != 0 => { P_ChangeSwitchTexture(line, 0); }
+        140 if EV_DoFloor(line, floor_raiseFloor512) != 0 => { P_ChangeSwitchTexture(line, 0); }
 
         // BUTTONS
-        42 if EV_DoDoor(line, vld_close) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        43 if EV_DoCeiling(line, ceiling_lowerToFloor) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        45 if EV_DoFloor(line, floor_lowerFloor) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        60 if EV_DoFloor(line, floor_lowerFloorToLowest) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        61 if EV_DoDoor(line, vld_open) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        62 if EV_DoPlat(line, plat_downWaitUpStay, 1) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        63 if EV_DoDoor(line, vld_normal) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        64 if EV_DoFloor(line, floor_raiseFloor) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        66 if EV_DoPlat(line, plat_raiseAndChange, 24) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        67 if EV_DoPlat(line, plat_raiseAndChange, 32) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        65 if EV_DoFloor(line, floor_raiseFloorCrush) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        68 if EV_DoPlat(line, plat_raiseToNearestAndChange, 0) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        69 if EV_DoFloor(line, floor_raiseFloorToNearest) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        70 if EV_DoFloor(line, floor_turboLower) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        114 if EV_DoDoor(line, vld_blazeRaise) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        115 if EV_DoDoor(line, vld_blazeOpen) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        116 if EV_DoDoor(line, vld_blazeClose) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        123 if EV_DoPlat(line, plat_blazeDWUS, 0) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        132 if EV_DoFloor(line, floor_raiseFloorTurbo) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
-        99 | 134 | 136 if EV_DoLockedDoor(line, vld_blazeOpen, thing as *mut CffiMobj) != 0 =>
-        {
-            P_ChangeSwitchTexture(line, 1);
-        }
+        42 if EV_DoDoor(line, vld_close) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        43 if EV_DoCeiling(line, ceiling_lowerToFloor) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        45 if EV_DoFloor(line, floor_lowerFloor) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        60 if EV_DoFloor(line, floor_lowerFloorToLowest) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        61 if EV_DoDoor(line, vld_open) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        62 if EV_DoPlat(line, plat_downWaitUpStay, 1) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        63 if EV_DoDoor(line, vld_normal) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        64 if EV_DoFloor(line, floor_raiseFloor) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        66 if EV_DoPlat(line, plat_raiseAndChange, 24) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        67 if EV_DoPlat(line, plat_raiseAndChange, 32) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        65 if EV_DoFloor(line, floor_raiseFloorCrush) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        68 if EV_DoPlat(line, plat_raiseToNearestAndChange, 0) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        69 if EV_DoFloor(line, floor_raiseFloorToNearest) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        70 if EV_DoFloor(line, floor_turboLower) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        114 if EV_DoDoor(line, vld_blazeRaise) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        115 if EV_DoDoor(line, vld_blazeOpen) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        116 if EV_DoDoor(line, vld_blazeClose) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        123 if EV_DoPlat(line, plat_blazeDWUS, 0) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        132 if EV_DoFloor(line, floor_raiseFloorTurbo) != 0 => { P_ChangeSwitchTexture(line, 1); }
+        99 | 134 | 136 if EV_DoLockedDoor(line, vld_blazeOpen, thing as *mut CffiMobj) != 0 => { P_ChangeSwitchTexture(line, 1); }
         138 =>
         {
             EV_LightTurnOn(line, 255);
