@@ -32,6 +32,7 @@ use super::{
 /// Must be called from the single-threaded game loop only. The function reads
 /// the mutable globals `NEW_SYNC` and `offsetms` without synchronisation, and
 /// calls the C FFI function `I_GetTimeMS`.
+#[doc(alias = "GetAdjustedTime")]
 pub(super) unsafe fn get_adjusted_time() -> c_int
 {
     let mut time_ms = I_GetTimeMS();
@@ -57,6 +58,7 @@ pub(super) unsafe fn get_adjusted_time() -> c_int
 /// writes the mutable globals `gametic`, `ticdup`, `drone`, `NEW_SYNC`,
 /// `net_client_connected`, `MAKETIC`, `TICDATA`, and `LOCALPLAYER` without
 /// synchronisation.
+#[doc(alias = "BuildNewTic")]
 unsafe fn build_new_tic() -> bool
 {
     let gameticdiv = gametic / ticdup;
@@ -139,6 +141,7 @@ pub extern "C" fn net_update()
 /// Must be called from the single-threaded game loop only. The function reads
 /// the mutable globals `MAKETIC`, `RECVTIC`, `net_client_connected`, and
 /// `drone` without synchronisation.
+#[doc(alias = "GetLowTic")]
 unsafe fn get_low_tic() -> c_int
 {
     let mut lowtic = MAKETIC;
@@ -159,6 +162,7 @@ unsafe fn get_low_tic() -> c_int
 /// and writes the mutable globals `FRAMEON`, `LOCAL_PLAYERINGAME`,
 /// `LOCALPLAYER`, `MAKETIC`, `RECVTIC`, `LASTTIME`, `FRAMESKIP`,
 /// `OLDNETTICS`, and `SKIPTICS` without synchronisation.
+#[doc(alias = "OldNetSync")]
 unsafe fn old_net_sync()
 {
     FRAMEON += 1;
@@ -198,6 +202,7 @@ unsafe fn old_net_sync()
 /// Must be called from the single-threaded game loop only. The function reads
 /// the mutable globals `net_client_connected`, `drone`, and
 /// `LOCAL_PLAYERINGAME` without synchronisation.
+#[doc(alias = "PlayersInGame")]
 unsafe fn players_in_game() -> bool
 {
     let mut result = false;
@@ -216,6 +221,7 @@ unsafe fn players_in_game() -> bool
 ///
 /// # Safety
 /// `set` must be a valid, non-null pointer to a `TiccmdSetT`.
+#[doc(alias = "TicdupSquash")]
 unsafe fn ticdup_squash(set: *mut TiccmdSetT)
 {
     const BT_SPECIAL: u8 = 128;
@@ -234,6 +240,7 @@ unsafe fn ticdup_squash(set: *mut TiccmdSetT)
 ///
 /// # Safety
 /// `set` must be a valid, non-null pointer to a `TiccmdSetT`.
+#[doc(alias = "SinglePlayerClear")]
 unsafe fn single_player_clear(set: *mut TiccmdSetT) { for i in 0..NET_MAXPLAYERS { if i != LOCALPLAYER as usize { (*set).ingame[i] = 0; } } }
 
 /// Attempts to advance the game by as many tics as time permits.

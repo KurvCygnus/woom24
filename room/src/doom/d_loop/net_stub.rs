@@ -31,6 +31,7 @@ use super::{
 /// # Safety
 /// Must be called from the single-threaded game loop only. The function reads
 /// the mutable global `drone` without synchronisation.
+#[doc(alias = "D_Disconnected")]
 unsafe fn handle_disconnected() { if drone != 0 { i_error!("Disconnected from server in drone mode."); } }
 
 /// Receives a completed set of ticcmds from the network layer for `RECVTIC`.

@@ -39,6 +39,7 @@ use super::protocol_types::LoopInterfaceT;
 ///
 /// Caller must ensure `player_idx < MAXPLAYERS` and that the global state
 /// (`players`, `playeringame`, `consoleplayer`, `demorecording`) is valid.
+#[doc(alias = "PlayerQuitGame")]
 unsafe fn handle_player_quit(player_idx: usize)
 {
     /// Capacity of [`EXITMSG`], named so `M_StringCopy` does not have to take

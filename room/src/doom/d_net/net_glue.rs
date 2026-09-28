@@ -37,6 +37,7 @@ use super::{
 ///
 /// `settings` must point to a fully initialised `NetGameSettingsT`. All
 /// destination globals must be safely mutable at the call site.
+#[doc(alias = "LoadGameSettings")]
 unsafe fn load_game_settings(settings: *mut NetGameSettingsT)
 {
     deathmatch = (*settings).deathmatch;
@@ -72,6 +73,7 @@ unsafe fn load_game_settings(settings: *mut NetGameSettingsT)
 ///
 /// `settings` must point to a writable `NetGameSettingsT`. All source
 /// globals must be in a valid state.
+#[doc(alias = "SaveGameSettings")]
 unsafe fn save_game_settings(settings: *mut NetGameSettingsT)
 {
     (*settings).deathmatch = deathmatch;
@@ -107,6 +109,7 @@ unsafe fn save_game_settings(settings: *mut NetGameSettingsT)
 ///
 /// `connect_data` must point to a writable `NetConnectDataT`. Global state
 /// (`gamemode`, `gamemission`, `viewangleoffset`) must be valid.
+#[doc(alias = "InitConnectData")]
 unsafe fn init_connect_data(connect_data: *mut NetConnectDataT)
 {
     (*connect_data).max_players = MAXPLAYERS as c_int;
