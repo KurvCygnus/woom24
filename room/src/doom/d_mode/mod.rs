@@ -80,7 +80,7 @@ pub mod validate;
 //* path-stability re-export: all 29 enum constants keep their module-root
 //* paths for the freeze-zone callers (`d_main.rs`, `doomstat.rs`,
 //* `f_finale.rs`, `m_menu.rs`, `st_stuff.rs`, `wi_stuff.rs`, `hu_stuff.rs`,
-//* `g_game.rs`, ... ~163 references).
+//* `g_game`, ... ~163 references).
 pub use consts::{
     commercial, doom, doom2, exe_chex, exe_doom_1_2, exe_doom_1_666, exe_doom_1_7, exe_doom_1_8,
     exe_doom_1_9, exe_final, exe_final2, exe_hacx, exe_heretic_1_3, exe_hexen_1_1,

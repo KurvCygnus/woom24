@@ -25,9 +25,9 @@
 //!
 //! The `extern "C"` block below is carried verbatim from pre-split
 //! `d_player.rs:220-232`. These are extern DECLARATIONS, not
-//! definitions: they link BY SYMBOL to the freeze-zone definitions in
-//! `g_game.rs:376` (`#[no_mangle] pub static mut players: [PlayerT;
-//! MAXPLAYERS]`) and `g_game.rs:386` (`#[no_mangle] pub static mut
+//! definitions: they link BY SYMBOL to the definitions in
+//! `g_game/state.rs:players` (`#[no_mangle] pub static mut players: [PlayerT;
+//! MAXPLAYERS]`, graduated F10 wave C3, name + `#[no_mangle]` kept) and `g_game/state.rs:consoleplayer` (`#[no_mangle] pub static mut
 //! consoleplayer: c_int = 0`). A third declarer exists:
 //! `hu_stuff.rs:404` (private extern `consoleplayer`). Never re-point
 //! this block to Rust paths (`crate::doom::g_game::players`) while the
@@ -53,7 +53,7 @@
 //! | (data) `pspdef_t` | `pspr::PspdefT` | data | name kept; 10 files |
 //! | (data) opaque `mobj_t` / `state_t` | `player.rs` | data | pointer-target types only; `c_ffi.rs:26/:183` defines a SEPARATE mirror pair and `p_telept/types.rs:110/:124` a third -- mirrors are NOT unified during a graduation; the F9 harnesses cast `p.mo` through `c_ffi::mobj_t`, so both mirrors stay alive |
 //! | (data) `NUMPOWERS`/`NUMCARDS`/`NUMWEAPONS`/`NUMAMMO`/`NUMPSPRITES`/`MAXPLAYERS`, `CF_NOCLIP`/`CF_GODMODE`/`CF_NOMOMENTUM` | `player.rs` | data | names kept, root re-exported; local same-named copies in `m_menu.rs:63` / `c_ffi.rs:620` / `d_items/table.rs` / `p_inter/consts.rs:16` are NOT consumers -- never unify |
-//! | (data) extern statics `players` / `consoleplayer` | this root (extern block) | data | carried VERBATIM; definitions are freeze-zone `g_game.rs:376/:386`; see the extern-by-symbol contract above |
+//! | (data) extern statics `players` / `consoleplayer` | this root (extern block) | data | carried VERBATIM; definitions are `g_game/state.rs` (graduated F10 wave C3; name + `#[no_mangle]` kept); see the extern-by-symbol contract above |
 //! | `doomgeneric.rs` anchor list | -- | wiring | has no d_player entry (pre-move or now); per the wave ruling no anchors were added -- the `M_Menu_SetPlayerMessage` pin plus the untouched g_game `#[no_mangle]` statics keep the symbol set byte-identical |
 //!
 //! ## Deterministic Aspects
@@ -69,7 +69,7 @@
 //! - `PlayerT`'s 328-byte layout IS the savegame record layout
 //!   (`p_saveg/records.rs` `read_player_record`/`write_player_record`
 //!   mirror the field order).
-//! - `consoleplayer` is part of the LMP demo header (`g_game.rs` writes
+//! - `consoleplayer` is part of the LMP demo header (`g_game/demo.rs` writes
 //!   it at record time and validates it at playback).
 //! - `set_player_message` is glue: `player_t.message` is
 //!   render/HUD-observable but never read by the simulation and never

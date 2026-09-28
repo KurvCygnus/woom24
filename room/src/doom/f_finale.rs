@@ -271,7 +271,7 @@ extern "C" {
     fn strlen(s: *const c_char) -> usize;
 }
 
-// g_game.rs
+// g_game
 use crate::doom::g_game::{gameaction, gameepisode, gamemap, gamestate, players, viewactive};
 
 // am_map.rs

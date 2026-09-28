@@ -650,7 +650,7 @@ const BASELINE: &[Snapshot] = &[
 // ---------------------------------------------------------------------------
 //
 // Dense checkpoints during gameplay to catch subtle state drift.
-// The region 2000–3500 is critical — this is where the ported g_game.rs
+// The region 2000–3500 is critical — this is where the ported g_game
 // causes the player to die (health reaches 0 around tic 2500–3000),
 // while the C version keeps them alive at 2–6 HP before they recover.
 //

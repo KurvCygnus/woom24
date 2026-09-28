@@ -73,12 +73,12 @@ pub mod state;
 pub mod table;
 
 //* path-stability re-export: the C-linkage wrappers keep their
-//* module-root paths for the freeze-zone callers (`g_game.rs`,
+//* module-root paths for the callers (`g_game`,
 //* `f_wipe.rs`, `p_*.rs`, `c_tests/harness.rs`).
 pub use random::{M_ClearRandom, M_Random, P_Random};
 
 //* path-stability re-export: the cursor statics keep their
-//* module-root paths (`g_game.rs`, `harness_hash.rs`, `tables.rs`
+//* module-root paths (`g_game`, `harness_hash.rs`, `tables.rs`
 //* consumers, and the `room::doom::m_random::*` test-crate imports).
 pub use state::{prndindex, rndindex};
 

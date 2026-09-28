@@ -41,7 +41,7 @@
 //! they link BY SYMBOL to the freeze-zone definitions named in the item
 //! comments (`dummy/stubs.rs` for the `drone` / `net_client_connected`
 //! statics, `i_timer.rs` / `i_video.rs` / `i_system.rs` for the `I_*`
-//! calls, `d_main.rs` / `g_game.rs` / `m_menu.rs` for the per-tic
+//! calls, `d_main.rs` / `g_game` / `m_menu.rs` for the per-tic
 //! helpers). Never re-point this block to Rust paths (`crate::doom::...`)
 //! while the freeze zone exists -- that would silently breach the
 //! extern-by-symbol contract and lose the declarer record.
@@ -80,7 +80,7 @@
 //! | (data) `gametic` / `singletics` / `ticdup` / `offsetms` (statics) | module root (this file) | data | names + `#[no_mangle]` kept verbatim (statics ruling); F9 contract: `demo_playthrough.rs:84-85` links `gametic`/`singletics` by symbol; `c_ffi.rs:690` re-exports all four; web probe exports read `gametic`/`singletics`/`ticdup` by path |
 //! | (data) `pump_tic_cap` (static) | module root (this file) | data | name kept; NO `#[no_mangle]` before or after; path-only consumers (`frame_split_common`, `d_main.rs:428`, web shell) |
 //! | (data) `BACKUPTICS`, `NET_MAXPLAYERS`, `MAX_NETGAME_STALL_TICS`, `TICDATA`..`OLDNETTICS`, `TiccmdSetT` | module root (this file) | data | names kept verbatim; root state per the wave ruling; `TiccmdSetT` is `#[repr(C)]` (C `ticcmd_set_t`) |
-//! | (data) extern `drone` / `net_client_connected` statics + `I_*` / per-tic fn declarations | module root (extern block) | data | carried VERBATIM; definitions live in freeze-zone `dummy/stubs.rs:18/:27` (`c_uint` there vs `c_int` here -- ABI-compatible width, carried oddity), `i_timer.rs`, `i_video.rs`, `i_system.rs`, `d_main.rs`, `g_game.rs`, `m_menu.rs` |
+//! | (data) extern `drone` / `net_client_connected` statics + `I_*` / per-tic fn declarations | module root (extern block) | data | carried VERBATIM; definitions live in freeze-zone `dummy/stubs.rs:18/:27` (`c_uint` there vs `c_int` here -- ABI-compatible width, carried oddity), `i_timer.rs`, `i_video.rs`, `i_system.rs`, `d_main.rs`, `g_game`, `m_menu.rs` |
 //!
 //! ## Deterministic Aspects
 //!
@@ -110,7 +110,7 @@
 //! The ticcmd that enters the demo stream flows through this module's
 //! seam with d_net: `build_new_tic` latches the built command into
 //! `TICDATA`, d_net's `run_tic` copies it into `netcmds`, and `G_Ticker`
-//! (`g_game.rs:1528`) fetches it per tic.
+//! (`g_game/ticker.rs`) fetches it per tic.
 //!
 //! - `pump_tic_cap` is a RENDERING policy (`AGENTS.md` constraint 3):
 //!   it caps how many tics a frame may pump; it must never gate what a

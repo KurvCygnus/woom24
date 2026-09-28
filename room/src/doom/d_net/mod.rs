@@ -50,7 +50,7 @@
 //! The `extern "C"` block below is carried verbatim from pre-split
 //! `d_net.rs:177-273`. These are extern DECLARATIONS, not definitions:
 //! every item links BY SYMBOL to a definer in a *different* module --
-//! the freeze-zone freeze list (`m_misc.rs`, `g_game.rs`, `d_main.rs`,
+//! the freeze-zone freeze list (`m_misc.rs`, `g_game`, `d_main.rs`,
 //! `m_menu.rs`, `w_checksum.rs`, the doomstat statics) plus the pinned
 //! graduates (`M_CheckParm` in `m_argv/lookup.rs`,
 //! `W_CheckNumForName` in `w_wad/lookup.rs`) and the intra-wave seam
@@ -74,7 +74,7 @@
 //! `DOOM_LOOP_INTERFACE`), never symbol-linked -- alias, no pin.
 //! Statics and types keep their names outright: `netcmds` keeps
 //! `#[no_mangle]` (wasm export-table member; g_game consumes it by
-//! path, `g_game.rs:678`).
+//! path, `g_game/ticker.rs`).
 //!
 //! | Original (C) | New location | Surface | Notes |
 //! |--------------|--------------|---------|-------|
@@ -86,10 +86,10 @@
 //! | `DEH_String` (deh_main.h stub) | `net_glue::deh_string` | data | alias only; identity stub, `#[inline(always)]`; private pre-move |
 //! | `D_ConnectNetGame` (d_net.c:215) | `net_glue::connect_net_game` | glue | shim + `#[export_name = "D_ConnectNetGame"]` pin (has `#[no_mangle]` pre-move -- wasm export-table member; `d_main.rs:1818` boots through it) |
 //! | `D_CheckNetGame` (d_net.c:240) | `net_glue::check_net_game` | glue | shim + `#[export_name = "D_CheckNetGame"]` pin; `d_main.rs:1901` |
-//! | (data) `netcmds` (static) | module root (this file) | data | name + `#[no_mangle]` kept verbatim; latched per tic by `run_tic`, consumed by `G_Ticker` (`g_game.rs:1528`) |
+//! | (data) `netcmds` (static) | module root (this file) | data | name + `#[no_mangle]` kept verbatim; latched per tic by `run_tic`, consumed by `G_Ticker` (`g_game/ticker.rs`) |
 //! | (data) `NetConnectDataT` / `NetGameSettingsT` / `LoopInterfaceT` | `protocol_types.rs` | data | names kept; `#[repr(C)]` field order IS the C ABI -- size-pinned by the moved guards |
 //! | (data) `NET_MAXPLAYERS` / `SHA1_DIGEST_SIZE`, `EXIT_MSG`, fn-local `EXITMSG`, `DOOM_LOOP_INTERFACE` | `protocol_types.rs` / `net_glue.rs` / `loop_table.rs` | data | names kept (statics ruling); `DOOM_LOOP_INTERFACE` is `pub(super)` so `check_net_game` can hand its address to d_loop |
-//! | (data) extern `deathmatch`..`playeringame` statics + helper fn declarations | module root (extern block) | data | carried VERBATIM; definitions are freeze-zone `#[no_mangle]` statics/functions (doomstat.rs, d_main.rs, g_game.rs, r_main.rs, m_misc.rs, w_checksum.rs) and pinned graduates (m_argv, w_wad) |
+//! | (data) extern `deathmatch`..`playeringame` statics + helper fn declarations | module root (extern block) | data | carried VERBATIM; definitions are freeze-zone `#[no_mangle]` statics/functions (doomstat.rs, d_main.rs, g_game, r_main.rs, m_misc.rs, w_checksum.rs) and pinned graduates (m_argv, w_wad) |
 //!
 //! ## Deterministic Aspects
 //!
@@ -101,7 +101,7 @@
 //! - The ticcmd that enters the demo stream flows through this module's
 //!   seam with d_loop: `run_tic` latches the loop layer's command array
 //!   pointer into `netcmds` per tic (d_net.c `netcmds = cmds`), and
-//!   `G_Ticker` (`g_game.rs:1528`) copies `netcmds[consoleplayer]`
+//!   `G_Ticker` (`g_game/ticker.rs`) copies `netcmds[consoleplayer]`
 //!   from it. The latch ORDER inside `run_tic` is the demo-observable
 //!   contract: (1) the player-quit scan runs first, (2) `netcmds` is
 //!   stored, (3) the `advancedemo` check precedes `G_Ticker` -- the

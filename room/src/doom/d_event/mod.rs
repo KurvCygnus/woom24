@@ -15,7 +15,7 @@
 //! Aspects. The module root is documentation + wiring only: the `mod`
 //! declarations and the re-exports below keep every existing consumer
 //! path valid (`crate::doom::d_event::*` -- the `event_t` struct
-//! importers `am_map.rs`, `f_finale.rs`, `g_game.rs`, `hu_stuff.rs`,
+//! importers `am_map.rs`, `f_finale.rs`, `g_game`, `hu_stuff.rs`,
 //! `i_input.rs`, `m_menu.rs`, `st_stuff.rs`, `wi_stuff.rs`, and the
 //! `D_PopEvent` import at `d_main.rs:425`); no content lives here.
 //!
@@ -24,7 +24,7 @@
 //! | Original (C) | New location | Surface | Notes |
 //! |--------------|--------------|---------|-------|
 //! | `D_PostEvent` | `queue::D_PostEvent` | glue | live-input transport: demo playback injects ticcmds from the demo stream through the net loop (`d_net/protocol_types.rs:131` binds `D_ProcessEvents` into the loop interface), never through the event queue -- queue contents are async host timing with no exact-sequence guarantee; `#[no_mangle]` MANDATORY: extern-declared at `i_input.rs:38`, and dropping it would break that link on some targets with no Rust-visible error; upstream `d_event.c:35-39` |
-//! | `D_PopEvent` | `queue::D_PopEvent` | glue | same transport argument; the demo-relevant event-to-ticcmd conversion lives in `G_BuildTiccmd`/`G_Responder` (`g_game.rs:1364-1449`, freeze zone), not here; `#[no_mangle]` retained so the wasm export surface stays byte-identical; upstream `d_event.c:43-61` |
+//! | `D_PopEvent` | `queue::D_PopEvent` | glue | same transport argument; the demo-relevant event-to-ticcmd conversion lives in `G_BuildTiccmd`/`G_Responder` (`g_game/{ticcmd,responder}.rs`, graduated F10 wave C3), not here; `#[no_mangle]` retained so the wasm export surface stays byte-identical; upstream `d_event.c:43-61` |
 //! | `event_t` | `types::event_t` | data | `repr(C)` struct, ABI-pinned at 20 bytes by the moved layout test: it crosses the extern-block boundary at `i_input.rs:38`; the `ev_*` type constants are deliberately not exported (freeze-zone consumers use private copies / raw ints -- a post-graduation cleanup, not this wave) |
 //! | `MAXEVENTS` / `EVENTS` / `EVENT_HEAD` / `EVENT_TAIL` | `queue` private statics | data | capacity and ring state, private exactly like the C file-statics (`d_event.c:25-29`) |
 //!
@@ -47,7 +47,7 @@
 //! queue, because the demo stream feeds ticcmds through the net loop
 //! (`d_net/protocol_types.rs:131`). The demo-relevant conversion of an event into
 //! simulation input happens in the freeze-zone responders
-//! (`g_game.rs:1364-1449`), outside this module. The F9 golden demo
+//! (`g_game/{ticcmd,responder}.rs`), outside this module. The F9 golden demo
 //! tests therefore do not exercise this queue's contents.
 
 pub mod queue;

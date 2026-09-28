@@ -358,7 +358,7 @@ extern "C" {
     fn memmove(dest: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
 }
 
-// g_game.rs
+// g_game
 use crate::doom::g_game::{
     deathmatch, demoplayback, demorecording, displayplayer, forwardmove, gameaction, gamestate,
     netgame, nodrawers, paused, sidemove, singledemo, testcontrols, testcontrols_mousespeed,

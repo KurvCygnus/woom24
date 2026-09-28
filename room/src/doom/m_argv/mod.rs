@@ -67,7 +67,7 @@ pub mod response;
 pub mod state;
 
 //* path-stability re-export: the argv statics keep their module-root
-//* paths (`d_main.rs`, `g_game.rs`, and the freeze-zone extern
+//* paths (`d_main.rs`, `g_game`, and the freeze-zone extern
 //* declarers' provenance); the C symbols are unaffected (statics keep
 //* `#[no_mangle]` at the definition).
 pub use state::{myargc, myargv};

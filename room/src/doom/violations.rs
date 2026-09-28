@@ -56,7 +56,7 @@ pub fn reset_all()
 
 //* Test-only serialization for census-asserting tests. The counters are
 //* process-global statics and the asserting tests live in several modules
-//* (here, p_map.rs, p_mobj.rs, g_game.rs); without this one shared lock,
+//* (here, p_map.rs, p_mobj.rs, g_game); without this one shared lock,
 //* any test's reset_all() can land inside another's record/assert window
 //* under cargo's default parallel test execution. Census tests take this
 //* lock alongside their module-local state locks.

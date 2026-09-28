@@ -43,7 +43,7 @@
 //! | `Z_Malloc` | `zone::zone_alloc` | glue | shim + `#[export_name = "Z_Malloc"]` pin (same declarers); next-fit rover walk + purge eviction + `MINFRAGMENT` split; zero-fills the returned buffer (upstream C does not -- port addition, doc-commented at the definition, pinned by the baseline tests); upstream `z_zone.c:184` |
 //! | `Z_FreeTags` | `zone::zone_free_tags` | glue | shim; the 2000-block walk cap and `[Z_FreeTags]` stderr trace are Rust-only additions absent from C `z_zone.c:297-319`; upstream `z_zone.c:297` |
 //! | `Z_DumpHeap` | `diagnose::dump_heap` | glue | shim; zero external callers; upstream `z_zone.c:327` |
-//! | `Z_CheckHeap` | `diagnose::check_heap` | glue | shim; sole live caller `g_game.rs`; upstream `z_zone.c:400` |
+//! | `Z_CheckHeap` | `diagnose::check_heap` | glue | shim; sole live caller `g_game/actions.rs`; upstream `z_zone.c:400` |
 //! | `Z_CheckHeapQuiet` | `diagnose::check_heap_quiet` | glue | shim; Rust-only (no C counterpart); 2000-cap walk + 10 MB size heuristic (flags legitimately merged large free blocks -- known quirk, documented at the definition) |
 //! | `Z_CheckHeapAfter` | `diagnose::check_heap_after` | glue | shim; Rust-only, stays `pub unsafe fn` (never extern) |
 //! | `Z_ChangeTag2` | `zone::change_tag` | glue | shim; `file`/`line` args ignored (macro callsite rewritten on the C side); upstream `z_zone.c:429` |

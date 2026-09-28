@@ -109,7 +109,7 @@ pub struct MobjStub {
 // doomstat.rs
 use crate::doom::doomstat::gamemode;
 
-// g_game.rs
+// g_game
 use crate::doom::g_game::{consoleplayer, gameepisode, gamemap, players};
 
 // i_sound.rs

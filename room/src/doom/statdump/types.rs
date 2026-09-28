@@ -10,7 +10,7 @@ use std::ffi::c_int;
 //? during graduation): this module's trimmed `wbstartstruct_t` is NOT
 //? offset-compatible with the struct it memcpy's from -- the source of
 //? `StatCopy` is wi_stuff's FULL `wbstartstruct_t` (`wi_stuff.rs:137-160`,
-//? cast at `g_game.rs:2149`): `last` (offset 4) reads wminfo.didsecret,
+//? cast in `g_game/actions.rs:do_completed`): `last` (offset 4) reads wminfo.didsecret,
 //? `partime` (offset 8) reads wminfo.last, and `plyr` (offset 12) starts
 //? at wminfo.next. `wbplayerstruct_t` also omits the C `score` field
 //? (36 B vs the C 40 B, `d_player.h:168-180`), so the 156-byte size

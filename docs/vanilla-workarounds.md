@@ -38,10 +38,10 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | 3 | donut NULL-backsector read | `EV_DoDonut` dereferences a null `s3` sector on malformed maps; vanilla reads DOS address `0000:0000`-adjacent memory | complete | `room/src/doom/p_spec/donut.rs:donut_overrun` |
 | 4 | REJECT undersized-lump read | `P_LoadReject` reads a REJECT lump shorter than `ceil(numsectors^2/8)` bytes; the tail falls into the `Z_Malloc` zone block header | complete | `room/src/doom/p_setup/reject.rs:pad_reject_array` |
 | 5 | missed-backside null sector | segs of two-sided lines with a missing back sidedef get `backsector = NULL`-adjacent DOS memory; vanilla reads address 0 | complete | `room/src/doom/p_setup/null_sector.rs:sector_at_null_address` |
-| 6 | teleport-fog signed-angle overrun | `G_CheckSpot` computes `an = (ANG45 * angle/45) >> 19` with a signed shift in the DOS binary; out-of-range indices read `finetangent[]` instead of the sine/cosine tables | complete | `room/src/doom/g_game.rs:G_CheckSpot` / `TeleportFogAngleOverrun` |
-| 7 | episode-4 par-time off-by-one | `G_DoCompleted` reads `cpars[gamemap]` (not `[gamemap-1]`) for Doom 1 episode 4 -- an accidental adjacent-array read that statcheck depends on | complete | `room/src/doom/g_game.rs:G_DoCompleted` |
+| 6 | teleport-fog signed-angle overrun | `G_CheckSpot` computes `an = (ANG45 * angle/45) >> 19` with a signed shift in the DOS binary; out-of-range indices read `finetangent[]` instead of the sine/cosine tables | complete | `room/src/doom/g_game/spawn.rs:check_spot` + `room/src/doom/g_game/dtmc.rs:teleport_fog_offset` / `TeleportFogAngleOverrun` |
+| 7 | episode-4 par-time off-by-one | `G_DoCompleted` reads `cpars[gamemap]` (not `[gamemap-1]`) for Doom 1 episode 4 -- an accidental adjacent-array read that statcheck depends on | complete | `room/src/doom/g_game/actions.rs:do_completed` |
 | 8 | Archvile fire spawn coordinates | `A_VileTarget` passes `target->x` for both X and Y of `P_SpawnMobj` (vanilla typo) | complete | `room/src/doom/p_enemy/vile_fire.rs:action_vile_target` |
-| 9 | commercial map33 par-time read | `G_DoCompleted` reads one `int` past `cpars[31]` for a map 33 exit; the read lands in the first four bytes of the adjacent `GAMMALVL0` rodata string | complete | `room/src/doom/g_game.rs:G_DoCompleted` / `ParTimeOverrun` |
+| 9 | commercial map33 par-time read | `G_DoCompleted` reads one `int` past `cpars[31]` for a map 33 exit; the read lands in the first four bytes of the adjacent `GAMMALVL0` rodata string | complete | `room/src/doom/g_game/actions.rs:do_completed` + `room/src/doom/g_game/dtmc.rs:commercial_partime` / `ParTimeOverrun` |
 | 10 | playeringame[-1] overrun | `P_SpawnPlayer` gates the spawn on `playeringame[mthing->type - 1]`; a type-0 mapthing makes the index `-1`, which aliases `players[3].didsecret` in the DOS `.bss` | complete | `room/src/doom/p_mobj/mapthings.rs:spawn_player` / `PlayeringameOverrun` |
 | 11 | door/plat `specialdata` aliasing | `EV_VerticalDoor` discriminates the thinker in an aliased `sector->specialdata` slot by `acp1` function-pointer compare and, for a plat, writes `plat->wait` through a `vldoor_t*` cast (the "When is a door not a door?" quirk) | complete | `room/src/doom/p_doors/events.rs:EV_VerticalDoor` |
 | 12 | null-target dereference substitution | weapon/monster code dereferences `target`/`tracer` pointers that can legitimately be NULL; vanilla read DOS address `0000:0000`-adjacent memory (low vector area) and "worked" for it | complete | `room/src/doom/p_mobj/spawn.rs:subst_null_mobj` |
@@ -398,8 +398,8 @@ mis-indexed values.
 
 ### Where we emulate it
 
-`room/src/doom/g_game.rs:G_CheckSpot` delegates to the pure helper
-`g_check_spot_fog_offset` (same file), which owns the whole offset switch:
+`room/src/doom/g_game/spawn.rs:check_spot` delegates to the pure helper
+`teleport_fog_offset` (`room/src/doom/g_game/dtmc.rs`), which owns the whole offset switch:
 
 ```rust
 let an = ((ANG45 >> ANGLETOFINESHIFT) as i32).wrapping_mul(angle / 45);
@@ -436,7 +436,7 @@ Matches chocolate exactly (transcribed case table):
   `VanillaViolation::TeleportFogAngleOverrun`.
 - Out-of-table values (e.g. angle > 360) reach chocolate's `default:` arm:
   `I_Error("G_CheckSpot: unexpected angle %d\n", an)`.
-- Unit test `doom::g_game::tests::g_check_spot_fog_matches_chocolate_case_table`
+- Unit test `doom::g_game::dtmc::tests::g_check_spot_fog_matches_chocolate_case_table`
   pins every arm plus the no-`I_Error` sweep over `0..=360 step 45`.
 
 History: the block was inherited verbatim from upstream room (commit
@@ -480,7 +480,8 @@ changing them breaks the statcheck demo ecosystem.
 
 ### Where we emulate it
 
-`room/src/doom/g_game.rs:2117-2132` in `G_DoCompleted`:
+`room/src/doom/g_game/actions.rs:do_completed` (commercial arm via
+`dtmc::commercial_partime`):
 
 ```rust
 wminfo.partime = if gamemode == commercial {
@@ -503,7 +504,7 @@ wminfo.partime = if gamemode == commercial {
 
 Identical to chocolate's branch structure, including the deliberate
 `cpars[gamemap]` for `gameepisode >= 4`. The documented rationale in
-`G_DoCompleted`'s doc comment (`g_game.rs:2026-2028`) explicitly claims the
+`do_completed`'s doc comment (`g_game/actions.rs`) explicitly claims the
 overflow as statcheck-compatibility behavior. The commercial map33 sibling is
 handled by entry 9. Census: every episode-4 read records a
 `violations::VanillaViolation::ParTimeOverrun` hit
@@ -594,8 +595,8 @@ panicked with `index out of bounds: the len is 32 but the index is 32`).
 
 ### Where we emulate it
 
-`room/src/doom/g_game.rs:2117-2132` in `G_DoCompleted` delegates the
-commercial arm to the pure helper `commercial_partime` (`g_game.rs:2170`);
+`room/src/doom/g_game/actions.rs:do_completed` delegates the
+commercial arm to the pure helper `commercial_partime` (`g_game/dtmc.rs`);
 the map33 case is
 
 ```rust
@@ -605,7 +606,7 @@ the map33 case is
 }
 ```
 
-`gammalvl0_prefix_i32` (`g_game.rs:2193`) reads the first four bytes of the
+`gammalvl0_prefix_i32` (`g_game/dtmc.rs`) reads the first four bytes of the
 port's GAMMALVL0 equivalent -- `gammamsg[0]` in `room/src/doom/m_menu.rs:284`
 ("Gamma correction OFF") -- and forms the little-endian i32. Maps outside
 `1..=33` return `None` and the call site raises `I_Error`.
@@ -633,7 +634,7 @@ port's GAMMALVL0 equivalent -- `gammamsg[0]` in `room/src/doom/m_menu.rs:284`
   (`room/src/doom/violations.rs`); the same variant records entry 7's
   episode-4 off-by-one, its family sibling.
 - Regression pin:
-  `doom::g_game::tests::commercial_map33_exit_uses_gammalvl0_model_not_panic`
+  `doom::g_game::dtmc::tests::commercial_map33_exit_uses_gammalvl0_model_not_panic`
   drives maps 1-32 (ordinary `cpars[map-1]` path), map 33 (model value +
   census hit), and pins `gammamsg[0]`'s four-byte prefix against silent
   text changes.
@@ -769,7 +770,7 @@ only):
 | `braintargets[32]` store (`p_enemy/brain.rs:71`, `action_brain_awake`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
 | `playerstarts[4]` (`p_mobj/mapthings.rs:204-213`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
 | `deathmatchstarts[10]` (`p_mobj/mapthings.rs:190-197`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
-| `bodyque[32]` (`g_game.rs:1772-1777`) | bounded (`% 32` on both read and write) |
+| `bodyque[32]` (`g_game/spawn.rs:check_spot`) | bounded (`% 32` on both read and write) |
 | `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop/tic_pump.rs:102`, `d_loop/net_stub.rs:77-78`, `d_loop/tic_pump.rs:424`) |
 | visplanes / openings / drawsegs growth | render-side; in Rust these fail loud (index panic), not silent -- limit-removal (F2) concerns, out of canary scope |
 
@@ -851,7 +852,8 @@ p_mobj.c:2074`): the `type == 0` prologue guard records
 `VanillaViolation::PlayeringameOverrun` and returns without spawning. The
 live trigger surface in our tree is the respawn/fallback paths that pass
 unfilled `playerstarts[]` slots to `P_SpawnPlayer` (`G_DoReborn` /
-`G_DeathMatchSpawnPlayer` in `room/src/doom/g_game.rs`); a level-load
+`G_DeathMatchSpawnPlayer` in `room/src/doom/g_game/spawn.rs`
+(`deathmatch_spawn_player` / `do_reborn`)); a level-load
 type-0 mapthing is stopped earlier by `P_SpawnMapThing`'s skip, as in
 dsda.
 
@@ -1173,12 +1175,13 @@ state for compatible inputs.
   completes, because calling into a zero-initialized engine divides by
   `ticdup == 0`. Host-lifecycle platform work, not vanilla emulation (the
   ticdup=0 there comes from pre-init zeroing, not an OOB write).
-- **Mouse/joystick button accessors** (`room/src/doom/g_game.rs:833-845`,
-  `mousebutton`/`joybutton`): vanilla's `mousebuttons = &mousearray[1]`
+- **Mouse/joystick button accessors** (`room/src/doom/g_game/ticcmd.rs`,
+  `mouse_button`/`joy_button`): vanilla's `mousebuttons = &mousearray[1]`
   negative-index sentinel is legal C, faithfully rewritten without pointer
   aliasing. Not a bug emulation.
 - **`vanilla_savegame_limit` / `vanilla_demo_limit`**
-  (`room/src/doom/g_game.rs:520-525`, enforced at `:2393` and `:2775`):
+  (`room/src/doom/g_game/state.rs`, enforced at `g_game/savegentry.rs:do_save_game`
+  and `g_game/demo.rs:write_demo_ticcmd`):
   user-configurable enforcement of vanilla's buffer caps (I_Error) versus
   auto-growth. Limit-removal configuration, not bug emulation.
 - **Zone sizing policy** (`room/src/doom/i_system.rs`, `DEFAULT_RAM`,

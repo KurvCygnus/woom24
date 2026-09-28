@@ -16,16 +16,16 @@
 //! `dtmc.rs`, and the reasoning is stated under Deterministic
 //! Aspects. The module root is documentation + wiring only: the `mod`
 //! declarations and the re-exports below keep every existing consumer
-//! path valid (`crate::doom::statdump::*` -- the `StatCopy` import at
-//! `g_game.rs:745` and the fully-qualified
-//! `crate::doom::statdump::wbstartstruct_t` cast path at
-//! `g_game.rs:2149`); no content lives here.
+//! path valid (`crate::doom::statdump::*` -- the `StatCopy` import in
+//! `g_game/actions.rs` and the fully-qualified
+//! `crate::doom::statdump::wbstartstruct_t` cast in
+//! `g_game/actions.rs:do_completed`); no content lives here.
 //!
 //! ## Original Fn Name Mapping
 //!
 //! | Original (C) | New location | Surface | Notes |
 //! |--------------|--------------|---------|-------|
-//! | `StatCopy` | `capture::StatCopy` | glue | write-only diagnostic side-channel gated by the `-statdump` CLI parm (`m_argv::M_ParmExists`, a one-way graduated-to-freeze-zone edge): mutates only module-private state nothing reads, so nothing here can reach the demo sequence; `#[no_mangle]` retained (path-referenced by `g_game.rs`); upstream `statdump.c:333-341` |
+//! | `StatCopy` | `capture::StatCopy` | glue | write-only diagnostic side-channel gated by the `-statdump` CLI parm (`m_argv::M_ParmExists`, a one-way graduated-to-freeze-zone edge): mutates only module-private state nothing reads, so nothing here can reach the demo sequence; `#[no_mangle]` retained (path-referenced by `g_game/actions.rs`); upstream `statdump.c:333-341` |
 //! | `StatDump` | `capture::StatDump` | glue | no-op stub -- the entire dump implementation (banner printing, par-time tables, `PrintFragsTable`, gamemode discovery) sits behind `#if ORIGCODE` upstream (`statdump.c:345-390`) and is correctly not ported; never called in-tree (`d_main.rs:1916-1919` only echoes a message when the parm is passed); `#[no_mangle]` retained so graduation changes nothing about the linker's current dead-strip decision; upstream `statdump.c:343` |
 //! | `wbstartstruct_t` | `types::wbstartstruct_t` | data | trimmed 4-field `repr(C)` variant of the C `d_player.h:182-203` struct; see the `//?` layout-mismatch record in `types.rs` -- deliberately NOT repaired during graduation (move as-is, fix later) |
 //! | `wbplayerstruct_t` | `types::wbplayerstruct_t` | data | lacks the C `score` field (36 B vs the C 40 B, `d_player.h:168-180`); same `//?` record |
@@ -52,16 +52,16 @@
 //! runs. The capture path is preserved byte-for-byte (including the
 //! knowingly-wrong layout record) so a future hook can iterate
 //! `captured_stats`; the F9 golden demo tests are the net under the
-//! call site in `g_game.rs`.
+//! call site in `g_game/actions.rs` (the graduated demo driver).
 
 pub mod capture;
 pub mod types;
 
 //* path-stability re-export: the two mirror structs keep their
-//* module-root paths (the fully-qualified cast at g_game.rs:2149 and
-//* the g_game.rs:745 import neighborhood).
+//* module-root paths (the fully-qualified cast and the import neighborhood in
+//* `g_game/actions.rs:do_completed`).
 pub use types::{wbplayerstruct_t, wbstartstruct_t};
 
 //* path-stability re-export: `StatCopy` keeps its module-root path
-//* (g_game.rs:745); `StatDump` stays exported for surface stability.
+//* (g_game/actions.rs); `StatDump` stays exported for surface stability.
 pub use capture::{StatCopy, StatDump};
