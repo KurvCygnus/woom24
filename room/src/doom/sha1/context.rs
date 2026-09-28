@@ -15,7 +15,8 @@ pub type sha1_digest_t = [u8; 20];
 /// `#[repr(C)]` because the still-C call sites in `d_loop.c` and the save
 /// system stack-allocate this struct.
 #[repr(C)]
-pub struct SHA1Context {
+pub struct SHA1Context
+{
     /// Chaining variable A.
     pub h0: u32,
     /// Chaining variable B.

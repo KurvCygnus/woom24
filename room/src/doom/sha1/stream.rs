@@ -73,10 +73,7 @@ fn update_stream(hd: &mut SHA1Context, inbuf: Option<&[u8]>)
         }
         let _buf_copy = hd.buf;
         update_stream(hd, None);
-        if inlen == 0
-        {
-            return;
-        }
+        if inlen == 0 { return; }
     }
 
     while inlen >= 64
@@ -118,10 +115,7 @@ fn update_stream(hd: &mut SHA1Context, inbuf: Option<&[u8]>)
 pub unsafe extern "C" fn update(hd: *mut SHA1Context, inbuf: *mut u8, inlen: usize)
 {
     let hd = &mut *hd;
-    if inbuf.is_null()
-    {
-        update_stream(hd, None);
-    }
+    if inbuf.is_null() { update_stream(hd, None); }
     else
     {
         let slice = std::slice::from_raw_parts(inbuf, inlen);
@@ -157,10 +151,7 @@ pub unsafe extern "C" fn finalize(digest: *mut u8, hd: *mut SHA1Context)
     let mut msb = t >> 26;
     let t_orig = lsb;
     lsb = lsb.wrapping_add(hd.count as u32);
-    if lsb < t_orig
-    {
-        msb += 1;
-    }
+    if lsb < t_orig { msb += 1; }
     let t_after = lsb;
     lsb <<= 3;
     msb <<= 3;
@@ -187,10 +178,7 @@ pub unsafe extern "C" fn finalize(digest: *mut u8, hd: *mut SHA1Context)
         }
         let _buf_copy = hd.buf;
         update_stream(hd, None);
-        for i in 0..56
-        {
-            hd.buf[i] = 0;
-        }
+        for i in 0..56 { hd.buf[i] = 0; }
     }
 
     hd.buf[56] = (msb >> 24) as u8;
@@ -312,10 +300,7 @@ mod tests
 
     /// RFC 3174 vector 1: SHA1("abc").
     #[test]
-    fn rfc_abc()
-    {
-        assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
-    }
+    fn rfc_abc() { assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d"); }
 
     /// RFC 3174 vector 2: 448-bit message.
     #[test]
@@ -327,10 +312,7 @@ mod tests
 
     /// SHA1("") = da39a3ee5e6b4b0d3255bfef95601890afd80709
     #[test]
-    fn empty_input()
-    {
-        assert_eq!(sha1_hex(b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
-    }
+    fn empty_input() { assert_eq!(sha1_hex(b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709"); }
 
     /// `update_int32` sends the value in big-endian byte order, so its
     /// digest must match SHA1 of the four raw bytes.

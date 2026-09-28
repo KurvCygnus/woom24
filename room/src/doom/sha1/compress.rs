@@ -7,10 +7,7 @@ use super::context::SHA1Context;
 
 /// Thin alias for `u32::rotate_left`, kept so the SHA-1 step macros read
 /// like the C source's `rol(x, n)` macro.
-fn rol(x: u32, n: u32) -> u32
-{
-    x.rotate_left(n)
-}
+fn rol(x: u32, n: u32) -> u32 { x.rotate_left(n) }
 
 /// SHA-1 compression function: absorbs one 512-bit (64-byte) message block
 /// into the chaining state.
@@ -93,28 +90,16 @@ pub(super) fn transform(hd: &mut SHA1Context, data: &[u8; 64])
     /// Round-1 nonlinear function (steps 0..=19): `(x AND y) OR ((NOT x) AND z)`,
     /// rewritten as `z XOR (x AND (y XOR z))` to save one operation. Direct
     /// port of C `F1`.
-    fn f1(x: u32, y: u32, z: u32) -> u32
-    {
-        z ^ (x & (y ^ z))
-    }
+    fn f1(x: u32, y: u32, z: u32) -> u32 { z ^ (x & (y ^ z)) }
     /// Round-2 nonlinear function (steps 20..=39): `x XOR y XOR z`. Direct
     /// port of C `F2`.
-    fn f2(x: u32, y: u32, z: u32) -> u32
-    {
-        x ^ y ^ z
-    }
+    fn f2(x: u32, y: u32, z: u32) -> u32 { x ^ y ^ z }
     /// Round-3 nonlinear function (steps 40..=59): majority of `x`, `y`, `z`,
     /// written as `(x AND y) OR (z AND (x OR y))`. Direct port of C `F3`.
-    fn f3(x: u32, y: u32, z: u32) -> u32
-    {
-        (x & y) | (z & (x | y))
-    }
+    fn f3(x: u32, y: u32, z: u32) -> u32 { (x & y) | (z & (x | y)) }
     /// Round-4 nonlinear function (steps 60..=79): same as `f2`, `x XOR y XOR z`.
     /// Direct port of C `F4`.
-    fn f4(x: u32, y: u32, z: u32) -> u32
-    {
-        x ^ y ^ z
-    }
+    fn f4(x: u32, y: u32, z: u32) -> u32 { x ^ y ^ z }
 
     R!(f1, K1, x[0]);
     R!(f1, K1, x[1]);
