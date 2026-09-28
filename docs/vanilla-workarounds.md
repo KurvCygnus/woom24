@@ -95,7 +95,7 @@ if numspechit > MAXSPECIALCROSS_ORIGINAL
 ```
 
 - `p_map/move.rs:472` in `try_move` (`P_TryMove`) and
-  `p_enemy/chase.rs:276-279` in `move_step` (`P_Move`; bounded drain
+  `p_enemy/chase.rs:220-225` in `move_step` (`P_Move`; bounded drain
   reads; both loops decrement `numspechit` first and must skip indices
   the guarded push never stored):
 
@@ -209,8 +209,8 @@ InterceptsMemoryOverrun(location + 8, (*intercept).d.thing as usize as c_int);
 ```
 
 Call sites: after each intercept store, before advancing `intercept_p` --
-`p_maputl/intercepts.rs:256` (`PIT_AddLineIntercepts`) and
-`p_maputl/intercepts.rs:320` (`PIT_AddThingIntercepts`). Constants at
+`p_maputl/intercepts.rs:275` (`PIT_AddLineIntercepts`) and
+`p_maputl/intercepts.rs:347` (`PIT_AddThingIntercepts`). Constants at
 `p_maputl/intercepts.rs:31-37`
 (`MAXINTERCEPTS_ORIGINAL = 128`, `MAXINTERCEPTS = 189`).
 
@@ -360,9 +360,9 @@ the opposite `sidenum` is missing or out of range.
 Same substitution model as woof/dsda. Ours substitutes at seg-load time,
 while woof also substitutes at sight-check time
 (`reference/woof/src/p_sight.c:154-158`); because our `P_CheckSight` reads
-`seg.backsector` (`room/src/doom/p_sight/bsp.rs:110` in `P_CrossSubsector`),
+`seg.backsector` (`room/src/doom/p_sight/bsp.rs:119` in `P_CrossSubsector`),
 the load-time substitution covers both consumers. `line.backsector` stays
-null and is checked explicitly (`p_sight/bsp.rs:99`) to keep vanilla's
+null and is checked explicitly (`p_sight/bsp.rs:106`) to keep vanilla's
 block-on-null path. Every substitution
 records a `violations::VanillaViolation::MissedBackSideOverrun` census hit
 (`room/src/doom/violations.rs`).
@@ -538,7 +538,7 @@ Archvile attack's observable behavior) differs from the "obviously intended"
 
 ### Where we emulate it
 
-`room/src/doom/p_enemy/vile_fire.rs:124-129` in `action_vile_target`
+`room/src/doom/p_enemy/vile_fire.rs:112-117` in `action_vile_target`
 (`A_VileTarget`):
 
 ```rust
@@ -550,7 +550,7 @@ let fog: *mut mobj_t = P_SpawnMobj(
 );
 ```
 
-with the `//!`-style note at `vile_fire.rs:122-123` marking it as a faithful
+with the `//!`-style note at `vile_fire.rs:110-111` marking it as a faithful
 vanilla-bug reproduction.
 
 ### Semantics
@@ -735,7 +735,7 @@ table); cross-checked woof `src/p_map.c:2493-2501` and dsda
 What happened: on Firefox + real `doom1.wad`, the engine booted, rendered the
 title, ran tics 1-5, then trapped with `panic_const_div_by_zero` at
 `I_GetTime() / ticdup` in `TryRunTics`: `ticdup` (a `static mut c_int` in
-`.bss`, `room/src/doom/d_loop/mod.rs:229`) was zeroed mid-run by an out-of-bounds
+`.bss`, `room/src/doom/d_loop/mod.rs:230`) was zeroed mid-run by an out-of-bounds
 write; no source path writes 0 to it (hunt log:
 `.superpowers/sdd/2026-09-17-wasm-shell-implementation/task-8-report.md`).
 The wasm link map placed `ticdup` in the `p_map` interaction cluster with
@@ -745,11 +745,11 @@ wasm-bindgen `GLOBAL_EXNDATA`/`HEAP_SLAB` -- making the unguarded
 
 Shipped interim mitigations (guards, not root-cause emulations; see also the
 "Related deliberate deviations" section below): guarded spechit store + drains
-(entry 1), `ticdup < 1` -> `I_Error` (`d_loop/net_stub.rs:150-157`), `I_Error` also
-emits through the log facade (`room/src/doom/i_system.rs:295`; wasm has no
+(entry 1), `ticdup < 1` -> `I_Error` (`d_loop/net_stub.rs:132-138`), `I_Error` also
+emits through the log facade (`room/src/doom/i_system.rs:329`; wasm has no
 stderr), the pre-creation frame-entry latch
 (`room/src/doom/doomgeneric.rs:214-222`, consulted at `d_main.rs:923` and
-`d_main.rs:977`), the web panic hook (`shells/web/src/console_log.rs:49`), and
+`d_main.rs:977`), the web panic hook (`shells/web/src/console_log.rs:52`), and
 the headless tick harness (`shells/web/scripts/node-tick-smoke.mjs`).
 
 ### The 2026-09-23 audit (task 2 of the vanilla-violations plan)
@@ -766,12 +766,12 @@ only):
 |---|---|
 | `spechit[20]` push (`p_map/move.rs:226`) | bounded (guard `< MAXSPECIALCROSS`; counter advances unbounded by design, emulation replays the observable writes) |
 | `heightlist[20]` stores (`p_spec/geometry.rs:257-260`) | vanilla adjoining-sector overrun, catalog entry 13: writes at `h == 20`/`h == 21` are in-bounds of the `MAX+2` window, the `h == MAX+1` arm's write lands on `height` (emulated verbatim), and `h == MAX+2` is chocolate's `I_Error`; 20/21/22-boundary baseline-pinned in `geometry::tests` |
-| `intercepts[189]` stores (`p_maputl/intercepts.rs:253-259`, `:317-323`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
+| `intercepts[189]` stores (`p_maputl/intercepts.rs:272-278`, `:344-350`) | store unguarded past 189 entries in one trace -- **chocolate parity**: chocolate's store is identical (`reference/chocolate-doom/src/doom/p_maputl.c:601-605`; `MAXINTERCEPTS = 128 + 61`, `p_local.h:152-155`). Silent-trampler possible on pathological traces; crispy/woof/dsda grow the array dynamically (`reference/crispy-doom/src/doom/p_maputl.c:555`, `reference/woof/src/p_maputl.c:591`). Limit-removal (F2) candidate; not a canary target (the brief's canary set is the demo/net cluster). |
 | `braintargets[32]` store (`p_enemy/brain.rs:71`, `action_brain_awake`) | store unguarded -- **chocolate/crispy parity** (`reference/chocolate-doom/src/doom/p_enemy.c:1846`); silent-trampler possible on maps with > 32 `MT_BOSSTARGET` things; woof grows it dynamically (`reference/woof/src/p_enemy.c:2570-2575`). Limit-removal (F2) candidate; unreachable from Doom 1 content (no boss-brain state machine) and not exercised by the audit run. |
 | `playerstarts[4]` (`p_mobj/mapthings.rs:187-193`) | bounded -- only types 1-4 dispatch here, index `type-1` in 0..3 |
 | `deathmatchstarts[10]` (`p_mobj/mapthings.rs:175-182`) | bounded store (`< base.add(10)`); starts beyond 10 are silently dropped (vanilla trampled; deathmatch-only path, F2 concern) |
 | `bodyque[32]` (`g_game/spawn.rs:check_spot`) | bounded (`% 32` on both read and write) |
-| `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop/tic_pump.rs:102`, `d_loop/net_stub.rs:77-78`, `d_loop/tic_pump.rs:424`) |
+| `TICDATA` / `consistancy` | all slot expressions use `% BACKUPTICS` (`d_loop/tic_pump.rs:86`, `d_loop/net_stub.rs:69-70`, `d_loop/tic_pump.rs:332`) |
 | visplanes / openings / drawsegs growth | render-side; in Rust these fail loud (index panic), not silent -- limit-removal (F2) concerns, out of canary scope |
 
 Canary run (temporary instrumentation, commit `a3838cb`, stripped in
@@ -938,7 +938,7 @@ depend on the corrupted value.
 
 ### Where we emulate it
 
-`room/src/doom/p_doors/events.rs:294-316` in `EV_VerticalDoor`: the same two
+`room/src/doom/p_doors/events.rs:273-289` in `EV_VerticalDoor`: the same two
 compares, transmuting `T_VerticalDoor` and `T_PlatRaise` (the latter imported
 through the p_plats graduate's root re-export -- the identical single
 function item `EV_DoPlat` stores into `acp1`, which is what keeps the pointer
@@ -1026,10 +1026,10 @@ non-null in -> the pointer passes through unchanged. The call sites
 are the upstream set, unchanged by the p_mobj graduation and re-homed
 by the p_enemy graduation:
 `A_Fire`/`A_FatAttack1`/`A_FatAttack2`/`A_FatAttack3`/`A_SpawnFly`
-(`room/src/doom/p_enemy/vile_fire.rs:88`,
-`p_enemy/mancubus.rs:48`, `:77`, `:111`, `p_enemy/brain.rs:243`)
+(`room/src/doom/p_enemy/vile_fire.rs:81`,
+`p_enemy/mancubus.rs:49`, `:78`, `:112`, `p_enemy/brain.rs:225`)
 and `P_LineAttack`'s `t1` substitution
-(`room/src/doom/p_map/attack.rs:394`).
+(`room/src/doom/p_map/attack.rs:334`).
 
 ### Semantics
 
@@ -1142,8 +1142,8 @@ motivated by a vanilla DOOM bug, and none changes simulation-observable
 state for compatible inputs.
 
 - **`TryRunTics` stall cap + `D_StartNetGame` parity**
-  (`room/src/doom/d_loop/mod.rs:221`, `d_loop/tic_pump.rs:386-409`,
-  `d_loop/net_stub.rs:138-157`; commit `a297e53`).
+  (`room/src/doom/d_loop/mod.rs:222`, `d_loop/tic_pump.rs:303-320`,
+  `d_loop/net_stub.rs:124-138`; commit `a297e53`).
   The port originally gave up after a single tic boundary (`I_GetTime() /
   ticdup - entertic > 0` -- the linuxdoom `d_net.c` behavior), which let
   `TryRunTics` return having run zero tics so the renderer drew unsimulated
@@ -1165,8 +1165,8 @@ state for compatible inputs.
   doubles as the symptom guard for G2. The revert `54c9f45` records these as
   "mature-practice safety floor pending the explicit vanilla-violations
   design".
-- **`pump_tic_cap`** (`room/src/doom/d_loop/mod.rs:249`, applied at
-  `d_loop/tic_pump.rs:381-384`): browser-shell catch-up cap so a suspended tab
+- **`pump_tic_cap`** (`room/src/doom/d_loop/mod.rs:250`, applied at
+  `d_loop/tic_pump.rs:299-301`): browser-shell catch-up cap so a suspended tab
   cannot trigger a multi-second tic burst. Render-side policy (`AGENTS.md`
   constraint 3), vanilla path unaffected at the default 0. Not a vanilla
   defect workaround.
@@ -1200,17 +1200,17 @@ Interim-guard dispositions (V3 final pass, 2026-09-25): the guards shipped
 around the G2 incident are all **KEEP**; the 2026-09-23 audit obsoleted none
 of them and no guard was stripped. Per-guard rationale:
 
-- `ticdup < 1 -> I_Error` (`d_loop/net_stub.rs:150-157`) -- KEEP: chocolate-parity
+- `ticdup < 1 -> I_Error` (`d_loop/net_stub.rs:132-138`) -- KEEP: chocolate-parity
   `D_StartNetGame` validation on the live boot path (`D_CheckNetGame` ->
   `D_StartNetGame`) that doubles as the G2 symptom guard; the audit found no
   distinct root cause, so nothing argues the parity guard away.
-- `pump_tic_cap` (`d_loop/mod.rs:249`) -- KEEP: F1 render policy (bullet above),
+- `pump_tic_cap` (`d_loop/mod.rs:250`) -- KEEP: F1 render policy (bullet above),
   not a workaround; nothing to strip.
 - Engine-created frame-entry latch (`doomgeneric.rs:214-222`) -- KEEP:
   host-lifecycle platform work; the `ticdup == 0` it fences comes from
   pre-init zeroing, not from any remaining OOB writer.
 - Guarded spechit store + bounded drains (`p_map/move.rs:226-228`, `:472`,
-  `p_enemy/chase.rs:276-279`) -- KEEP: they are entry 1's emulation surface itself;
+  `p_enemy/chase.rs:220-225`) -- KEEP: they are entry 1's emulation surface itself;
   stripping them would reintroduce the G2 silent trampler.
 
 ## Out of scope
