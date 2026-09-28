@@ -34,22 +34,10 @@ use super::structs::{MAPBLOCKSHIFT, ST_HORIZONTAL, ST_NEGATIVE, ST_POSITIVE, ST_
 /// computation -- no state, no threading assumptions.
 pub(super) fn slopetype_of(dx: c_int, dy: c_int) -> c_int
 {
-    if dx == 0
-    {
-        ST_VERTICAL
-    }
-    else if dy == 0
-    {
-        ST_HORIZONTAL
-    }
-    else if FixedDiv(dy, dx) > 0
-    {
-        ST_POSITIVE
-    }
-    else
-    {
-        ST_NEGATIVE
-    }
+    if dx == 0 { ST_VERTICAL }
+    else if dy == 0 { ST_HORIZONTAL }
+    else if FixedDiv(dy, dx) > 0 { ST_POSITIVE }
+    else { ST_NEGATIVE }
 }
 
 /// The reject-table zone-header initializer of `PadRejectArray`,
@@ -75,10 +63,7 @@ pub(super) fn slopetype_of(dx: c_int, dy: c_int) -> c_int
 /// byte-serialization loop and the `-reject_pad_with_ff` tail fill stay
 /// at the call site in `reject`). Never recompute the size field inline
 /// at a second site -- drift here desyncs glass-hack-adjacent demos.
-pub(super) fn reject_pad_words(total_lines: c_int) -> [u32; 4]
-{
-    [((total_lines * 4 + 3) & !3) as u32 + 24, 0, 50, 0x1d4a11]
-}
+pub(super) fn reject_pad_words(total_lines: c_int) -> [u32; 4] { [((total_lines * 4 + 3) & !3) as u32 + 24, 0, 50, 0x1d4a11] }
 
 /// The non-commercial monster filter of `P_LoadThings`, extracted
 /// verbatim from the ten-type match arm (`p_setup.c` `P_LoadThings`).
@@ -129,14 +114,8 @@ pub(super) fn is_noncommercial_thing(ty: i16) -> bool
 pub(super) fn clamp_block(v: c_int, org: c_int, max: c_int) -> c_int
 {
     let block = (v - org) >> MAPBLOCKSHIFT;
-    if block >= max
-    {
-        max - 1
-    }
-    else
-    {
-        block
-    }
+    if block >= max { max - 1 }
+    else { block }
 }
 
 /// The BOTTOM/LEFT blockmap clamp ladder of `P_GroupLines`' bounding-box
@@ -157,14 +136,8 @@ pub(super) fn clamp_block(v: c_int, org: c_int, max: c_int) -> c_int
 pub(super) fn clamp_block_low(v: c_int, org: c_int) -> c_int
 {
     let block = (v - org) >> MAPBLOCKSHIFT;
-    if block < 0
-    {
-        0
-    }
-    else
-    {
-        block
-    }
+    if block < 0 { 0 }
+    else { block }
 }
 
 #[cfg(test)]

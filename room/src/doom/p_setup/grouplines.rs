@@ -81,10 +81,7 @@ pub extern "C" fn group_lines()
         {
             totallines += 1;
             let frontsec = (*li).frontsector as *mut sector_t;
-            if !frontsec.is_null()
-            {
-                (*frontsec).linecount += 1;
-            }
+            if !frontsec.is_null() { (*frontsec).linecount += 1; }
             let backsec = (*li).backsector as *mut sector_t;
             if !backsec.is_null() && backsec != frontsec
             {

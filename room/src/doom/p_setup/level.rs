@@ -156,10 +156,7 @@ pub extern "C" fn setup_level(episode: c_int, map: c_int, _playermask: c_int, _s
 
         P_SpawnSpecials();
 
-        if precache != 0
-        {
-            R_PrecacheLevel();
-        }
+        if precache != 0 { R_PrecacheLevel(); }
     }
 }
 

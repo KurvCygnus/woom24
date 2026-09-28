@@ -69,18 +69,12 @@ unsafe fn pad_reject_array(array: *mut u8, len: usize)
         {
             0xff
         }
-        else
-        {
-            0xf00
-        };
+        else { 0xf00 };
 
         let pad_byte = padvalue as u8;
         let pad_start = array.add(std::mem::size_of_val(&rejectpad));
         let pad_len = len - std::mem::size_of_val(&rejectpad);
-        for i in 0..pad_len
-        {
-            *pad_start.add(i) = pad_byte;
-        }
+        for i in 0..pad_len { *pad_start.add(i) = pad_byte; }
     }
 }
 
@@ -106,10 +100,7 @@ pub(super) unsafe fn load_reject(lumpnum: c_int)
     let minlength = (numsectors * numsectors + 7) / 8;
     let lumplen = W_LumpLength(lumpnum as c_uint);
 
-    if lumplen >= minlength
-    {
-        rejectmatrix = W_CacheLumpNum(lumpnum, PU_LEVEL) as *mut u8;
-    }
+    if lumplen >= minlength { rejectmatrix = W_CacheLumpNum(lumpnum, PU_LEVEL) as *mut u8; }
     else
     {
         violations::record(VanillaViolation::RejectPadOverrun);

@@ -23,8 +23,8 @@ use crate::doom::i_system::I_GetMemoryValue;
 /// C callers: `P_LoadSegs` (this file). Also called via C FFI from legacy
 /// unported code that encounters two-sided linedefs with an invalid back sidenum.
 ///
-//* The returned pointer aliases the module's function-local static state;
-//* callers must not free it or write through it (the sentinel is shared).
+/// The returned pointer aliases the module's function-local static state;
+/// callers must not free it or write through it (the sentinel is shared).
 #[doc(alias = "GetSectorAtNullAddress")]
 #[export_name = "GetSectorAtNullAddress"]
 pub extern "C" fn sector_at_null_address() -> *mut sector_t

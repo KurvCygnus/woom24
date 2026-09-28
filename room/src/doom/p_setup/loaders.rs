@@ -39,10 +39,7 @@ use super::structs::{
 /// The C original is the `SHORT` macro from `i_swap.h`.
 #[doc(alias = "SHORT")]
 #[inline]
-fn le_i16(x: i16) -> i16
-{
-    i16::from_le(x)
-}
+fn le_i16(x: i16) -> i16 { i16::from_le(x) }
 
 /// Load the VERTEXES lump and populate the global `vertexes` array.
 ///
@@ -140,15 +137,9 @@ pub extern "C" fn load_segs(lump: c_int)
                     violations::record(VanillaViolation::MissedBackSideOverrun);
                     (*li).backsector = sector_at_null_address();
                 }
-                else
-                {
-                    (*li).backsector = sides.offset(sidenum as isize).as_ref().unwrap().sector;
-                }
+                else { (*li).backsector = sides.offset(sidenum as isize).as_ref().unwrap().sector; }
             }
-            else
-            {
-                (*li).backsector = ptr::null_mut();
-            }
+            else { (*li).backsector = ptr::null_mut(); }
 
             li = li.add(1);
             ml = ml.add(1);
@@ -283,10 +274,7 @@ pub extern "C" fn load_nodes(lump: c_int)
             for j in 0..2usize
             {
                 (*no).children[j] = le_i16((*mn).children[j] as i16) as c_ushort;
-                for k in 0..4usize
-                {
-                    (*no).bbox[j][k] = (le_i16((*mn).bbox[j][k]) as c_int) << FRACBITS;
-                }
+                for k in 0..4usize { (*no).bbox[j][k] = (le_i16((*mn).bbox[j][k]) as c_int) << FRACBITS; }
             }
             no = no.add(1);
             mn = mn.add(1);
@@ -331,16 +319,10 @@ pub extern "C" fn load_things(lump: c_int)
             if gamemode != d_mode::commercial
             {
                 let thing_type = le_i16((*mt).r#type);
-                if is_noncommercial_thing(thing_type)
-                {
-                    spawn = false;
-                }
+                if is_noncommercial_thing(thing_type) { spawn = false; }
             }
 
-            if !spawn
-            {
-                break;
-            }
+            if !spawn { break; }
 
             let mut spawnthing = mapthing_t {
                 x: le_i16((*mt).x),
@@ -439,10 +421,7 @@ pub extern "C" fn load_linedefs(lump: c_int)
                     .unwrap()
                     .sector as *mut c_void;
             }
-            else
-            {
-                (*ld).frontsector = ptr::null_mut();
-            }
+            else { (*ld).frontsector = ptr::null_mut(); }
 
             if (*ld).sidenum[1] != -1
             {
@@ -452,10 +431,7 @@ pub extern "C" fn load_linedefs(lump: c_int)
                     .unwrap()
                     .sector as *mut c_void;
             }
-            else
-            {
-                (*ld).backsector = ptr::null_mut();
-            }
+            else { (*ld).backsector = ptr::null_mut(); }
 
             ld = ld.add(1);
             mld = mld.add(1);
@@ -545,10 +521,7 @@ pub extern "C" fn load_blockmap(lump: c_int)
         blockmap = blockmaplump.add(4);
 
         // Swap all short integers to native byte ordering.
-        for i in 0..count
-        {
-            *blockmaplump.add(i as usize) = le_i16(*blockmaplump.add(i as usize));
-        }
+        for i in 0..count { *blockmaplump.add(i as usize) = le_i16(*blockmaplump.add(i as usize)); }
 
         bmaporgx = (*blockmaplump.add(0) as c_int) << FRACBITS;
         bmaporgy = (*blockmaplump.add(1) as c_int) << FRACBITS;
@@ -587,13 +560,7 @@ mod tests
         for &thing_type in things
         {
             let mut spawn = true;
-            if !commercial
-            {
-                if is_noncommercial_thing(thing_type)
-                {
-                    spawn = false;
-                }
-            }
+            if !commercial { if is_noncommercial_thing(thing_type) { spawn = false; } }
             if !spawn
             {
                 break; // MUST break -- was `continue` in the buggy port
