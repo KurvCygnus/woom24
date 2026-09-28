@@ -41,10 +41,7 @@ pub extern "C" fn P_CalcHeight(player: *mut PlayerT)
         {
             (*player).viewz = (*mo).z + VIEWHEIGHT;
 
-            if (*player).viewz > (*mo).ceilingz - 4 * FRACUNIT
-            {
-                (*player).viewz = (*mo).ceilingz - 4 * FRACUNIT;
-            }
+            if(*player).viewz > (*mo).ceilingz - 4 * FRACUNIT { (*player).viewz = (*mo).ceilingz - 4 * FRACUNIT; }
 
             // vanilla-faithful double write: this OVERWRITES the clamped
             // `z + VIEWHEIGHT` above, so the final viewz is always
@@ -71,26 +68,17 @@ pub extern "C" fn P_CalcHeight(player: *mut PlayerT)
             if (*player).viewheight < VIEWHEIGHT / 2
             {
                 (*player).viewheight = VIEWHEIGHT / 2;
-                if (*player).deltaviewheight <= 0
-                {
-                    (*player).deltaviewheight = 1;
-                }
+                if(*player).deltaviewheight <= 0 { (*player).deltaviewheight = 1; }
             }
 
             if (*player).deltaviewheight != 0
             {
                 (*player).deltaviewheight += FRACUNIT / 4;
-                if (*player).deltaviewheight == 0
-                {
-                    (*player).deltaviewheight = 1;
-                }
+                if(*player).deltaviewheight == 0 { (*player).deltaviewheight = 1; }
             }
         }
         (*player).viewz = (*mo).z + (*player).viewheight + bob;
 
-        if (*player).viewz > (*mo).ceilingz - 4 * FRACUNIT
-        {
-            (*player).viewz = (*mo).ceilingz - 4 * FRACUNIT;
-        }
+        if(*player).viewz > (*mo).ceilingz - 4 * FRACUNIT { (*player).viewz = (*mo).ceilingz - 4 * FRACUNIT; }
     }
 }

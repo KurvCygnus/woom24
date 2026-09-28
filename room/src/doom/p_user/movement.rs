@@ -66,10 +66,7 @@ pub extern "C" fn P_MovePlayer(player: *mut PlayerT)
         // Do not let the player control movement if not onground.
         onground = ((*mo).z <= (*mo).floorz) as c_int;
 
-        if cmd.forwardmove != 0 && onground != 0
-        {
-            P_Thrust(player, (*mo).angle, cmd.forwardmove as fixed_t * 2048);
-        }
+        if cmd.forwardmove != 0 && onground != 0 { P_Thrust(player, (*mo).angle, cmd.forwardmove as fixed_t * 2048); }
 
         if cmd.sidemove != 0 && onground != 0
         {
@@ -82,10 +79,7 @@ pub extern "C" fn P_MovePlayer(player: *mut PlayerT)
 
         // C: player->mo->state == &states[S_PLAY]
         let p_play = std::ptr::addr_of!(states[S_PLAY as usize]) as *const u8;
-        if (cmd.forwardmove != 0 || cmd.sidemove != 0) && (*mo).state as *const u8 == p_play
-        {
-            P_SetMobjState(mo, S_PLAY_RUN1);
-        }
+        if(cmd.forwardmove != 0 || cmd.sidemove != 0) && (*mo).state as *const u8 == p_play { P_SetMobjState(mo, S_PLAY_RUN1); }
     }
 }
 
@@ -112,15 +106,9 @@ pub extern "C" fn P_DeathThink(player: *mut PlayerT)
         P_MovePsprites(player);
 
         // Fall to the ground
-        if (*player).viewheight > 6 * FRACUNIT
-        {
-            (*player).viewheight -= FRACUNIT;
-        }
+        if(*player).viewheight > 6 * FRACUNIT { (*player).viewheight -= FRACUNIT; }
 
-        if (*player).viewheight < 6 * FRACUNIT
-        {
-            (*player).viewheight = 6 * FRACUNIT;
-        }
+        if(*player).viewheight < 6 * FRACUNIT { (*player).viewheight = 6 * FRACUNIT; }
 
         (*player).deltaviewheight = 0;
         onground = ((*mo).z <= (*mo).floorz) as c_int;
@@ -141,28 +129,13 @@ pub extern "C" fn P_DeathThink(player: *mut PlayerT)
                 // Looking at killer, so fade damage flash down.
                 (*mo).angle = angle;
 
-                if (*player).damagecount != 0
-                {
-                    (*player).damagecount -= 1;
-                }
+                if(*player).damagecount != 0 { (*player).damagecount -= 1; }
             }
-            else if delta < ANG180
-            {
-                (*mo).angle = (*mo).angle.wrapping_add(ANG5);
-            }
-            else
-            {
-                (*mo).angle = (*mo).angle.wrapping_sub(ANG5);
-            }
+            else if delta < ANG180 { (*mo).angle = (*mo).angle.wrapping_add(ANG5); }
+            else { (*mo).angle = (*mo).angle.wrapping_sub(ANG5); }
         }
-        else if (*player).damagecount != 0
-        {
-            (*player).damagecount -= 1;
-        }
+        else if(*player).damagecount != 0 { (*player).damagecount -= 1; }
 
-        if (*player).cmd.buttons & BT_USE != 0
-        {
-            (*player).playerstate = PST_REBORN;
-        }
+        if(*player).cmd.buttons & BT_USE != 0 { (*player).playerstate = PST_REBORN; }
     }
 }

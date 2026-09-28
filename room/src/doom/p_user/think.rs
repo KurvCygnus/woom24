@@ -57,14 +57,8 @@ pub extern "C" fn P_PlayerThink(player: *mut PlayerT)
         let mut newweapon: c_int;
 
         // Fixme: do this in the cheat code
-        if (*player).cheats & CF_NOCLIP != 0
-        {
-            (*mo).flags |= MF_NOCLIP;
-        }
-        else
-        {
-            (*mo).flags &= !MF_NOCLIP;
-        }
+        if(*player).cheats & CF_NOCLIP != 0 { (*mo).flags |= MF_NOCLIP; }
+        else { (*mo).flags &= !MF_NOCLIP; }
 
         // Chain saw run forward
         let cmd = &mut (*player).cmd;
@@ -84,26 +78,14 @@ pub extern "C" fn P_PlayerThink(player: *mut PlayerT)
 
         // Move around.
         // Reactiontime is used to prevent movement for a bit after a teleport.
-        if (*mo).reactiontime != 0
-        {
-            (*mo).reactiontime -= 1;
-        }
-        else
-        {
-            P_MovePlayer(player);
-        }
+        if(*mo).reactiontime != 0 { (*mo).reactiontime -= 1; }
+        else { P_MovePlayer(player); }
 
         P_CalcHeight(player);
-        if (*(*(*mo).subsector).sector).special != 0
-        {
-            P_PlayerInSpecialSector(player);
-        }
+        if(*(*(*mo).subsector).sector).special != 0 { P_PlayerInSpecialSector(player); }
         // Check for weapon change.
         // A special event has no other buttons.
-        if cmd.buttons & BT_SPECIAL != 0
-        {
-            cmd.buttons = 0;
-        }
+        if cmd.buttons & BT_SPECIAL != 0 { cmd.buttons = 0; }
 
         if cmd.buttons & BT_CHANGE != 0
         {
@@ -130,10 +112,7 @@ pub extern "C" fn P_PlayerThink(player: *mut PlayerT)
             if (*player).weaponowned[newweapon as usize] != 0 && newweapon != (*player).readyweapon
             {
                 // Do not go to plasma or BFG in shareware, even if cheated.
-                if (newweapon != wp_plasma && newweapon != wp_bfg) || gamemode != shareware
-                {
-                    (*player).pendingweapon = newweapon;
-                }
+                if(newweapon != wp_plasma && newweapon != wp_bfg) || gamemode != shareware { (*player).pendingweapon = newweapon; }
             }
         }
 
@@ -146,54 +125,30 @@ pub extern "C" fn P_PlayerThink(player: *mut PlayerT)
                 (*player).usedown = 1;
             }
         }
-        else
-        {
-            (*player).usedown = 0;
-        }
+        else { (*player).usedown = 0; }
 
         // Cycle psprites
         P_MovePsprites(player);
 
         // Counters, time dependent power ups.
         // Strength counts up to diminish fade.
-        if (*player).powers[pw_strength] != 0
-        {
-            (*player).powers[pw_strength] += 1;
-        }
+        if(*player).powers[pw_strength] != 0 { (*player).powers[pw_strength] += 1; }
 
-        if (*player).powers[pw_invulnerability] != 0
-        {
-            (*player).powers[pw_invulnerability] -= 1;
-        }
+        if(*player).powers[pw_invulnerability] != 0 { (*player).powers[pw_invulnerability] -= 1; }
 
         if (*player).powers[pw_invisibility] != 0
         {
             (*player).powers[pw_invisibility] -= 1;
-            if (*player).powers[pw_invisibility] == 0
-            {
-                (*mo).flags &= !MF_SHADOW;
-            }
+            if(*player).powers[pw_invisibility] == 0 { (*mo).flags &= !MF_SHADOW; }
         }
 
-        if (*player).powers[pw_infrared] != 0
-        {
-            (*player).powers[pw_infrared] -= 1;
-        }
+        if(*player).powers[pw_infrared] != 0 { (*player).powers[pw_infrared] -= 1; }
 
-        if (*player).powers[pw_ironfeet] != 0
-        {
-            (*player).powers[pw_ironfeet] -= 1;
-        }
+        if(*player).powers[pw_ironfeet] != 0 { (*player).powers[pw_ironfeet] -= 1; }
 
-        if (*player).damagecount != 0
-        {
-            (*player).damagecount -= 1;
-        }
+        if(*player).damagecount != 0 { (*player).damagecount -= 1; }
 
-        if (*player).bonuscount != 0
-        {
-            (*player).bonuscount -= 1;
-        }
+        if(*player).bonuscount != 0 { (*player).bonuscount -= 1; }
 
         // Handling colormaps.
         if (*player).powers[pw_invulnerability] != 0
@@ -203,10 +158,7 @@ pub extern "C" fn P_PlayerThink(player: *mut PlayerT)
             {
                 (*player).fixedcolormap = INVERSECOLORMAP;
             }
-            else
-            {
-                (*player).fixedcolormap = 0;
-            }
+            else { (*player).fixedcolormap = 0; }
         }
         else if (*player).powers[pw_infrared] != 0
         {
@@ -215,14 +167,8 @@ pub extern "C" fn P_PlayerThink(player: *mut PlayerT)
                 // Almost full bright
                 (*player).fixedcolormap = 1;
             }
-            else
-            {
-                (*player).fixedcolormap = 0;
-            }
+            else { (*player).fixedcolormap = 0; }
         }
-        else
-        {
-            (*player).fixedcolormap = 0;
-        }
+        else { (*player).fixedcolormap = 0; }
     }
 }

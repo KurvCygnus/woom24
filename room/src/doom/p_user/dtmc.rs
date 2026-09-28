@@ -41,10 +41,7 @@ pub fn bob_amplitude(momx: fixed_t, momy: fixed_t) -> fixed_t
 {
     let mut bob: fixed_t = FixedMul(momx, momx) + FixedMul(momy, momy);
     bob >>= 2;
-    if bob > MAXBOB
-    {
-        bob = MAXBOB;
-    }
+    if bob > MAXBOB { bob = MAXBOB; }
     bob
 }
 
@@ -73,10 +70,7 @@ pub fn bob_amplitude(momx: fixed_t, momy: fixed_t) -> fixed_t
 /// the call site and index `finesine` with the returned value
 /// directly. Do not widen the arithmetic -- the C original computed
 /// the product in `int` and so does this helper.
-pub fn bob_phase(leveltime: c_int) -> usize
-{
-    ((FINEANGLES as c_int / 20 * leveltime) & (FINEANGLES as c_int - 1)) as usize
-}
+pub fn bob_phase(leveltime: c_int) -> usize { ((FINEANGLES as c_int / 20 * leveltime) & (FINEANGLES as c_int - 1)) as usize }
 
 #[cfg(test)]
 mod tests
