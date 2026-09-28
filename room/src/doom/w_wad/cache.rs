@@ -15,10 +15,7 @@ use crate::i_error;
 /// Return the total number of registered lumps as a signed integer.
 /// Mirrors `W_NumLumps` from `w_wad.c`.
 #[doc(alias = "W_NumLumps")]
-pub extern "C" fn num_lumps() -> c_int
-{
-    unsafe { numlumps as c_int }
-}
+pub extern "C" fn num_lumps() -> c_int { unsafe { numlumps as c_int } }
 
 /// Return the byte size of `lump`. Errors out via `I_Error` if
 /// `lump` is out of range. Mirrors `W_LumpLength` from `w_wad.c`.
@@ -27,10 +24,7 @@ pub extern "C" fn lump_length(lump: c_uint) -> c_int
 {
     unsafe
     {
-        if lump >= numlumps
-        {
-            i_error!("W_LumpLength: {} >= numlumps", lump as c_int);
-        }
+        if lump >= numlumps { i_error!("W_LumpLength: {} >= numlumps", lump as c_int); }
         (*lumpinfo.add(lump as usize)).size
     }
 }
@@ -50,10 +44,7 @@ pub extern "C" fn read_lump(lump: c_uint, dest: *mut c_void)
 {
     unsafe
     {
-        if lump >= numlumps
-        {
-            i_error!("W_ReadLump: {} >= numlumps", lump as c_int);
-        }
+        if lump >= numlumps { i_error!("W_ReadLump: {} >= numlumps", lump as c_int); }
         let l = lumpinfo.add(lump as usize);
         I_BeginRead();
         let c = W_Read(
@@ -62,25 +53,8 @@ pub extern "C" fn read_lump(lump: c_uint, dest: *mut c_void)
             dest,
             (*l).size as usize,
         );
-        if c > (*l).size as usize
-        {
-            eprintln!(
-                "[W_ReadLump] OVERFLOW: lump={}, requested={}, actually_read={}, lump.size={}",
-                lump,
-                (*l).size,
-                c,
-                (*l).size
-            );
-        }
-        if c < (*l).size as usize
-        {
-            i_error!(
-                "W_ReadLump: only read {} of {} on lump {}",
-                c as c_int,
-                (*l).size,
-                lump as c_int
-            );
-        }
+        if c > (*l).size as usize { eprintln!("[W_ReadLump] OVERFLOW: lump={}, requested={}, actually_read={}, lump.size={}", lump, (*l).size, c, (*l).size); }
+        if c < (*l).size as usize { i_error!("W_ReadLump: only read {} of {} on lump {}", c as c_int, (*l).size, lump as c_int); }
         I_EndRead();
     }
 }
@@ -102,10 +76,7 @@ pub extern "C" fn cache_lump_num(lumpnum: c_int, tag: c_int) -> *mut c_void
 {
     unsafe
     {
-        if lumpnum < 0 || (lumpnum as c_uint) >= numlumps
-        {
-            i_error!("W_CacheLumpNum: {} >= numlumps", lumpnum);
-        }
+        if lumpnum < 0 || (lumpnum as c_uint) >= numlumps { i_error!("W_CacheLumpNum: {} >= numlumps", lumpnum); }
         let lump = lumpinfo.add(lumpnum as usize);
 
         if !(*(*lump).wad_file).mapped.is_null()
@@ -136,16 +107,13 @@ pub extern "C" fn cache_lump_num(lumpnum: c_int, tag: c_int) -> *mut c_void
 
 /// Convenience wrapper: resolve `name` to a lump number via
 /// `W_GetNumForName` (fatal if missing) and call `W_CacheLumpNum`.
-//* Freeze-zone legacy `extern "C"` blocks link this function by its
-//* upstream C symbol (`hu_stuff.rs`, `r_draw.rs`), so the symbol is
-//* pinned with `#[export_name]` instead of being dropped with the
-//* rename.
+/// Freeze-zone legacy `extern "C"` blocks link this function by its
+/// upstream C symbol (`hu_stuff.rs`, `r_draw.rs`), so the symbol is
+/// pinned with `#[export_name]` instead of being dropped with the
+/// rename.
 #[doc(alias = "W_CacheLumpName")]
 #[export_name = "W_CacheLumpName"]
-pub extern "C" fn cache_lump_name(name: *const c_char, tag: c_int) -> *mut c_void
-{
-    cache_lump_num(get_num_for_name(name), tag)
-}
+pub extern "C" fn cache_lump_name(name: *const c_char, tag: c_int) -> *mut c_void { cache_lump_num(get_num_for_name(name), tag) }
 
 /// Mark `lumpnum` as releasable by demoting its cached block to
 /// `PU_CACHE`, so the zone allocator may purge it under memory
@@ -157,10 +125,7 @@ pub extern "C" fn release_lump_num(lumpnum: c_int)
 {
     unsafe
     {
-        if lumpnum < 0 || (lumpnum as c_uint) >= numlumps
-        {
-            i_error!("W_ReleaseLumpNum: {} >= numlumps", lumpnum);
-        }
+        if lumpnum < 0 || (lumpnum as c_uint) >= numlumps { i_error!("W_ReleaseLumpNum: {} >= numlumps", lumpnum); }
         let lump = lumpinfo.add(lumpnum as usize);
         if !(*(*lump).wad_file).mapped.is_null()
         {
@@ -176,10 +141,7 @@ pub extern "C" fn release_lump_num(lumpnum: c_int)
 /// Convenience wrapper: resolve `name` and call `W_ReleaseLumpNum`.
 /// Mirrors `W_ReleaseLumpName` from `w_wad.c`.
 #[doc(alias = "W_ReleaseLumpName")]
-pub extern "C" fn release_lump_name(name: *const c_char)
-{
-    release_lump_num(get_num_for_name(name))
-}
+pub extern "C" fn release_lump_name(name: *const c_char) { release_lump_num(get_num_for_name(name)) }
 
 #[cfg(test)]
 mod tests

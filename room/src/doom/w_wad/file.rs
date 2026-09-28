@@ -60,12 +60,8 @@ struct filelump_t
 /// the same name in `w_wad.c`.
 unsafe fn ExtendLumpInfo(newnumlumps: c_uint)
 {
-    let newlumpinfo =
-        calloc(newnumlumps as usize, std::mem::size_of::<lumpinfo_t>()) as *mut lumpinfo_t;
-    if newlumpinfo.is_null()
-    {
-        i_error!("Couldn't realloc lumpinfo");
-    }
+    let newlumpinfo = calloc(newnumlumps as usize, std::mem::size_of::<lumpinfo_t>()) as *mut lumpinfo_t;
+    if newlumpinfo.is_null() { i_error!("Couldn't realloc lumpinfo"); }
 
     for i in 0..numlumps.min(newnumlumps)
     {

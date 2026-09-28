@@ -31,10 +31,7 @@ pub extern "C" fn lump_name_hash(s: *const c_char) -> c_uint
         for i in 0..8
         {
             let ch = *s.add(i);
-            if ch == 0
-            {
-                break;
-            }
+            if ch == 0 { break; }
             result = ((result << 5) ^ result) ^ (toupper(ch as c_int) as c_uint);
         }
         result
@@ -55,9 +52,9 @@ pub extern "C" fn lump_name_hash(s: *const c_char) -> c_uint
 ///
 /// `name` must point to a readable NUL-terminated string (only the
 /// first 8 bytes are compared).
-//* Freeze-zone legacy `extern "C"` blocks link this function by its
-//* upstream C symbol (`d_net.rs`), so the symbol is pinned with
-//* `#[export_name]` instead of being dropped with the rename.
+/// Freeze-zone legacy `extern "C"` blocks link this function by its
+/// upstream C symbol (`d_net.rs`), so the symbol is pinned with
+/// `#[export_name]` instead of being dropped with the rename.
 #[doc(alias = "W_CheckNumForName")]
 #[export_name = "W_CheckNumForName"]
 pub extern "C" fn check_num_for_name(name: *const c_char) -> c_int
@@ -70,11 +67,7 @@ pub extern "C" fn check_num_for_name(name: *const c_char) -> c_int
             let mut lump_p = *lumphash.add(hash);
             while !lump_p.is_null()
             {
-                if strncasecmp((*lump_p).name.as_ptr(), name, 8) == 0
-                {
-                    return (lump_p as usize - lumpinfo as usize) as c_int
-                        / std::mem::size_of::<lumpinfo_t>() as c_int;
-                }
+                if strncasecmp((*lump_p).name.as_ptr(), name, 8) == 0 { return (lump_p as usize - lumpinfo as usize) as c_int / std::mem::size_of::<lumpinfo_t>() as c_int; }
                 lump_p = (*lump_p).next;
             }
         }
@@ -84,10 +77,7 @@ pub extern "C" fn check_num_for_name(name: *const c_char) -> c_int
             let mut i = numlumps as i32 - 1;
             while i >= 0
             {
-                if strncasecmp((*lumpinfo.add(i as usize)).name.as_ptr(), name, 8) == 0
-                {
-                    return i;
-                }
+                if strncasecmp((*lumpinfo.add(i as usize)).name.as_ptr(), name, 8) == 0 { return i; }
                 i -= 1;
             }
         }
@@ -133,10 +123,7 @@ pub extern "C" fn generate_hash_table()
 {
     unsafe
     {
-        if !lumphash.is_null()
-        {
-            Z_Free(lumphash as *mut c_void);
-        }
+        if !lumphash.is_null() { Z_Free(lumphash as *mut c_void); }
 
         if numlumps > 0
         {
@@ -149,8 +136,7 @@ pub extern "C" fn generate_hash_table()
 
             for i in 0..numlumps
             {
-                let hash =
-                    (lump_name_hash((*lumpinfo.add(i as usize)).name.as_ptr()) % numlumps) as usize;
+                let hash = (lump_name_hash((*lumpinfo.add(i as usize)).name.as_ptr()) % numlumps) as usize;
                 (*lumpinfo.add(i as usize)).next = *lumphash.add(hash);
                 *lumphash.add(hash) = lumpinfo.add(i as usize);
             }
