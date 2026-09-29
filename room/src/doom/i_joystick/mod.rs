@@ -6,14 +6,14 @@
 //! `#ifdef ORIGCODE`; only the [`I_BindJoystickVariables`] entry point
 //! survives so the configuration file format remains compatible. The Rust
 //! port mirrors that: the lifecycle functions are no-ops, and the
-//! configuration variables are still registered with `M_BindVariable` so
+//! configuration variables are still registered with `m_config::bind_variable` (C `M_BindVariable`) so
 //! reads/writes of `default.cfg` round-trip the joystick settings even
 //! though they have no runtime effect.
 //!
 //! ## Submodule Responsibility
 //!
 //! - `config.rs` -- the `NUM_VIRTUAL_BUTTONS` constant, the nine
-//!   config-bound statics, the `M_BindVariable` extern, and
+//!   config-bound statics, the `bind_variable` path call, and
 //!   `bind_joystick_variables`
 //! - `lifecycle.rs` -- the three no-op lifecycle stubs
 //!
@@ -39,7 +39,7 @@
 //!
 //! No dtmc surface: the module is platform plumbing with no joystick
 //! backend -- everything is no-op lifecycle glue plus config-schema
-//! preservation. The `M_BindVariable` call order and name strings are
+//! preservation. The `bind_variable` call order and name strings are
 //! `.cfg` round-trip compatibility surface (`default.cfg` byte-stability),
 //! which is boot-time configuration, not the per-tic demo synchronization
 //! surface.

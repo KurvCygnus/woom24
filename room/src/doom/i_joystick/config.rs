@@ -33,19 +33,15 @@ static mut joystick_strafe_invert: c_int = 0;
 /// the identity mapping.
 static mut joystick_physical_buttons: [c_int; NUM_VIRTUAL_BUTTONS] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-extern "C" {
-    /// Bind a config variable name to its backing storage. Defined in
-    /// `m_config.c`; called below to expose the joystick statics to the
-    /// `default.cfg` parser.
-    //*
-    //* Kept extern for now: `m_config` graduates in a later sub-wave and
-    //* converts this declarer to a path call in lockstep (F10 report §3.6).
-    fn M_BindVariable(name: *mut c_char, variable: *mut c_void);
-}
-
+//* Path call, not extern: `m_config` graduated alongside this module's
+//* wave and its `bind_variable` is called by path (the extern declaration
+//* this file carried before the m_config graduation converted in the
+//* m_config lockstep commit; the upstream C symbol stays pinned at the
+//* renamed definition).
+use crate::doom::m_config::bind_variable;
 use crate::c_write;
 
-/// Register all joystick configuration variables with `M_BindVariable` so
+/// Register all joystick configuration variables with `bind_variable` so
 /// they are persisted to / loaded from `default.cfg`.
 ///
 /// Although the runtime hooks are no-ops, the config bindings are still
@@ -60,35 +56,35 @@ use crate::c_write;
 #[export_name = "I_BindJoystickVariables"]
 pub extern "C" fn bind_joystick_variables() {
     unsafe {
-        M_BindVariable(
+        bind_variable(
             c"use_joystick".as_ptr().cast_mut(),
             &raw mut usejoystick as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_index".as_ptr().cast_mut(),
             &raw mut joystick_index as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_x_axis".as_ptr().cast_mut(),
             &raw mut joystick_x_axis as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_y_axis".as_ptr().cast_mut(),
             &raw mut joystick_y_axis as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_strafe_axis".as_ptr().cast_mut(),
             &raw mut joystick_strafe_axis as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_x_invert".as_ptr().cast_mut(),
             &raw mut joystick_x_invert as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_y_invert".as_ptr().cast_mut(),
             &raw mut joystick_y_invert as *mut c_int as *mut c_void,
         );
-        M_BindVariable(
+        bind_variable(
             c"joystick_strafe_invert".as_ptr().cast_mut(),
             &raw mut joystick_strafe_invert as *mut c_int as *mut c_void,
         );
@@ -96,7 +92,7 @@ pub extern "C" fn bind_joystick_variables() {
         for i in 0..NUM_VIRTUAL_BUTTONS {
             let mut name: [c_char; 32] = [0; 32];
             c_write!(name, "joystick_physical_button{}", i);
-            M_BindVariable(
+            bind_variable(
                 name.as_ptr() as *mut c_char,
                 &mut joystick_physical_buttons[i] as *mut c_int as *mut c_void,
             );
