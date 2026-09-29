@@ -52,7 +52,7 @@
 //! set is byte-identical to the pre-split module (the differential
 //! oracle declares `ST_Drawer`/`ST_Init` by symbol; the conductors
 //! `g_game/responder.rs`, `g_game/ticker.rs`, `p_mobj/mapthings.rs`,
-//! `d_main/boot.rs`, `d_main/display.rs`, and `am_map.rs:1174/:1280`
+//! `d_main/boot.rs`, `d_main/display.rs`, and `am_map/lifecycle.rs`
 //! reach the renamed functions through these shims). The three private
 //! walker callbacks were never exported -- doc aliases only, no pins.
 //! Functions only: the statics keep their upstream names AND their

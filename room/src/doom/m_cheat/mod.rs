@@ -29,7 +29,7 @@
 //! | `cht_CheckCheat` | `matcher::check_cheat` | glue | shim; input-order-dependent state machine fed by PLATFORM KEY EVENTS (`ST_Responder`, automap), never by the ticcmd/demo stream: during playback no key events are generated so the matcher never fires; during recording a typed cheat's EFFECT enters the simulation through normal game code -- the effect is demo-visible, the matcher is not; upstream `vendor/doomgeneric/m_cheat.c:34` |
 //! | `cht_GetParam` | `matcher::get_param` | glue | shim; copies `parameter_chars` bytes out of the consumer-owned `cheatseq_t` state; trusts the caller's cursor (never "fix"); upstream `m_cheat.c:81` |
 //! | `raw_strlen` (Rust-only helper) | `matcher::raw_strlen` | glue | NO rename -- already plain-English snake_case (m_random precedent: name kept, so no shim) |
-//! | `cheatseq_t` | `types::cheatseq_t` | data | name kept (types ruling) to avoid rippling into the consumer-owned cheat statics (`st_stuff.rs:351-416`, `am_map.rs:837`); layout-pinned 72/52 bytes with the LP64-policy const asserts intact |
+//! | `cheatseq_t` | `types::cheatseq_t` | data | name kept (types ruling) to avoid rippling into the consumer-owned cheat statics (`st_stuff/cheats.rs`, `am_map/state.rs`); layout-pinned 72/52 bytes with the LP64-policy const asserts intact |
 //! | `MAX_CHEAT_LEN` / `MAX_CHEAT_PARAMS` | `types.rs` | data | names kept; zero external importers (in-tree users hardcode 25 via `make_cheat_seq`, `st_stuff.rs:310`) |
 //!
 //! The vanilla short-sequence quirk carried inside `check_cheat` (a

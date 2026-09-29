@@ -52,7 +52,7 @@
 //! | (data) `ticcmd_t` | `ticcmd::TiccmdT` | data | name kept; field order IS the save format (`p_saveg/records.rs` `read_ticcmd`/`write_ticcmd`); explicit `_pad` carried |
 //! | (data) `pspdef_t` | `pspr::PspdefT` | data | name kept; 10 files |
 //! | (data) opaque `mobj_t` / `state_t` | `player.rs` | data | pointer-target types only; `c_ffi.rs:26/:183` defines a SEPARATE mirror pair and `p_telept/types.rs:110/:124` a third -- mirrors are NOT unified during a graduation; the F9 harnesses cast `p.mo` through `c_ffi::mobj_t`, so both mirrors stay alive |
-//! | (data) `NUMPOWERS`/`NUMCARDS`/`NUMWEAPONS`/`NUMAMMO`/`NUMPSPRITES`/`MAXPLAYERS`, `CF_NOCLIP`/`CF_GODMODE`/`CF_NOMOMENTUM` | `player.rs` | data | names kept, root re-exported; local same-named copies in `m_menu.rs:63` / `c_ffi.rs:620` / `d_items/table.rs` / `p_inter/consts.rs:16` are NOT consumers -- never unify |
+//! | (data) `NUMPOWERS`/`NUMCARDS`/`NUMWEAPONS`/`NUMAMMO`/`NUMPSPRITES`/`MAXPLAYERS`, `CF_NOCLIP`/`CF_GODMODE`/`CF_NOMOMENTUM` | `player.rs` | data | names kept, root re-exported; local same-named copies in `m_menu/consts.rs` / `c_ffi.rs:620` / `d_items/table.rs` / `p_inter/consts.rs:16` are NOT consumers -- never unify |
 //! | (data) extern statics `players` / `consoleplayer` | this root (extern block) | data | carried VERBATIM; definitions are `g_game/state.rs` (graduated F10 wave C3; name + `#[no_mangle]` kept); see the extern-by-symbol contract above |
 //! | `doomgeneric.rs` anchor list | -- | wiring | has no d_player entry (pre-move or now); per the wave ruling no anchors were added -- the `M_Menu_SetPlayerMessage` pin plus the untouched g_game `#[no_mangle]` statics keep the symbol set byte-identical |
 //!
@@ -127,7 +127,7 @@ pub use player::{
 pub use pspr::PspdefT;
 pub use ticcmd::TiccmdT;
 
-//* upstream-name shim: the freeze-zone caller (`m_menu.rs:26`, five call
+//* upstream-name shim: the menu module (`m_menu/pages.rs`, five call
 //* sites) keeps the upstream name. Plain `pub use` of ONE function item;
 //* the C symbol is re-pinned at the definition with
 //* `#[export_name = "M_Menu_SetPlayerMessage"]`, so the wasm/extern

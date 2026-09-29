@@ -9,7 +9,7 @@ use std::ffi::c_int;
 //? Latent layout mismatch, recorded F10 wave A3 (MOVE AS-IS, never fix
 //? during graduation): this module's trimmed `wbstartstruct_t` is NOT
 //? offset-compatible with the struct it memcpy's from -- the source of
-//? `StatCopy` is wi_stuff's FULL `wbstartstruct_t` (`wi_stuff.rs:137-160`,
+//? `StatCopy` is the intermission's FULL `wbstartstruct_t` (pre-split `wi_stuff.rs:137-160`,
 //? cast in `g_game/actions.rs:do_completed`): `last` (offset 4) reads wminfo.didsecret,
 //? `partime` (offset 8) reads wminfo.last, and `plyr` (offset 12) starts
 //? at wminfo.next. `wbplayerstruct_t` also omits the C `score` field

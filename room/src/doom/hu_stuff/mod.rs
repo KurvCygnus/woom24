@@ -63,8 +63,8 @@
 //! | `HU_dequeueChatChar` | `chat::dequeue_chat_char` | glue | outgoing ring pop (net layer unported; extern-surface conservatism per report §4.2); shim + pin |
 //! | `HU_Responder` | `chat::responder` | glue | the chat/message input surface (consume decision inside G_Responder); shim + pin (`g_game/responder.rs`) |
 //! | `chat_macros`/`player_names`/`mapnames`/`mapnames_commercial` | `tables` | data | `#[no_mangle]` retained; `mapnames[45]`/`mapnames_commercial[96]` layouts are c_test-pinned -- moved verbatim |
-//! | `HU_FONTSTART`..`HU_MSGTIMEOUT` | `tables` | data | nine public consts, root-re-exported (`c_tests/hu_stuff_c.rs`, `f_finale.rs:31`) |
-//! | `hu_font`/`chat_char`/`chat_on`/`message_dontfuckwithme` | `state` | data | `#[no_mangle]` retained; `m_menu.rs:235`/`f_finale.rs:31` read by root path |
+//! | `HU_FONTSTART`..`HU_MSGTIMEOUT` | `tables` | data | nine public consts, root-re-exported (`c_tests/hu_stuff_c.rs`, `f_finale/{cast,textstage}.rs`) |
+//! | `hu_font`/`chat_char`/`chat_on`/`message_dontfuckwithme` | `state` | data | `#[no_mangle]` retained; `m_menu/{pages, responder,text}.rs`/`f_finale/{cast,textstage}.rs` read by root path |
 //! | private widget/message state | `state` | data | `pub(super)` beside their writers/readers in `hud`/`chat` |
 //!
 //! ## Deterministic Aspects
@@ -154,7 +154,7 @@ pub use hud::{
     stop as HU_Stop, ticker as HU_Ticker,
 };
 //* path-stability re-export: the tables and HUD globals keep their
-//* module-root paths (`m_menu.rs:235`, `f_finale.rs:31`,
+//* module-root paths (`m_menu/pages.rs`, `f_finale/cast.rs`,
 //* `g_game/ticker.rs:23`, `c_tests/hu_stuff_c.rs`).
 pub use state::{chat_char, chat_on, hu_font, message_dontfuckwithme};
 pub use tables::{

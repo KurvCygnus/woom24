@@ -22,9 +22,9 @@
 //!
 //! | Original (C) | New location | Surface | Notes |
 //! |--------------|--------------|---------|-------|
-//! | `doom1_endmsg` | `messages::doom1_endmsg` | data | quit-dialog text, presentation-only (`M_QuitDOOM` via `M_SelectEndMessage`, `m_menu.rs:1273-1284`); `#[no_mangle]` retained so the wasm export surface stays byte-identical -- no compiled C translation unit references it (`doomgeneric-sys/build.rs` excludes dstrings.c), so the retention is pure conservatism; upstream `dstrings.c:23-33` |
+//! | `doom1_endmsg` | `messages::doom1_endmsg` | data | quit-dialog text, presentation-only (`M_QuitDOOM` via `M_SelectEndMessage`, `m_menu/pages.rs`); `#[no_mangle]` retained so the wasm export surface stays byte-identical -- no compiled C translation unit references it (`doomgeneric-sys/build.rs` excludes dstrings.c), so the retention is pure conservatism; upstream `dstrings.c:23-33` |
 //! | `doom2_endmsg` | `messages::doom2_endmsg` | data | same handling, Doom-II-themed table (used when `gamemission` is `doom2` / `pack_tnt` / `pack_plut`); upstream `dstrings.c:35-46` |
-//! | `Ptr` | `messages::Ptr` | data | Rust-only structural wrapper: C's element type is mutable `char *`, Rust string literals are `'static` read-only, so a `#[repr(transparent)]` `*const c_char` newtype with `unsafe impl Sync` enables `static` storage; field `.0` stays public (`m_menu.rs:1277,1279` reads it directly); upstream `dstrings.c:23` element type |
+//! | `Ptr` | `messages::Ptr` | data | Rust-only structural wrapper: C's element type is mutable `char *`, Rust string literals are `'static` read-only, so a `#[repr(transparent)]` `*const c_char` newtype with `unsafe impl Sync` enables `static` storage; field `.0` stays public (`m_menu/pages.rs` reads it directly); upstream `dstrings.c:23` element type |
 //!
 //! C's `#if 0` block of unused messages (`dstrings.c:48-69`) is
 //! correctly absent from the port.
@@ -39,12 +39,12 @@
 //!
 //! Module adjudicated with no `dtmc` surface: both tables are
 //! presentation-only quit-dialog text consumed by `M_QuitDOOM`
-//! (`m_menu.rs:1284` onward) and never touch simulation state. The
+//! (`m_menu/pages.rs`) and never touch simulation state. The
 //! slot selection is `(gametic as usize) & 7` in
-//! `M_SelectEndMessage` (`m_menu.rs:1273-1281`) -- keyed by the tic
+//! `M_SelectEndMessage` (`m_menu/pages.rs`) -- keyed by the tic
 //! counter at quit time, not by an `M_Random` draw, as the stale
 //! pre-graduation doc claimed; that `gametic` read lives in the
-//! freeze zone (`m_menu.rs`), not here. The table length 8 is
+//! menu module (`m_menu/pages.rs`), not here. The table length 8 is
 //! load-bearing for that `& 7` index math and is pinned by the moved
 //! length tests.
 

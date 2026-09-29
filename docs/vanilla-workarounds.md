@@ -608,8 +608,10 @@ the map33 case is
 ```
 
 `gammalvl0_prefix_i32` (`g_game/dtmc.rs`) reads the first four bytes of the
-port's GAMMALVL0 equivalent -- `gammamsg[0]` in `room/src/doom/m_menu.rs:284`
-("Gamma correction OFF") -- and forms the little-endian i32. Maps outside
+port's GAMMALVL0 equivalent -- `gammamsg[0]` in
+`room/src/doom/m_menu/tables.rs` (the `gammamsg` static, root-re-exported
+through `m_menu`; cite resynced when m_menu graduated, F10 wave E2-b;
+"Gamma correction OFF") -- and forms the little-endian i32. Maps outside
 `1..=33` return `None` and the call site raises `I_Error`.
 
 ### Semantics

@@ -29,7 +29,7 @@ impl Ptr
 ///
 /// Corresponds to `char *doom1_endmsg[]` in `dstrings.c`.  The quit
 /// dialog picks one keyed by the tic counter -- `(gametic as usize) & 7`
-/// in `M_SelectEndMessage` (`m_menu.rs:1273-1281`) -- not by an RNG
+/// in `M_SelectEndMessage` (`m_menu/pages.rs`) -- not by an RNG
 /// draw (the pre-graduation doc's "via `M_Random`" claim was stale and
 /// is corrected here).  The `#[no_mangle]` export keeps the original
 /// symbol name on the wasm export surface byte-identical; no compiled

@@ -61,7 +61,8 @@
 //! `#[export_name = "OriginalName"]`, so the wasm/extern symbol name
 //! set is byte-identical to the pre-split module (the differential
 //! oracle `c2rust-intermediate/src/p_inter.rs:24` declares `AM_Stop`
-//! and `c2rust-intermediate/src/am_map.rs:23` declares `ST_Responder`'s
+//! and `c2rust-intermediate/src/am_map.rs:23` (the ORACLE's own file, not
+//! a cite into this tree) declares `ST_Responder`'s
 //! sibling `AM_Responder` by symbol; the conductors
 //! `g_game/responder.rs:16,123`, `g_game/ticker.rs:16,219`,
 //! `d_main/display.rs:13,96`, `g_game/actions.rs:21,222`, and

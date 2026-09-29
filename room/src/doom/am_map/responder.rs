@@ -52,7 +52,8 @@ pub(super) const fn make_cheat_seq(seq: &[u8]) -> [c_char; 25] {
 ///
 /// The pre-move export symbol is kept with `#[export_name]` below;
 /// `g_game/responder.rs` and the differential oracle
-/// (`c2rust-intermediate/src/am_map.rs:23`) reach the upstream name
+/// (`c2rust-intermediate/src/am_map.rs:23`, the oracle's own file) reach
+/// the upstream name
 /// through the root shim.
 ///
 /// The iddt branch is render-only fidelity: it cycles the `cheating`
