@@ -1352,4 +1352,66 @@ mod tests {
             assert_eq!(R_PointOnSide(0, 0, &node), 1);
         }
     }
+
+    /// Known-vector baseline for the pure octant classifier
+    /// `point_to_angle_from_delta` (the dtmc core shared by
+    /// `R_PointToAngle`/`R_PointToAngle2`): the zero vector plus all eight
+    /// octants plus the `dx == dy` boundary. The octant selection and the
+    /// `±1` fenceposts are the exactness-bearing decisions pinned here;
+    /// the `tantoangle` lookups in the expectations are data-tier
+    /// (precomputed upstream, `tables.rs`).
+    #[test]
+    fn angle_from_delta_octant_baseline_vectors() {
+        // The zero vector is exact.
+        assert_eq!(point_to_angle_from_delta(0, 0), 0);
+
+        let idx = |num: c_uint, den: c_uint| {
+            tables::tantoangle[SlopeDiv(num, den) as usize]
+        };
+        let diag = FRACUNIT as c_uint;
+        let flat = 2 * FRACUNIT as c_uint;
+
+        // octant 0: dx > dy >= 0.
+        assert_eq!(point_to_angle_from_delta(2 * FRACUNIT, FRACUNIT), idx(diag, flat));
+        // Boundary dx == dy falls into octant 1 (not 0).
+        assert_eq!(
+            point_to_angle_from_delta(FRACUNIT, FRACUNIT),
+            ANG90 - 1 - idx(diag, diag)
+        );
+        // octant 1: dy >= dx > 0.
+        assert_eq!(
+            point_to_angle_from_delta(FRACUNIT, 2 * FRACUNIT),
+            ANG90 - 1 - idx(diag, flat)
+        );
+        // octant 2: dy > |dx|, dx < 0.
+        assert_eq!(
+            point_to_angle_from_delta(-FRACUNIT, 2 * FRACUNIT),
+            ANG90 + idx(diag, flat)
+        );
+        // octant 3: |dx| > dy >= 0, dx < 0.
+        assert_eq!(
+            point_to_angle_from_delta(-2 * FRACUNIT, FRACUNIT),
+            ANG180 - 1 - idx(diag, flat)
+        );
+        // octant 4: |dx| > |dy|, both negative.
+        assert_eq!(
+            point_to_angle_from_delta(-2 * FRACUNIT, -FRACUNIT),
+            ANG180 + idx(diag, flat)
+        );
+        // octant 5: |dy| > |dx|, both negative.
+        assert_eq!(
+            point_to_angle_from_delta(-FRACUNIT, -2 * FRACUNIT),
+            ANG270 - 1 - idx(diag, flat)
+        );
+        // octant 7: |dy| > dx > 0, dy < 0.
+        assert_eq!(
+            point_to_angle_from_delta(FRACUNIT, -2 * FRACUNIT),
+            ANG270 + idx(diag, flat)
+        );
+        // octant 8: dx > |dy| > 0, dy < 0 (wrapping subtraction).
+        assert_eq!(
+            point_to_angle_from_delta(2 * FRACUNIT, -FRACUNIT),
+            0u32.wrapping_sub(idx(diag, flat))
+        );
+    }
 }
