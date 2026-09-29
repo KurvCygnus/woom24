@@ -2245,4 +2245,209 @@ mod tests {
             assert_eq!((*st).state, 0);
         }
     }
+
+    // -----------------------------------------------------------------------
+    // F10 wave E2-b dtmc baseline: the animated-background delay draws in
+    // `WI_initAnimatedBack`/`WI_updateAnimatedBack`, captured against the
+    // inline bodies BEFORE the graduation split (F10 §2.3, e1 report §9.4).
+    // These are the only `M_Random` draws in the module (report §0.6): one
+    // per ANIM_ALWAYS/ANIM_RANDOM anim at intermission init, one per
+    // ANIM_RANDOM cycle retrigger -- each advances `rndindex` (state-hash
+    // word 2), so draw COUNT and ORDER are load-bearing. The transcription
+    // helpers are deleted and the vectors re-pointed at `wi_stuff::dtmc`
+    // by the graduation commit.
+    // -----------------------------------------------------------------------
+
+    /// Transcription of the delay expression shared by all three call
+    /// sites (this file `:912`, `:914`, `:959`): `draw % modulus`,
+    /// where the modulus is `cfg.period` for ANIM_ALWAYS and `cfg.data1`
+    /// for ANIM_RANDOM.
+    fn anim_delay_transcription(draw: c_int, modulus: c_int) -> c_int {
+        draw % modulus
+    }
+
+    /// Transcription of the ANIM_ALWAYS init composition
+    /// (this file `:912`): `bcnt + 1 + (draw % period)`.
+    fn init_always_nexttic_transcription(beat: c_int, draw: c_int, period: c_int) -> c_int {
+        beat + 1 + (draw % period)
+    }
+
+    /// Transcription of the ANIM_RANDOM init composition
+    /// (this file `:914`): `bcnt + 1 + data2 + (draw % data1)`.
+    fn init_random_nexttic_transcription(
+        beat: c_int,
+        draw: c_int,
+        data2: c_int,
+        data1: c_int,
+    ) -> c_int {
+        beat + 1 + data2 + (draw % data1)
+    }
+
+    /// Transcription of the ANIM_RANDOM update-retrigger composition
+    /// (this file `:959`): `bcnt + data2 + (draw % data1)` -- NO `+ 1`
+    /// lead-in, the exact call-shape difference from the init site.
+    fn update_random_nexttic_transcription(
+        beat: c_int,
+        draw: c_int,
+        data2: c_int,
+        data1: c_int,
+    ) -> c_int {
+        beat + data2 + (draw % data1)
+    }
+
+    /// Known vectors for the pure delay `draw % modulus` over both
+    /// shipped period families (TICRATE/3 = 11 for the episode 0/1/2
+    /// body anims, TICRATE/4 = 8 for episode 2's tail) and the
+    /// ANIM_RANDOM `data1` family, at the byte extremes and exact
+    /// period multiples.
+    #[test]
+    fn anim_delay_baseline_vectors() {
+        let vectors: [(c_int, c_int, c_int); 9] = [
+            (0, 11, 0),    // TICRATE/3: zero draw contributes nothing
+            (10, 11, 10),  // largest in-range remainder below the period
+            (11, 11, 0),   // exactly one period wraps to zero
+            (255, 11, 2),  // full byte draw: 255 = 23*11 + 2
+            (0, 8, 0),     // TICRATE/4 (episode 2's tail anim)
+            (255, 8, 7),   // full byte draw against the quarter-rate period
+            (1, 30, 1),    // ANIM_RANDOM data1 family
+            (255, 30, 15), // 255 = 8*30 + 15
+            (0, 1, 0),     // degenerate modulus 1: always zero
+        ];
+        for (draw, modulus, expected) in vectors {
+            assert_eq!(
+                anim_delay_transcription(draw, modulus),
+                expected,
+                "anim delay drifted at draw={draw}, modulus={modulus}"
+            );
+        }
+    }
+
+    /// Hand-computed nexttic compositions for both init sites: the
+    /// ANIM_ALWAYS composition over both shipped periods, and the
+    /// ANIM_RANDOM init composition with its `+ 1` lead-in.
+    #[test]
+    fn init_nexttic_compositions_baseline() {
+        // ANIM_ALWAYS, episode 0/1 period TICRATE/3 = 11.
+        assert_eq!(init_always_nexttic_transcription(0, 0, 11), 1);
+        assert_eq!(init_always_nexttic_transcription(5, 10, 11), 16);
+        assert_eq!(init_always_nexttic_transcription(100, 255, 11), 103);
+        // ANIM_ALWAYS, episode 2 tail period TICRATE/4 = 8.
+        assert_eq!(init_always_nexttic_transcription(0, 255, 8), 8);
+        // ANIM_RANDOM init keeps the + 1 lead-in before data2.
+        assert_eq!(init_random_nexttic_transcription(7, 255, 3, 30), 26);
+        assert_eq!(init_random_nexttic_transcription(0, 0, 0, 1), 1);
+    }
+
+    /// The update-retrigger composition differs from the init
+    /// composition ONLY by the missing `+ 1` lead-in -- pinned by
+    /// paired literals and by an exact-difference assertion.
+    #[test]
+    fn update_random_nexttic_baseline() {
+        assert_eq!(update_random_nexttic_transcription(7, 255, 3, 30), 25);
+        assert_eq!(update_random_nexttic_transcription(0, 0, 0, 1), 0);
+        assert_eq!(
+            init_random_nexttic_transcription(9, 200, 5, 17)
+                - update_random_nexttic_transcription(9, 200, 5, 17),
+            1
+        );
+    }
+
+    /// Live ledger vector against the REAL `WI_initAnimatedBack` body:
+    /// with the cursors cleared, one init pass consumes EXACTLY one
+    /// `M_Random` draw per ANIM_ALWAYS anim (10 for episode 0, 0 for
+    /// the all-ANIM_LEVEL episode 1, 6 for episode 2) and each slot's
+    /// `nexttic` is the hand-computed `bcnt + 1 + (draw % period)` with
+    /// the Nth anim consuming the Nth draw. Any extraction-era
+    /// reordering that adds, drops, or moves a draw shifts `rndindex`
+    /// (state-hash word 2) and breaks every frozen state digest.
+    #[test]
+    fn wi_init_animated_back_draw_ledger() {
+        use crate::doom::d_mode;
+        use crate::doom::m_random::{M_ClearRandom, RNDTABLE, prndindex, rndindex};
+        use crate::doom::violations::ENGINE_STATICS_TEST_LOCK;
+
+        let _g = ENGINE_STATICS_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe {
+            let saved_wbs = wbs;
+            let saved_bcnt = bcnt;
+            let saved_gamemode = gamemode;
+            let saved_rnd = rndindex;
+            let saved_prnd = prndindex;
+            let save0: [anim_state_t; EPSD0_NANIM] =
+                std::ptr::read(anim_state_ptr(0, 0) as *const [anim_state_t; EPSD0_NANIM]);
+            let save2: [anim_state_t; EPSD2_NANIM] =
+                std::ptr::read(anim_state_ptr(2, 0) as *const [anim_state_t; EPSD2_NANIM]);
+
+            let mut start: wbstartstruct_t = std::mem::zeroed();
+            wbs = &mut start;
+            gamemode = d_mode::doom; // non-commercial: the animated back runs
+
+            // Episode 0: ten ANIM_ALWAYS anims, period TICRATE/3 = 11,
+            // bcnt 0. Draws 1..=10 in order (M_Random pre-increments).
+            M_ClearRandom();
+            bcnt = 0;
+            start.epsd = 0;
+            WI_initAnimatedBack();
+            assert_eq!(rndindex, EPSD0_NANIM as c_int, "episode 0 draw count");
+            let ep0_nexttic = [9, 11, 1, 3, 11, 7, 9, 10, 7, 2];
+            for i in 0..EPSD0_NANIM {
+                let st = anim_state_ptr(0, i);
+                assert_eq!((*st).ctr, -1);
+                assert_eq!((*st).nexttic, ep0_nexttic[i], "ep0 anim {i}");
+                assert_eq!(
+                    (*st).nexttic,
+                    init_always_nexttic_transcription(0, RNDTABLE[i + 1] as c_int, TICRATE / 3),
+                    "ep0 anim {i} composition"
+                );
+            }
+
+            // Episode 1: nine ANIM_LEVEL anims, ZERO draws, each slot
+            // lands exactly on bcnt + 1.
+            bcnt = 40;
+            start.epsd = 1;
+            WI_initAnimatedBack();
+            assert_eq!(rndindex, EPSD0_NANIM as c_int, "episode 1 draws nothing");
+            for i in 0..EPSD1_NANIM {
+                let st = anim_state_ptr(1, i);
+                assert_eq!((*st).ctr, -1);
+                assert_eq!((*st).nexttic, 41, "ep1 anim {i}");
+            }
+
+            // Episode 2: six ANIM_ALWAYS anims, periods 11 x5 + 8,
+            // bcnt 77. Draws 11..=16 in order.
+            bcnt = 77;
+            start.epsd = 2;
+            WI_initAnimatedBack();
+            assert_eq!(rndindex, (EPSD0_NANIM + EPSD2_NANIM) as c_int, "episode 2 draw count");
+            let ep2_nexttic = [86, 83, 78, 86, 88, 81];
+            let ep2_period = [TICRATE / 3, TICRATE / 3, TICRATE / 3, TICRATE / 3, TICRATE / 3, TICRATE / 4];
+            for i in 0..EPSD2_NANIM {
+                let st = anim_state_ptr(2, i);
+                assert_eq!((*st).ctr, -1);
+                assert_eq!((*st).nexttic, ep2_nexttic[i], "ep2 anim {i}");
+                assert_eq!(
+                    (*st).nexttic,
+                    init_always_nexttic_transcription(
+                        77,
+                        RNDTABLE[EPSD0_NANIM + 1 + i] as c_int,
+                        ep2_period[i]
+                    ),
+                    "ep2 anim {i} composition"
+                );
+            }
+
+            // Commercial mode draws nothing at all.
+            gamemode = d_mode::commercial;
+            WI_initAnimatedBack();
+            assert_eq!(rndindex, (EPSD0_NANIM + EPSD2_NANIM) as c_int, "commercial draws nothing");
+
+            wbs = saved_wbs;
+            bcnt = saved_bcnt;
+            gamemode = saved_gamemode;
+            rndindex = saved_rnd;
+            prndindex = saved_prnd;
+            std::ptr::write(anim_state_ptr(0, 0) as *mut [anim_state_t; EPSD0_NANIM], save0);
+            std::ptr::write(anim_state_ptr(2, 0) as *mut [anim_state_t; EPSD2_NANIM], save2);
+        }
+    }
 }
