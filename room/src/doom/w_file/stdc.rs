@@ -1,18 +1,10 @@
-//! Rust port of vendor/doomgeneric/w_file.c.
-//!
-//! Backing-store interface for WAD files. The original chocolate-doom
-//! defines a `wad_file_class_t` vtable with three operations -
-//! `W_StdC_OpenFile`, `W_StdC_CloseFile` and `W_StdC_Read` - and
-//! optionally swaps in a `posix_wad_file` mmap-based class when
-//! `-mmap` is passed and `HAVE_MMAP` is defined at build time. The
-//! Rust port only ships the stdio-backed class: [`W_OpenFile`] always
-//! calls `W_StdC_OpenFile`, bypassing the `-mmap` switch entirely.
-//! Behaviour is identical to a chocolate-doom build without
-//! `HAVE_MMAP`.
+//! The stdio-backed WAD file backend: the vtable types, the descriptor, the
+//! three stdio operations, the exported vtable static, and the dispatchers.
 
-#![allow(non_upper_case_globals, non_snake_case)]
+#![allow(non_snake_case)]
 
 use std::ffi::{c_char, c_int, c_long, c_uint, c_void};
+use std::mem::size_of;
 use std::ptr;
 
 use libc::{fclose, fopen, fread, fseek, FILE, SEEK_SET};
@@ -74,15 +66,15 @@ use crate::doom::z_zone::{Z_Free, Z_Malloc, PU_STATIC};
 ///
 /// `path` must point to a valid null-terminated C string. The returned
 /// pointer (if non-null) is owned by the caller and must eventually be
-/// passed to [`W_StdC_CloseFile`].
-unsafe extern "C" fn W_StdC_OpenFile(path: *mut c_char) -> *mut wad_file_t {
+/// passed to [`stdc_close_file`].
+unsafe extern "C" fn stdc_open_file(path: *mut c_char) -> *mut wad_file_t {
     let fstream = fopen(path as *const c_char, c"rb".as_ptr());
     if fstream.is_null() {
         return ptr::null_mut();
     }
 
     let result = Z_Malloc(
-        std::mem::size_of::<stdc_wad_file_t>() as c_int,
+        size_of::<stdc_wad_file_t>() as c_int,
         PU_STATIC,
         ptr::null_mut(),
     ) as *mut stdc_wad_file_t;
@@ -101,13 +93,13 @@ unsafe extern "C" fn W_StdC_OpenFile(path: *mut c_char) -> *mut wad_file_t {
 }
 
 /// Stdio-backed `CloseFile` implementation. Closes the owning `FILE *`
-/// and frees the descriptor allocated by [`W_StdC_OpenFile`].
+/// and frees the descriptor allocated by [`stdc_open_file`].
 ///
 /// # Safety
 ///
 /// `wad` must be a non-null pointer originally returned by
-/// [`W_StdC_OpenFile`].
-unsafe extern "C" fn W_StdC_CloseFile(wad: *mut wad_file_t) {
+/// [`stdc_open_file`].
+unsafe extern "C" fn stdc_close_file(wad: *mut wad_file_t) {
     let stdc_wad = wad as *mut stdc_wad_file_t;
     fclose((*stdc_wad).fstream);
     Z_Free(stdc_wad as *mut c_void);
@@ -121,9 +113,9 @@ unsafe extern "C" fn W_StdC_CloseFile(wad: *mut wad_file_t) {
 /// # Safety
 ///
 /// `wad` must be a non-null pointer originally returned by
-/// [`W_StdC_OpenFile`]. `buffer` must point to writable memory of at
+/// [`stdc_open_file`]. `buffer` must point to writable memory of at
 /// least `buffer_len` bytes.
-unsafe extern "C" fn W_StdC_Read(
+unsafe extern "C" fn stdc_read(
     wad: *mut wad_file_t,
     offset: c_uint,
     buffer: *mut c_void,
@@ -140,25 +132,34 @@ unsafe extern "C" fn W_StdC_Read(
 /// the chocolate-doom mmap backend is not ported.
 #[no_mangle]
 pub static mut stdc_wad_file: wad_file_class_t = wad_file_class_t {
-    OpenFile: W_StdC_OpenFile,
-    CloseFile: W_StdC_CloseFile,
-    Read: W_StdC_Read,
+    OpenFile: stdc_open_file,
+    CloseFile: stdc_close_file,
+    Read: stdc_read,
 };
 
 /// Open a WAD file by path, returning a heap-allocated descriptor (or
 /// null on failure). Always uses the stdio backend; the C original
 /// optionally tried a series of `wad_file_classes` based on the `-mmap`
 /// command-line argument, but this port omits the mmap backend so the
-/// dispatch collapses to a direct call into `W_StdC_OpenFile`.
-#[no_mangle]
-pub extern "C" fn W_OpenFile(path: *mut c_char) -> *mut wad_file_t {
+/// dispatch collapses to a direct call into `stdc_open_file`.
+///
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// `w_wad/file.rs` imports the upstream name through the root shim.
+#[doc(alias = "W_OpenFile")]
+#[export_name = "W_OpenFile"]
+pub extern "C" fn open_wad_file(path: *mut c_char) -> *mut wad_file_t {
     unsafe { (stdc_wad_file.OpenFile)(path) }
 }
 
 /// Close a WAD descriptor by dispatching through its vtable. The
-/// descriptor must have been returned by [`W_OpenFile`].
-#[no_mangle]
-pub extern "C" fn W_CloseFile(wad: *mut wad_file_t) {
+/// descriptor must have been returned by [`open_wad_file`].
+///
+/// Dead-but-exported (zero callers in the tree): kept for symbol-set
+/// byte-identity, retires with the freeze zone. The pre-move export
+/// symbol is kept with `#[export_name]` below.
+#[doc(alias = "W_CloseFile")]
+#[export_name = "W_CloseFile"]
+pub extern "C" fn close_wad_file(wad: *mut wad_file_t) {
     unsafe {
         ((*(*wad).file_class).CloseFile)(wad);
     }
@@ -167,8 +168,13 @@ pub extern "C" fn W_CloseFile(wad: *mut wad_file_t) {
 /// Read `buffer_len` bytes from `offset` in the given WAD into `buffer`
 /// by dispatching through the descriptor's vtable. Returns the number
 /// of bytes actually read.
-#[no_mangle]
-pub extern "C" fn W_Read(
+///
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// `w_wad/file.rs` and `w_wad/cache.rs` import the upstream name through
+/// the root shim.
+#[doc(alias = "W_Read")]
+#[export_name = "W_Read"]
+pub extern "C" fn read_wad_bytes(
     wad: *mut wad_file_t,
     offset: c_uint,
     buffer: *mut c_void,
