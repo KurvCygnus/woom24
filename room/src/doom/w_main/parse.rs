@@ -1,14 +1,6 @@
-//! Rust port of vendor/doomgeneric/w_main.c.
-//!
-//! Common command-line WAD loader. Scans `argv` for `-file <wad>...` and
-//! adds each matching WAD to the lump directory via `W_AddFile`. The C
-//! original also handled `-merge`, `-nwtmerge`, `-af`, `-as` and `-aa`
-//! under `#ifdef FEATURE_WAD_MERGE`, but doomgeneric `#undef`s that
-//! feature in `doomfeatures.h`, so the Rust port only ports the `-file`
-//! path. Returns whether any additional WAD was loaded (the "homebrew
-//! levels" / modified-game flag).
+//! The `-file` command-line scanner.
 
-#![allow(non_upper_case_globals, non_snake_case)]
+#![allow(non_snake_case)]
 
 use std::ffi::c_char;
 
@@ -35,8 +27,13 @@ use crate::doom::w_wad::W_AddFile;
 /// port does not implement the `FEATURE_WAD_MERGE` parameters
 /// (`-merge`, `-nwtmerge`, `-af`, `-as`, `-aa`) because doomgeneric
 /// `#undef`s that feature.
-#[no_mangle]
-pub extern "C" fn W_ParseCommandLine() -> Boolean {
+///
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// `d_main/boot.rs` imports the upstream name through the root shim.
+#[doc(alias = "W_ParseCommandLine")]
+#[export_name = "W_ParseCommandLine"]
+pub extern "C" fn parse_command_line_wads() -> Boolean
+{
     let mut modifiedgame: Boolean = Boolean::FALSE;
 
     unsafe {
