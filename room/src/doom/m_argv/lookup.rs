@@ -41,7 +41,7 @@ pub extern "C" fn check_parm_with_args(check: *const c_char, num_args: c_int) ->
 /// `boolean M_ParmExists(char *check)` — returns nonzero if `check` is
 /// present on the command line, 0 otherwise.
 ///
-/// Called from `I_Error`'s `-nogui` scan (`i_system.rs`), i.e. during
+/// Called from `I_Error`'s `-nogui` scan (`i_system/error.rs`), i.e. during
 /// abort handling -- keep it allocation-free as today.
 ///
 /// # Safety
