@@ -58,7 +58,7 @@
 //! | `DIR_SEPARATOR` / `DIR_SEPARATOR_S` / `SEEK_END` / `SEEK_SET` / `EISDIR` | `files` | data | constants keep names, module-private |
 //! | libc extern block (19 fns) | `files` | data | carried verbatim; `pub(super)` so the sibling subfiles import from it (the `w_wad::ffi` pattern) |
 //! | `c_write!` / `DEH_snprintf!` | `format` (crate-root `#[macro_export]`) | glue | crate-root macro paths unchanged; bodies call `write_c_buf_ptr` through the module-root path kept by the `pub(crate) use` below |
-//! | `i_error!` | `format` (crate-root `#[macro_export]`) | glue | routes to `i_system::I_Error`; the body's path updates ride `i_system`'s own graduation |
+//! | `i_error!` | `format` (crate-root `#[macro_export]`) | glue | routes to `i_system::I_Error`; i_system graduated (F10 wave F2-c) and the root shim keeps that path valid, so the macro body needed no edit |
 //!
 //! ## Deterministic Aspects
 //!

@@ -20,7 +20,7 @@ impl Log for ConsoleLogger
         match record.level()
         {
             // F9 §4 crash visibility (defect E): on wasm this channel IS the
-            // I_Error route (i_system.rs I_Error log::error!s the fatal
+            // I_Error route (i_system/error.rs I_Error log::error!s the fatal
             // message before exiting). Page rendering of the error is owned
             // by the woom24_last_error channel + the woom24.js overlay
             // (spec-4 E, the canonical crash-visibility surface); this

@@ -50,7 +50,7 @@
 //! | `Z_ChangeUser` | `zone::change_user` | glue | shim; sole caller `w_wad/file.rs`; upstream `z_zone.c:446` |
 //! | `Z_FreeMemory` | `diagnose::free_memory` | glue | shim; counts free + purgeable bytes; upstream `z_zone.c:466` |
 //! | `Z_FileDumpHeap` | `diagnose::file_dump_heap` | glue | shim; stubbed no-op (no Rust call site; C body `z_zone.c:367-393` never ported) |
-//! | `Z_ZoneSize` | `zone::zone_size` | glue | shim; zone SIZE ruled not demo-observable (`docs/vanilla-workarounds.md:1183-1192`), stays consistent with `i_system::DEFAULT_RAM`; upstream `z_zone.c:484` |
+//! | `Z_ZoneSize` | `zone::zone_size` | glue | shim; zone SIZE ruled not demo-observable (`docs/vanilla-workarounds.md:1183-1192`), stays consistent with `i_system/zone.rs`'s `DEFAULT_RAM` (32 MiB); upstream `z_zone.c:484` |
 //! | `Z_Zone_Link_Anchor` | `anchor::zone_link_anchor` | glue | dead-but-kept link anchor (zero callers; `doomgeneric.rs`'s anchor list has no z_zone entry); renamed + shimmed, `#[no_mangle]` dropped -- only the two live symbols stay pinned; retires with the freeze zone (p_spec precedent) |
 //! | `mainzone` | `zone::mainzone` (static) | data | name kept (statics ruling; zero extern declarers today); re-exported at the root for path stability |
 //! | `memblock_t` / `memzone_t` | `zone.rs` | data | `#[repr(C)]` layouts kept, `pub(super)` to the module subtree (were file-private) |

@@ -749,7 +749,7 @@ wasm-bindgen `GLOBAL_EXNDATA`/`HEAP_SLAB` -- making the unguarded
 Shipped interim mitigations (guards, not root-cause emulations; see also the
 "Related deliberate deviations" section below): guarded spechit store + drains
 (entry 1), `ticdup < 1` -> `I_Error` (`d_loop/net_stub.rs:132-138`), `I_Error` also
-emits through the log facade (`room/src/doom/i_system.rs:329`; wasm has no
+emits through the log facade (`room/src/doom/i_system/error.rs:143`; wasm has no
 stderr), the pre-creation frame-entry latch
 (`room/src/doom/doomgeneric.rs:214-222`, consulted at
 `d_main/entries.rs:41`/`:97`), the web panic hook (`shells/web/src/console_log.rs:52`), and
@@ -1251,7 +1251,7 @@ state for compatible inputs.
   and `g_game/demo.rs:write_demo_ticcmd`):
   user-configurable enforcement of vanilla's buffer caps (I_Error) versus
   auto-growth. Limit-removal configuration, not bug emulation.
-- **Zone sizing policy** (`room/src/doom/i_system.rs`, `DEFAULT_RAM`,
+- **Zone sizing policy** (`room/src/doom/i_system/zone.rs`, `DEFAULT_RAM`,
   this commit): vanilla sizes its zone at 6 MiB (`DEFAULT_RAM` in
   `i_system.c`); we ship 32 MiB on every target. Root cause: the vanilla
   budget starved on the restart path (spec 4 defect A --
