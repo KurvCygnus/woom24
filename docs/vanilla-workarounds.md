@@ -46,6 +46,7 @@ semantics of `m_fixed.rs`) is not cataloged here either.
 | 11 | door/plat `specialdata` aliasing | `EV_VerticalDoor` discriminates the thinker in an aliased `sector->specialdata` slot by `acp1` function-pointer compare and, for a plat, writes `plat->wait` through a `vldoor_t*` cast (the "When is a door not a door?" quirk) | complete | `room/src/doom/p_doors/events.rs:EV_VerticalDoor` |
 | 12 | null-target dereference substitution | weapon/monster code dereferences `target`/`tracer` pointers that can legitimately be NULL; vanilla read DOS address `0000:0000`-adjacent memory (low vector area) and "worked" for it | complete | `room/src/doom/p_mobj/spawn.rs:subst_null_mobj` |
 | 13 | stair heightlist overrun | `P_FindNextHighestFloor` stores qualifying neighbor floors into `heightlist[MAX_ADJOINING_SECTORS]` (20 slots) on the DOS stack; stores 21 and 22 land past the array -- store 21 hits the stack slot of `height` itself, further stores trample deeper stack until vanilla crashes | complete | `room/src/doom/p_spec/geometry.rs:next_highest_floor` |
+| 14 | intermission MAP33+ bad-patch draw | `WI_drawLF` indexes `lnames[wbs->last]` past its `NUMCMAPS` (= 32) entries for a completed map number above 32; vanilla's blitter then receives a synthetic off-screen patch and doom2.exe bombs with its `V_DrawPatch` bad-patch error | complete | `room/src/doom/wi_stuff/drawutil.rs:draw_level_finished` |
 | G1 | tmbbox overrun family | `PIT_CheckLine`'s spechit-overrun emulated writes land in `tmbbox[0..3]`; every later collision check in the same move then consumes the trampled bbox -- the emulated writes are the complete trample model | complete | `room/src/doom/p_map/spechit.rs:spechit_overrun` (writes) + `p_map/move.rs:pit_check_line`/`check_position` (consumers) |
 | G2 | demo-window / ticdup=0 clobber | a browser-only OOB write zeroed `ticdup` mid-run (`panic_const_div_by_zero`); audit found the spechit store was the sole trampler | resolved (pending human browser re-test) | audit notes below; fix = entry 1 |
 
@@ -1123,6 +1124,70 @@ disabling the shadow arm aborts the drive through the crash path).
 `:354-359` ("Emulation of memory (stack) overflow" + the `h == MAX+1`
 shadow write), `:360-364` (the `h == MAX+2` `I_Error`); room-port mirror
 `vendor/doomgeneric/p_spec.c:329-330`.
+
+## 14. intermission MAP33+ bad-patch draw (complete)
+
+### DOS-era root cause
+
+`WI_drawLF` sizes the level-name patch array `lnames` at `NUMCMAPS`
+lumps (32 for the commercial IWAD, set by `WI_loadData`) and indexes it
+with `wbs->last`, the just-completed map number. A WAD-driven game can
+finish a map number above 32 (limit-removing map 33+ exits): the load
+loop never cached a lump there, so `lnames[wbs->last]` reads past the
+`Z_Malloc`'d array and the draw receives garbage. Upstream vanilla
+shapes the failure deliberately: the `wbs->last > NUMCMAPS` arm builds
+a synthetic `patch_t` of `SCREENWIDTH` x `SCREENHEIGHT` with unit
+offsets and zeroed column offsets and hands THAT to `V_DrawPatch`,
+which doom2.exe's range-checked blitter rejects with its
+"V_DrawPatch: bad patch" `I_Error` (the upstream comment: "Doom bombs
+out here with a Bad V_DrawPatch error ... let's try to be accurate
+anyway").
+
+### What the trample observably affected
+
+On doom2.exe, finishing a map number above 32 bombs to DOS with the
+bad-patch error instead of drawing a level name. The `wbs->last ==
+NUMCMAPS` arm is the adjacent deliberate no-op ("MAP33 - nothing is
+displayed!"): map 33 shows an intermission with no title. Both arms are
+part of the same boundary quirk; demos recorded on limit-removing
+MAP33+ WADs depend on the intermission not crashing (and not drawing a
+bogus title) at exactly this boundary.
+
+### Where we emulate it
+
+`room/src/doom/wi_stuff/drawutil.rs:71-82` in `draw_level_finished`
+(graduate of `WI_drawLF`, moved verbatim from `wi_stuff.rs` in F10
+wave E2-b): the three-way boundary is kept whole -- `last < NUMCMAPS`
+draws normally, `last == NUMCMAPS` is the deliberate empty arm, and
+`last > NUMCMAPS` builds the same synthetic patch (`width =
+SCREENWIDTH`, `height = SCREENHEIGHT`, `leftoffset = 1`, `topoffset =
+1`, zeroed `columnofs`) and calls `V_DrawPatch(0, y, &tmp)` verbatim.
+Never bounds-check or "fix" this arm: the graduated
+`v_video::patch::draw_patch` receives the bad patch unguarded, exactly
+as vanilla's blitter did (G2 discipline).
+
+### Semantics
+
+Bit-exact input shaping, not bit-exact crash: vanilla's range-checked
+blitter aborts the program with the bad-patch error; our unguarded
+`draw_patch` walks the synthetic patch's zeroed column offsets (a wild
+read/write from the struct bytes) instead of erroring. The port keeps
+the upstream shape so the failure stays local to an arm that only
+WAD hacks can reach (with vanilla data, `NUMCMAPS = 32` covers every
+`CWILV##` lump and the arm is dead). The MAP33 empty arm and the
+`last < NUMCMAPS` draw are fully bit-exact.
+
+### Status
+
+`complete`.
+
+### Reference derivation
+
+`vendor/doomgeneric/wi_stuff.c:416-449` (`WI_drawLF`; the
+`wbs->last > NUMCMAPS` arm at `:435-448` with the upstream comment and
+the synthetic-patch initializer at `:444-445`), `WI_loadData`'s
+`NUMCMAPS = 32` at `:1713`; port mirror
+`room/src/doom/wi_stuff/drawutil.rs:draw_level_finished`.
 
 ## Known gaps / intake
 
