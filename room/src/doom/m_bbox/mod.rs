@@ -17,7 +17,8 @@
 //! declarations and the re-exports below keep every existing consumer
 //! path valid (`crate::doom::m_bbox::*` -- the function consumers
 //! `p_setup.rs:33` and `v_video.rs:14`, the `BBox` constant consumers
-//! `p_map.rs:27`, `r_main.rs:15`, `r_bsp.rs:13`, the `c_ffi.rs:14`
+//! `p_map.rs:27`, `r_main.rs:15`, `r_bsp/clipper.rs:11` +
+//! `r_bsp/traverse.rs:11`, the `c_ffi.rs:14`
 //! re-export, and the `c_tests/p_maputl_c.rs:14` test import); no
 //! content lives here.
 //!
@@ -46,7 +47,7 @@
 //! the map bounding box (`p_setup.rs:1056`), the blocktree/blockmap
 //! span checks (`p_map.rs:304-307`), the render dirtybox
 //! (`v_video.rs:79-80`), and the BSP collantern bounds
-//! (`r_main.rs:355-365`, `r_bsp.rs:1027-1037`) -- so every
+//! (`r_main.rs:355-365`, `r_bsp/clipper.rs` `check_bbox`) -- so every
 //! comparison direction and sentinel is exactness-bearing. Two
 //! details are load-bearing and pinned by the baseline vectors in
 //! `dtmc`'s test module (run green against the original bodies

@@ -40,7 +40,7 @@
 //!   `lifecycle::mobj_thinker` item into each mobj's `acp1`, and every
 //!   consumer identifies mobj thinkers by comparing that address --
 //!   the extern declarer `p_saveg.rs:91` (compare at `:1673`), the
-//!   direct call `p_saveg.rs:96` (at `:1726`), `r_data.rs:1255`'s
+//!   direct call `p_saveg.rs:96` (at `:1726`), `r_data/precache.rs`'s
 //!   sprite-precache scan, `r_interp.rs:471`/`:962`'s walker filter,
 //!   and `p_telept/teleport.rs:77`'s transmute compare all resolve
 //!   through the root shims, which are plain `pub use` re-exports of
