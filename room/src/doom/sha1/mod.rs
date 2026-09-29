@@ -27,7 +27,7 @@
 //! Per the maintainer ruling of 2026-09-27 (m_fixed naming pattern):
 //! plain-English internal names with `#[doc(alias = "OriginalName")]`,
 //! upstream-name shims at this root, `#[no_mangle]` dropped with the
-//! rename (no extern declarers anywhere -- `w_checksum.rs` imports by
+//! rename (no extern declarers anywhere -- `w_checksum` imports by
 //! path, `d_net.rs` declares `W_Checksum`, not the SHA1_ functions).
 //! Each function keeps its pre-move ABI kind: `init` was SAFE
 //! `pub extern "C"`, the other four were `pub unsafe extern "C"` and
@@ -70,7 +70,7 @@ pub mod context;
 pub mod stream;
 
 //* path-stability re-export: the digest vocabulary keeps its
-//* module-root paths (`w_checksum.rs`).
+//* module-root paths (`w_checksum`).
 pub use context::{sha1_digest_t, SHA1Context};
 
 //* upstream-name shim: freeze-zone callers keep the upstream names.

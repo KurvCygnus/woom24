@@ -67,7 +67,7 @@
 //! | `drawseg_t` | `r_bsp/types.rs` |
 //! | `vissprite_t`, `spriteframe_t` | c_ffi only (`r_things` imports them) |
 //! | `screen_mode_t` | none -- consumed by `i_scale` (its fifteen `mode_*` statics are re-exported here) |
-//! | `LumpInfo` (`w_checksum.rs`) | mirrors `w_wad`'s graduated `repr(C)` `lumpinfo` |
+//! | `LumpInfo` (`w_checksum/digest.rs`) | mirrors `w_wad`'s graduated `repr(C)` `lumpinfo` |
 //!
 //! ## Original Fn Name Mapping
 //!

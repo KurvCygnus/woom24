@@ -62,9 +62,9 @@ pub mod music_table;
 pub mod sfx_table;
 
 //* path-stability re-export: the shared tables keep their module-root
-//* paths for the freeze-zone callers (`info.rs`, `tables.rs`, `i_sound.rs`,
-//* `hu_stuff`, `m_menu`, `wi_stuff`, `f_finale`, `s_sound`, and the
-//* graduated `p_*` sound callers).
+//* paths for the freeze-zone callers (`info.rs`, `tables.rs`,
+//* `hu_stuff`, `m_menu`, `wi_stuff`, `f_finale`, and the graduated
+//* `i_sound` / `s_sound` / `p_*` sound callers).
 pub use enums::{Mus, Sfx, NUMMUSIC, NUMSFX};
 pub use music_table::{MusicInfo, S_music};
 pub use sfx_table::{S_sfx, SfxInfo};

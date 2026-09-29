@@ -265,7 +265,7 @@ pub extern "C" fn load_defaults() {
 /// `I_Error` if the name is unknown. Mirrors C `M_BindVariable`.
 ///
 /// The pre-move export symbol is kept with `#[export_name]` below;
-/// `i_sound.rs` and `d_main/bind.rs` import the upstream name through the
+/// `i_sound/config.rs` and `d_main/bind.rs` import the upstream name through the
 /// root shim (`i_joystick` / `m_controls` converted their extern
 /// declarations to this path call in this same commit).
 #[doc(alias = "M_BindVariable")]

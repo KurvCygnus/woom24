@@ -42,7 +42,7 @@
 //! | `M_SaveDefaults` | `vars::save_defaults` | glue | no-op (`ORIGCODE`); C symbol pinned; upstream `m_config.c:1846` |
 //! | `M_SaveDefaultsAlternate` | `vars::save_defaults_alternate` | glue | filename-pointer swap only; C symbol pinned (dead-but-exported); upstream `m_config.c:1856` |
 //! | `M_LoadDefaults` | `vars::load_defaults` | glue | `-config` / `-extraconfig` staging, parse half no-op; C symbol pinned; upstream `m_config.c:1881` |
-//! | `M_BindVariable` | `vars::bind_variable` | glue | C symbol pinned via `#[export_name]` (`i_sound.rs` / `d_main/bind.rs` import through the root shim; the `i_joystick` / `m_controls` extern declarations converted to this path call in the graduation commit); upstream `m_config.c:1964` |
+//! | `M_BindVariable` | `vars::bind_variable` | glue | C symbol pinned via `#[export_name]` (`i_sound/config.rs` / `d_main/bind.rs` import through the root shim; the `i_joystick` / `m_controls` extern declarations converted to this path call in the graduation commit); upstream `m_config.c:1964` |
 //! | `M_SetVariable` | `vars::set_config_variable` | glue | C symbol pinned (dead-but-exported); upstream `m_config.c:1977` |
 //! | `M_GetIntVariable` | `vars::get_int_variable` | glue | C symbol pinned (dead-but-exported); upstream `m_config.c:1995` |
 //! | `M_GetStrVariable` | `vars::get_str_variable` | glue | C symbol pinned (dead-but-exported) |
