@@ -1,14 +1,5 @@
-//! Rust port of vendor/doomgeneric/i_joystick.c.
-//!
-//! Stub for the SDL joystick backend. Chocolate-doom uses SDL_joystick to
-//! open a device, read axes / buttons / hats and post `ev_joystick` events
-//! into the input queue. Doomgeneric compiles all of that out behind
-//! `#ifdef ORIGCODE`; only the [`I_BindJoystickVariables`] entry point
-//! survives so the configuration file format remains compatible. The Rust
-//! port mirrors that: the lifecycle functions are no-ops, and the
-//! configuration variables are still registered with `M_BindVariable` so
-//! reads/writes of `default.cfg` round-trip the joystick settings even
-//! though they have no runtime effect.
+//! The joystick configuration surface: the config-bound statics and the
+//! `default.cfg` binding entry point.
 
 #![allow(non_upper_case_globals, non_snake_case)]
 
@@ -46,31 +37,13 @@ extern "C" {
     /// Bind a config variable name to its backing storage. Defined in
     /// `m_config.c`; called below to expose the joystick statics to the
     /// `default.cfg` parser.
+    //*
+    //* Kept extern for now: `m_config` graduates in a later sub-wave and
+    //* converts this declarer to a path call in lockstep (F10 report §3.6).
     fn M_BindVariable(name: *mut c_char, variable: *mut c_void);
 }
 
 use crate::c_write;
-
-/// Initialise the joystick subsystem.
-///
-/// No-op stub. The original opened the SDL joystick, validated the
-/// configured axes and registered an at-exit hook to shut it down. This
-/// port has no joystick backend.
-#[no_mangle]
-pub extern "C" fn I_InitJoystick() {}
-
-/// Shut down the joystick subsystem. No-op stub.
-#[no_mangle]
-pub extern "C" fn I_ShutdownJoystick() {}
-
-/// Sample the joystick state and post an `ev_joystick` event into the
-/// input queue.
-///
-/// No-op stub. The original read button mask plus three axes and called
-/// `D_PostEvent`. With no joystick backend the input queue simply never
-/// sees joystick events.
-#[no_mangle]
-pub extern "C" fn I_UpdateJoystick() {}
 
 /// Register all joystick configuration variables with `M_BindVariable` so
 /// they are persisted to / loaded from `default.cfg`.
@@ -80,8 +53,12 @@ pub extern "C" fn I_UpdateJoystick() {}
 /// edit values that a future backend could honour. Variable names and
 /// order match the chocolate-doom original byte-for-byte so the resulting
 /// `default.cfg` is round-trip compatible.
-#[no_mangle]
-pub extern "C" fn I_BindJoystickVariables() {
+///
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// `d_main/bind.rs` imports the upstream name through the root shim.
+#[doc(alias = "I_BindJoystickVariables")]
+#[export_name = "I_BindJoystickVariables"]
+pub extern "C" fn bind_joystick_variables() {
     unsafe {
         M_BindVariable(
             c"use_joystick".as_ptr().cast_mut(),
