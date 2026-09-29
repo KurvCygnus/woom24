@@ -1,23 +1,12 @@
-//! Rust port of vendor/doomgeneric/doomstat.c.
-//!
-//! Global game state variables shared by every module in the engine.
-//! The header (`doomstat.h`) serves as the single source of truth for all
-//! game-wide state: IWAD identity, active game mode, savegame directory,
-//! player bookkeeping, demo flags, and more.  In practice only a small
-//! subset of those variables lives here; the rest are defined in the C
-//! modules that own them and declared `extern` in the header.
-//!
-//! This file covers the five variables whose definitions appeared in the
-//! original `doomstat.c`: `gamemode`, `gamemission`, `gameversion`,
-//! `gamedescription`, and `modifiedgame`.  All are `#[no_mangle]` so the
-//! remaining C translation units can link against them directly.
+//! The five `doomstat.c` statics. Names and `#[no_mangle]` exports are the
+//! upstream symbol set and never change.
 
-#![allow(non_upper_case_globals, non_snake_case)]
+#![allow(non_upper_case_globals)]
 
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-use super::d_mode;
+use crate::doom::d_mode;
 use crate::types::Boolean;
 
 /// Identifies which IWAD variant is loaded (shareware, registered, retail, etc.).
@@ -67,7 +56,9 @@ pub static mut modifiedgame: Boolean = Boolean::FALSE;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::doom::doomstat::{gamedescription, gamemission, gamemode, gameversion, modifiedgame};
+    use crate::doom::d_mode;
+    use crate::types::Boolean;
     use std::sync::Mutex;
 
     static LOCK: Mutex<()> = Mutex::new(());
