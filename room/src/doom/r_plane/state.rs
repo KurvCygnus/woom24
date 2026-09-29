@@ -331,7 +331,7 @@ pub static mut yslope: [fixed_t; MAXH] = [0; MAXH];
 /// Per-column angular distance scale from the screen center.
 ///
 /// Exported as `#[no_mangle]` for C callers.  Precomputed by `R_ExecuteSetViewSize`
-/// in `r_main`; used by [`map_plane`] to project a flat texel onto a column.
+/// in `r_main`; used by `map_plane` to project a flat texel onto a column.
 #[no_mangle]
 pub static mut distscale: [fixed_t; MAXW] = [0; MAXW];
 
@@ -351,7 +351,7 @@ pub static mut baseyscale: fixed_t = 0;
 
 /// Cache of the last `planeheight` value computed for each screen row.
 ///
-/// Exported as `#[no_mangle]` for C callers.  [`map_plane`] avoids
+/// Exported as `#[no_mangle]` for C callers.  `map_plane` avoids
 /// recomputing `distance`, `xstep`, and `ystep` when the plane height has not
 /// changed since the previous span on the same row.
 #[no_mangle]
