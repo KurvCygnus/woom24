@@ -1,28 +1,26 @@
-//! Rust port of vendor/doomgeneric/w_checksum.c.
-//!
-//! Computes a SHA-1 hash over the WAD directory: for every lump it folds
-//! the name, owning-WAD index, file offset and size into a `SHA1Context`.
-//! The resulting digest is used by chocolate-doom for netgame consistency
-//! checks (so all peers verify they loaded the same lumps).
-//!
-//! The C version keeps `open_wadfiles` and `num_open_wadfiles` as a
-//! `realloc`-grown global; the Rust port replaces those with a `Vec<*mut
-//! c_void>` allocated locally inside [`W_Checksum`] for the duration of
-//! the call. The numeric file-index assignment order is identical to the
-//! C version, so the resulting digest is unchanged.
-
-#![allow(non_upper_case_globals, non_snake_case)]
+//! The WAD-directory checksum fold: the `LumpInfo` layout-parallel
+//! mirror, the first-encounter per-file index assignment, the per-lump
+//! SHA-1 fold, and the `wad_directory_checksum` entry point, with the
+//! captured baseline vectors.
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
+use std::mem::size_of;
 
 use crate::doom::m_misc::M_StringCopy;
 use crate::doom::sha1::{
     sha1_digest_t, SHA1Context, SHA1_Final, SHA1_Init, SHA1_UpdateInt32, SHA1_UpdateString,
 };
-use crate::doom::w_wad::{lumpinfo, numlumps};
+use crate::doom::w_wad::{lumpinfo, lumpinfo_t, numlumps};
 
-/// Mirror of the C `lumpinfo_t` layout used by [`W_Checksum`] to read
-/// individual lump metadata out of the `lumpinfo` array.
+/// Layout-parity pin: the checksum reads the global `lumpinfo` array
+/// through this local mirror, so it must stay the same size as `w_wad`'s
+/// canonical `lumpinfo_t`; the baseline test additionally drives real
+/// `lumpinfo_t` entries through the fold.
+const _: () = assert!(size_of::<LumpInfo>() == size_of::<lumpinfo_t>());
+
+/// Mirror of the C `lumpinfo_t` layout used by
+/// [`wad_directory_checksum`] to read individual lump metadata out of
+/// the `lumpinfo` array.
 ///
 /// Layout invariant: `#[repr(C)]` with the same field order, types and
 /// padding as the canonical `lumpinfo_t` defined in `w_wad.h`. Only the
@@ -63,11 +61,11 @@ pub struct LumpInfo {
 /// `open_wadfiles` must be a valid mutable reference. `handle` is only
 /// compared for equality and stored back into the vector, never
 /// dereferenced.
-unsafe fn get_file_number(handle: *mut c_void, open_wadfiles: &mut Vec<*mut c_void>) -> c_int {
-    for (i, &wad) in open_wadfiles.iter().enumerate() {
-        if wad == handle {
-            return i as c_int;
-        }
+unsafe fn get_file_number(handle: *mut c_void, open_wadfiles: &mut Vec<*mut c_void>) -> c_int
+{
+    for (i, &wad) in open_wadfiles.iter().enumerate()
+    {
+        if wad == handle { return i as c_int; }
     }
 
     let result = open_wadfiles.len() as c_int;
@@ -91,17 +89,15 @@ unsafe fn checksum_add_lump(
     sha1_context: *mut SHA1Context,
     lump: *mut LumpInfo,
     open_wadfiles: &mut Vec<*mut c_void>,
-) {
+)
+{
     let lump = &*lump;
 
     let mut buf: [c_char; 9] = [0; 9];
     M_StringCopy(buf.as_mut_ptr(), lump.name.as_ptr(), buf.len());
 
     SHA1_UpdateString(sha1_context, buf.as_mut_ptr());
-    SHA1_UpdateInt32(
-        sha1_context,
-        get_file_number(lump.wad_file, open_wadfiles) as c_uint,
-    );
+    SHA1_UpdateInt32(sha1_context, get_file_number(lump.wad_file, open_wadfiles) as c_uint);
     SHA1_UpdateInt32(sha1_context, lump.position as c_uint);
     SHA1_UpdateInt32(sha1_context, lump.size as c_uint);
 }
@@ -117,19 +113,26 @@ unsafe fn checksum_add_lump(
 /// is allocated as a local `Vec` rather than a process-wide
 /// `realloc`-grown array. Behaviour is otherwise identical.
 ///
+/// The pre-move export symbol is kept with `#[export_name]` below;
+/// `d_net/mod.rs` imports the upstream name through its verbatim
+/// extern-by-symbol block.
+///
 /// # Safety
 ///
 /// `digest` must point to a valid `sha1_digest_t` array with room for
 /// `SHA1_DIGEST_SIZE` bytes. The global `lumpinfo` and `numlumps` must be
 /// initialised (i.e. `W_InitMultipleFiles` has run).
-#[no_mangle]
-pub unsafe extern "C" fn W_Checksum(digest: *mut sha1_digest_t) {
+#[doc(alias = "W_Checksum")]
+#[export_name = "W_Checksum"]
+pub unsafe extern "C" fn wad_directory_checksum(digest: *mut sha1_digest_t)
+{
     let mut sha1_context = std::mem::MaybeUninit::<SHA1Context>::uninit();
     SHA1_Init(sha1_context.as_mut_ptr());
 
     let mut open_wadfiles: Vec<*mut c_void> = Vec::new();
 
-    for i in 0..numlumps {
+    for i in 0..numlumps
+    {
         let lump = lumpinfo.add(i as usize) as *mut LumpInfo;
         checksum_add_lump(sha1_context.as_mut_ptr(), lump, &mut open_wadfiles);
     }
@@ -144,8 +147,8 @@ mod tests
     use std::ptr;
 
     use crate::doom::sha1::sha1_digest_t;
-    use crate::doom::w_file::wad_file_t;
     use crate::doom::w_checksum::W_Checksum;
+    use crate::doom::w_file::wad_file_t;
     use crate::doom::w_wad::lumpinfo_t;
     use crate::doom::w_wad::test_support::{make_lump_name, WAD_LOCK, WadTestScope};
 
@@ -207,8 +210,8 @@ mod tests
         }
     }
 
-    /// Run `W_Checksum` over a synthetic directory installed into the
-    /// global `lumpinfo` / `numlumps` statics. The swap happens under
+    /// Run the checksum entry over a synthetic directory installed into
+    /// the global `lumpinfo` / `numlumps` statics. The swap happens under
     /// the shared `WAD_LOCK`; the scope guard restores the originals
     /// before the backing slice drops (LIFO declaration order).
     fn checksum_of(lumps: &mut [lumpinfo_t]) -> sha1_digest_t
@@ -225,7 +228,7 @@ mod tests
         digest.iter().map(|b| format!("{:02x}", b)).collect()
     }
 
-    /// Empty directory: `W_Checksum` over zero lumps is exactly
+    /// Empty directory: the checksum over zero lumps is exactly
     /// `SHA1_Init` + `SHA1_Final` -- the published SHA-1 empty-input
     /// vector, an oracle independent of the pre-move capture.
     #[test]
