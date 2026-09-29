@@ -553,4 +553,175 @@ mod tests
         super::set_last_i_error("second".to_string());
         assert_eq!(super::last_i_error().as_deref(), Some("second"), "latest wins");
     }
+
+    // -----------------------------------------------------------------------
+    // F10 wave F2-c dtmc baseline: the pure dump-read core of
+    // `I_GetMemoryValue` (this file `:452-489`), captured against the
+    // inline body BEFORE the graduation split (F10 §2.3, feb6318 E2-b
+    // precedent). The returned bytes define the synthetic null-sector's
+    // floorheight/ceilingheight (`p_setup/null_sector.rs`), which is
+    // demo-observable on glass-hack maps (vex6d family;
+    // docs/vanilla-workarounds.md row 5) -- so the read core is the
+    // module's only demo-synchronization surface (f1 report §9.4). The
+    // transcription helper is deleted and the vectors re-pointed at
+    // `i_system::dtmc::read_mem_dump` by the graduation commit.
+    // -----------------------------------------------------------------------
+
+    /// Transcription of the dump-read core (this file `:459-489`): the
+    /// out-of-range offset guard, then the little-endian byte/word/dword
+    /// read through the caller's value pointer, each size arm guarded
+    /// against reading past the 10-byte dump. Verbatim semantics; slice
+    /// indexing replaces the raw `dump.add` walks behind identical guards.
+    fn read_mem_dump_transcription(
+        dump: &[u8; DOS_MEM_DUMP_SIZE],
+        offset: c_uint,
+        value: *mut c_void,
+        size: c_int,
+    ) -> c_int
+    {
+        unsafe
+        {
+            let offset = offset as usize;
+            if offset >= DOS_MEM_DUMP_SIZE
+            {
+                return 0;
+            }
+
+            match size
+            {
+                1 =>
+                {
+                    *(value as *mut u8) = dump[offset];
+                    1
+                }
+                2 =>
+                {
+                    if offset + 1 >= DOS_MEM_DUMP_SIZE
+                    {
+                        return 0;
+                    }
+                    *(value as *mut u16) =
+                        (dump[offset] as u16) | ((dump[offset + 1] as u16) << 8);
+                    1
+                }
+                4 =>
+                {
+                    if offset + 3 >= DOS_MEM_DUMP_SIZE
+                    {
+                        return 0;
+                    }
+                    *(value as *mut u32) = (dump[offset] as u32)
+                        | ((dump[offset + 1] as u32) << 8)
+                        | ((dump[offset + 2] as u32) << 16)
+                        | ((dump[offset + 3] as u32) << 24);
+                    1
+                }
+                _ => 0,
+            }
+        }
+    }
+
+    /// Known vectors for the dump-read core, driven BOTH through the
+    /// transcription and through the live `I_GetMemoryValue` entry with
+    /// each dump selected, so the extraction can never drift from the
+    /// shipped body. Vectors follow f1 report §9.4, with two corrections
+    /// disclosed in the wave report: DOSBOX offset 3 / size 4 reads bytes
+    /// `F1 00 00 00` = `0x000000F1` (the report's "0x07000000-shape"
+    /// guess was wrong for that offset), and the `0x07` dump byte is
+    /// covered by offset 6 / size 4 = `0x00070000`.
+    ///
+    /// Single test function on purpose: it mutates the `dos_mem_dump`
+    /// static, so the three dump selections must run sequentially on one
+    /// thread (no other test touches the static).
+    #[test]
+    fn memory_value_read_baseline_vectors()
+    {
+        /// One vector: (dump, offset, size, expected return, expected
+        /// value). `expected` is only checked when the return is 1.
+        type V = (DosMemDump, c_uint, c_int, c_int, u32);
+
+        let vectors: [V; 11] = [
+            // DOS 6.22: the null-sector consumer's exact reads (offset
+            // 0 and 4, dword) plus the byte and word shapes.
+            (DosMemDump::Dos622, 0, 1, 1, 0x57),
+            (DosMemDump::Dos622, 0, 4, 1, 0x0019_9257),
+            (DosMemDump::Dos622, 4, 4, 1, 0x0070_06F4),
+            (DosMemDump::Dos622, 8, 2, 1, 0x0016),
+            // Win98 (the `-setmem dos71` selection).
+            (DosMemDump::Win98, 0, 4, 1, 0x00C9_0F9E),
+            // DOSBox: dword starting in the F1 byte, and the dword that
+            // carries the 0x07 high-area byte.
+            (DosMemDump::Dosbox, 3, 4, 1, 0x0000_00F1),
+            (DosMemDump::Dosbox, 6, 4, 1, 0x0007_0000),
+            // Failure shapes: the value pointer must stay untouched.
+            (DosMemDump::Dos622, 10, 1, 0, 0), // offset == dump size
+            (DosMemDump::Dos622, 9, 2, 0, 0),  // word straddles the end
+            (DosMemDump::Dos622, 7, 4, 0, 0),  // dword crosses the end
+            (DosMemDump::Dos622, 0, 3, 0, 0),  // size not in {1, 2, 4}
+        ];
+
+        for &(dump, offset, size, ret, expected) in &vectors
+        {
+            // SAFETY: static-mut dump selection; this is the only test
+            // touching `dos_mem_dump`, and it runs single-threaded.
+            unsafe { dos_mem_dump = dump; }
+
+            // The entry writes exactly `size` bytes: mask the sentinel so
+            // the expectation keeps the untouched high bytes (the write
+            // width is part of the pinned contract -- the null-sector
+            // consumer hands us dword slots, but byte/word callers exist
+            // in the C surface).
+            let width_mask: u32 = if ret == 1 { !0u32 >> (32 - 8 * size) } else { 0 };
+            let live_expected = (0xABCD_EF01 & !width_mask) | expected;
+
+            let mut live: u32 = 0xABCD_EF01;
+            let got = I_GetMemoryValue(offset, std::ptr::addr_of_mut!(live).cast(), size);
+            assert_eq!(got, ret, "live return drifted at offset={offset}, size={size}");
+            if ret == 1
+            {
+                assert_eq!(
+                    live, live_expected,
+                    "live value drifted at offset={offset}, size={size}"
+                );
+            }
+            else
+            {
+                assert_eq!(live, 0xABCD_EF01, "failed read must not write (offset={offset})");
+            }
+
+            let mut check: u32 = 0xABCD_EF01;
+            let got = read_mem_dump_transcription(
+                match dump
+                {
+                    DosMemDump::Dos622 => &MEM_DUMP_DOS622,
+                    DosMemDump::Win98 => &MEM_DUMP_WIN98,
+                    DosMemDump::Dosbox => &MEM_DUMP_DOSBOX,
+                    DosMemDump::Custom => unreachable!("custom dump is boot-glue, not a vector"),
+                },
+                offset,
+                std::ptr::addr_of_mut!(check).cast(),
+                size,
+            );
+            assert_eq!(got, ret, "transcription return drifted at offset={offset}, size={size}");
+            if ret == 1
+            {
+                assert_eq!(
+                    check, live_expected,
+                    "transcription value drifted at offset={offset}, size={size}"
+                );
+            }
+        }
+
+        // Out-of-range u32 offset must fail the guard, not overflow the
+        // `offset as usize` cast.
+        // SAFETY: same single-threaded static-mut selection as above.
+        unsafe { dos_mem_dump = DosMemDump::Dos622; }
+        let mut live: u32 = 0xABCD_EF01;
+        assert_eq!(
+            I_GetMemoryValue(c_uint::MAX, std::ptr::addr_of_mut!(live).cast(), 1),
+            0,
+            "u32::MAX offset must fail the range guard"
+        );
+        assert_eq!(live, 0xABCD_EF01, "failed read must not write");
+    }
 }
