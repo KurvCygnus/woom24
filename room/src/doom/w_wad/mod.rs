@@ -23,6 +23,11 @@
 //!   marker lump belongs to a different game
 //! - `ffi.rs` -- the libc declarations (string and memory
 //!   primitives) shared by `file.rs` and `lookup.rs`
+//! - `test_support.rs` -- test-only (`cfg(test)`) shared fixture for
+//!   the WAD-global swap: the serialising `WAD_LOCK`, the
+//!   `WadTestScope` install/restore guard, and the synthetic
+//!   `lumpinfo_t` / `wad_file_t` builders (w_wad's own tests and the
+//!   w_checksum digest baseline)
 //! - `anchor.rs` -- the `W_Wad_Link_Anchor` link anchor: one
 //!   never-called C function referencing every public function so
 //!   the linker keeps their symbols alive
@@ -92,6 +97,8 @@ pub mod file;
 pub mod iwad;
 pub mod lookup;
 pub mod state;
+#[cfg(test)]
+pub mod test_support;
 
 //* path-stability wiring: the `use` bindings above keep the
 //* subfiles' `use super::{...}` imports (and `cache.rs`'s test-crate

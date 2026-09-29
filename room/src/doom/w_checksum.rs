@@ -136,3 +136,143 @@ pub unsafe extern "C" fn W_Checksum(digest: *mut sha1_digest_t) {
 
     SHA1_Final((*digest).as_mut_ptr(), sha1_context.as_mut_ptr());
 }
+
+#[cfg(test)]
+mod tests
+{
+    use std::ffi::{c_int, c_uint};
+    use std::ptr;
+
+    use crate::doom::sha1::sha1_digest_t;
+    use crate::doom::w_file::wad_file_t;
+    use crate::doom::w_checksum::W_Checksum;
+    use crate::doom::w_wad::lumpinfo_t;
+    use crate::doom::w_wad::test_support::{make_lump_name, WAD_LOCK, WadTestScope};
+
+    // -----------------------------------------------------------------------
+    // F10 wave F2-d baseline: known-vector digests for the WAD-directory
+    // checksum, captured against the inline bodies BEFORE the graduation
+    // split (F10 §2.3, feb6318/dbf097e precedent). The graduation commit
+    // moves these vectors unchanged to `w_checksum/digest.rs`; a digest
+    // drift there is a demo-surface-adjacent regression (netgame
+    // consistency check, `d_net` extern `W_Checksum`).
+    // -----------------------------------------------------------------------
+
+    /// Captured pre-move: three lumps across two WAD files
+    /// (`E1M1`/`DSPISTOL` in wad one, `MAP01` in wad two).
+    const CAPTURED_THREE_LUMP_DIGEST: &str = "48bea02d0bdda03dda3af78bb50275ac7c59b55b";
+
+    /// Captured pre-move: the same three lumps, reordered
+    /// (`MAP01` first, then `E1M1`, then `DSPISTOL`).
+    const CAPTURED_REORDERED_DIGEST: &str = "c6726c7aa4a45daee118d57295b25f92aca73995";
+
+    /// Distinct non-null `wad_file` stand-ins: `get_file_number`
+    /// compares the pointers for equality only, never dereferences
+    /// them, so the addresses of two `u8` statics exercise the
+    /// per-file index assignment (wad one gets index 0 on its first
+    /// lump, wad two index 1).
+    static WAD_ONE: u8 = 0;
+    static WAD_TWO: u8 = 0;
+
+    fn wad_one() -> wad_file_t
+    {
+        wad_file_t
+        {
+            file_class: ptr::null_mut(),
+            mapped: ptr::addr_of!(WAD_ONE).cast_mut(),
+            length: 0,
+        }
+    }
+
+    fn wad_two() -> wad_file_t
+    {
+        wad_file_t
+        {
+            file_class: ptr::null_mut(),
+            mapped: ptr::addr_of!(WAD_TWO).cast_mut(),
+            length: 0,
+        }
+    }
+
+    fn lump(name: &[u8], wad: *mut wad_file_t, position: c_int, size: c_int) -> lumpinfo_t
+    {
+        lumpinfo_t
+        {
+            name: make_lump_name(name),
+            wad_file: wad,
+            position,
+            size,
+            cache: ptr::null_mut(),
+            next: ptr::null_mut(),
+        }
+    }
+
+    /// Run `W_Checksum` over a synthetic directory installed into the
+    /// global `lumpinfo` / `numlumps` statics. The swap happens under
+    /// the shared `WAD_LOCK`; the scope guard restores the originals
+    /// before the backing slice drops (LIFO declaration order).
+    fn checksum_of(lumps: &mut [lumpinfo_t]) -> sha1_digest_t
+    {
+        let _lock = WAD_LOCK.lock().unwrap();
+        let _scope = unsafe { WadTestScope::install(lumps.as_mut_ptr(), lumps.len() as c_uint) };
+        let mut digest: sha1_digest_t = [0; 20];
+        unsafe { W_Checksum(&mut digest) };
+        digest
+    }
+
+    fn hex(digest: &[u8; 20]) -> String
+    {
+        digest.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// Empty directory: `W_Checksum` over zero lumps is exactly
+    /// `SHA1_Init` + `SHA1_Final` -- the published SHA-1 empty-input
+    /// vector, an oracle independent of the pre-move capture.
+    #[test]
+    fn empty_directory_matches_empty_sha1()
+    {
+        assert_eq!(hex(&checksum_of(&mut [])), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+    }
+
+    /// Three lumps across two WAD files: the captured known vector,
+    /// asserted twice so order stability by construction
+    /// (first-encounter file numbering) is pinned alongside the
+    /// digest bytes.
+    #[test]
+    fn synthetic_three_lump_digest_matches_capture()
+    {
+        let mut a = wad_one();
+        let mut b = wad_two();
+        let pa: *mut wad_file_t = &mut a;
+        let pb: *mut wad_file_t = &mut b;
+        let mut lumps =
+        [
+            lump(b"E1M1", pa, 0x0C, 4096),
+            lump(b"DSPISTOL", pa, 0x100C, 60428),
+            lump(b"MAP01", pb, 0x8, 12345),
+        ];
+        assert_eq!(hex(&checksum_of(&mut lumps)), CAPTURED_THREE_LUMP_DIGEST);
+        assert_eq!(hex(&checksum_of(&mut lumps)), CAPTURED_THREE_LUMP_DIGEST);
+    }
+
+    /// The same directory reordered: the fold is order-sensitive, so
+    /// the digest must differ from the captured in-order vector, and
+    /// the reordered value is captured in its own right.
+    #[test]
+    fn reordered_directory_changes_the_digest()
+    {
+        let mut a = wad_one();
+        let mut b = wad_two();
+        let pa: *mut wad_file_t = &mut a;
+        let pb: *mut wad_file_t = &mut b;
+        let mut lumps =
+        [
+            lump(b"MAP01", pb, 0x8, 12345),
+            lump(b"E1M1", pa, 0x0C, 4096),
+            lump(b"DSPISTOL", pa, 0x100C, 60428),
+        ];
+        let digest = hex(&checksum_of(&mut lumps));
+        assert_eq!(digest, CAPTURED_REORDERED_DIGEST);
+        assert_ne!(digest, CAPTURED_THREE_LUMP_DIGEST);
+    }
+}
