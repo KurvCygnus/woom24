@@ -1,19 +1,10 @@
-//! Doom engine key code constants.
-//!
-//! These match the `#define KEY_*` constants in `vendor/doomgeneric/doomkeys.h`.
-//! The `to_doom_key` mapping lives in the binary's `platform/keys.rs` because
-//! it depends on winit.
+//! The `KEY_*` constants, byte-for-byte with `vendor/doomgeneric/doomkeys.h`.
 //!
 //! Key codes use a simple encoding: printable ASCII characters map to their
 //! ASCII values, while special and extended keys are encoded in the range
 //! `0x80`-`0xff` using IBM PC scan-code offsets added to `0x80`.  This
 //! encoding was established in the original DOS Doom and has been preserved
 //! verbatim in all Chocolate Doom variants.
-//!
-//! Note: `doomkeys.h` defines several additional constants (`KEY_CAPSLOCK`,
-//! `KEY_NUMLOCK`, `KEY_SCRLCK`, `KEY_PRTSCR`, and the full numpad `KEYP_*`
-//! aliases) that are not yet needed by this port and are intentionally
-//! omitted.
 
 /// Move right / turn right.  IBM PC extended key: `0xae`.
 pub const KEY_RIGHTARROW: u8 = 0xae;
