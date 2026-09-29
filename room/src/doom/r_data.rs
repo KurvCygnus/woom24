@@ -1306,3 +1306,124 @@ pub unsafe extern "C" fn R_Data_Link_Anchor() {
     let _ = R_TextureNumForName as *const () as usize;
     let _ = R_PrecacheLevel as *const () as usize;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -----------------------------------------------------------------------
+    // F10 wave D2-A dtmc baseline: the `R_CheckTextureNumForName`
+    // hash-chain lookup core, captured against the inline body BEFORE
+    // the graduation split (F10 §2.3). The transcription helper is
+    // deleted and the vectors re-pointed at `dtmc::texture_index_for_name`
+    // by the graduation commit.
+    // -----------------------------------------------------------------------
+
+    /// Build an 8-byte NUL-padded texture name from a byte string.
+    fn tex_name(name: &[u8]) -> [c_char; 8] {
+        let mut out = [0; 8];
+        for (i, &b) in name.iter().take(8).enumerate() {
+            out[i] = b as c_char;
+        }
+        out
+    }
+
+    /// Allocate a fake `texture_t` with the given name and index, chained
+    /// through `next`.
+    unsafe fn fake_texture(name: &[u8], index: c_int, next: *mut texture_t) -> *mut texture_t {
+        let tex = Box::leak(Box::new(texture_t {
+            name: tex_name(name),
+            width: 64,
+            height: 64,
+            index,
+            next,
+            patchcount: 1,
+            patches: texpatch_t { originx: 0, originy: 0, patch: 0 },
+        }));
+        tex
+    }
+
+    /// Transcription of the lookup core inside `R_CheckTextureNumForName`
+    /// (this file, the `'-'` guard plus the hash-chain walk): the part the
+    /// graduation extracts as `dtmc::texture_index_for_name`. The bucket
+    /// head is passed in; the `W_LumpNameHash(name) % numtextures` bucket
+    /// computation stays at the caller (static access, not part of the
+    /// extraction).
+    unsafe fn texture_index_for_name_transcription(name: *const c_char, head: *mut texture_t) -> c_int {
+        if *name == b'-' as c_char { return 0; }
+
+        let mut texture = head;
+
+        while !texture.is_null() {
+            if strncasecmp((*texture).name.as_ptr(), name, 8) == 0 {
+                return (*texture).index;
+            }
+            texture = (*texture).next;
+        }
+
+        -1
+    }
+
+    /// Known vectors over the three decision paths: the `'-'` no-texture
+    /// marker returns 0 WITHOUT consulting the chain (head is null here --
+    /// a hash-driven walk would have nowhere to go and anything but the
+    /// early return could not produce 0); a miss walks to the end and
+    /// returns -1; a hit returns the matched node's index; a duplicate
+    /// name returns the LOWER index (vanilla first-insert-wins: the hash
+    /// table builder appends in index order, so the lower index sits at
+    /// the chain head).
+    #[test]
+    fn texture_index_for_name_baseline_vectors() {
+        unsafe {
+            // Duplicate pair: two textures named "DUP1", indices 4 and 7,
+            // chained head -> 4 -> 7 (insertion order).
+            let dup7 = fake_texture(b"DUP1\0\0\0\0", 7, ptr::null_mut());
+            let dup4 = fake_texture(b"DUP1\0\0\0\0", 4, dup7);
+            // A differently named node in front of the chain exercises the
+            // non-matching walk step.
+            let wall = fake_texture(b"WALL1\0\0\0", 11, dup4);
+            let miss = fake_texture(b"MISS\0\0\0\0", 2, ptr::null_mut());
+
+            assert_eq!(texture_index_for_name_transcription(c"-ANY".as_ptr() as *const c_char, ptr::null_mut()), 0);
+            assert_eq!(texture_index_for_name_transcription(c"NOPE1".as_ptr() as *const c_char, miss), -1);
+            assert_eq!(texture_index_for_name_transcription(c"WALL1".as_ptr() as *const c_char, wall), 11);
+            // Case-insensitive compare (strncasecmp, 8 bytes).
+            assert_eq!(texture_index_for_name_transcription(c"wall1".as_ptr() as *const c_char, wall), 11);
+            // Duplicate name: the walk stops at the head, lower index wins.
+            assert_eq!(texture_index_for_name_transcription(c"DUP1".as_ptr() as *const c_char, dup4), 4);
+            assert_eq!(texture_index_for_name_transcription(c"dup1".as_ptr() as *const c_char, dup4), 4);
+        }
+    }
+
+    /// Drive the LIVE inline body through `R_CheckTextureNumForName`
+    /// itself: install a two-bucket hash table, hang the fake chain at the
+    /// bucket `W_LumpNameHash(name) % numtextures` actually selects, and
+    /// assert the wrapper resolves the same vectors (hit / duplicate
+    /// tie-break / `'-'` early return / miss). State is restored on exit.
+    #[test]
+    fn check_texture_num_for_name_live_wrapper_matches_vectors() {
+        unsafe {
+            let saved_numtextures = numtextures;
+            let saved_hashtable = textures_hashtable;
+
+            let wall = fake_texture(b"WALL1\0\0\0", 11, ptr::null_mut());
+            let dup7 = fake_texture(b"DUP1\0\0\0\0", 7, wall);
+            let dup4 = fake_texture(b"DUP1\0\0\0\0", 4, dup7);
+
+            numtextures = 2;
+            let table = vec![ptr::null_mut::<texture_t>(); 2].into_boxed_slice();
+            let table_ptr = Box::leak(table).as_mut_ptr();
+            let key = (W_LumpNameHash(c"DUP1".as_ptr() as *const c_char) % 2) as usize;
+            *table_ptr.add(key) = dup4;
+            textures_hashtable = table_ptr;
+
+            assert_eq!(R_CheckTextureNumForName(c"DUP1".as_ptr() as *mut c_char), 4);
+            assert_eq!(R_CheckTextureNumForName(c"dup1".as_ptr() as *mut c_char), 4);
+            assert_eq!(R_CheckTextureNumForName(c"-ANY".as_ptr() as *mut c_char), 0);
+            assert_eq!(R_CheckTextureNumForName(c"NOPE".as_ptr() as *mut c_char), -1);
+
+            numtextures = saved_numtextures;
+            textures_hashtable = saved_hashtable;
+        }
+    }
+}
