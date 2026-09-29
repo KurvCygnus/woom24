@@ -1,107 +1,30 @@
-//! Rust port of vendor/doomgeneric/i_scale.c.
-//!
-//! Screen scale-up code: integer pixel-doubling (1x..5x) and aspect-ratio
-//! correcting stretch/squash drivers that present Doom's 320x200 paletted
-//! framebuffer at a 4:3 physical aspect.
-//!
-//! # Background
-//!
-//! Doom's logical framebuffer is `SCREENWIDTH x SCREENHEIGHT = 320 x 200`
-//! 8-bit paletted pixels. On the original 4:3 PC monitors a pixel was
-//! roughly 1:1.2 tall, so the 320x200 image appeared as a 320x240
-//! (i.e. 4:3) picture. Modern square-pixel displays require an extra
-//! correction step:
-//!
-//! - **Pixel-doubling modes** (`mode_scale_*`) ignore aspect entirely
-//!   and produce `(320*N) x (200*N)` output for an integer factor `N`.
-//!   These are not 4:3 - the picture is too short - but they are pixel
-//!   exact and run from a single memcpy/inner loop.
-//! - **Stretch modes** (`mode_stretch_*`) keep the horizontal dimension
-//!   intact and stretch 200 source rows into 240 (for `N=1`) or 240*N
-//!   output rows. The extra rows come from a two-line blend driven by
-//!   the precomputed `stretch_tables` / `half_stretch_table` lookups.
-//! - **Squash modes** (`mode_squash_*`) take the opposite tack: keep the
-//!   200 lines and crunch 320 source columns into roughly 256 columns
-//!   (`SCREENWIDTH_4_3 = 256` in vanilla; really should be 266 for a
-//!   true 4:3 - see the comment block at the top of `i_scale.c`).
-//!
-//! Each driver exposes itself through a [`screen_mode_t`] vtable
-//! ([`mode_scale_1x`] etc) which `i_video` selects based on the target
-//! window/window-fullscreen dimensions.
-//!
-//! # Lookup tables
-//!
-//! Stretch/squash modes need to mix two palette indices into a third
-//! palette index because the framebuffer is paletted. Three blend
-//! tables (20/80, 40/60, 50/50) are precomputed in
-//! `generate_stretch_table` from the active palette via nearest-color
-//! search (`find_nearest_color`). Every other blend percentage used
-//! by the drivers is one of these tables (optionally with arguments
-//! swapped to invert the percentages).
-//!
-//! # Rust port notes
-//!
-//! All driver functions are `extern "C"` and stored as function pointers
-//! in the public `mode_*` statics consumed by `i_video.c`. The pointer
-//! arithmetic mirrors the C source exactly (raw `*mut u8`, byte indexing
-//! into `src_buffer`/`dest_buffer`). The per-scale-factor stretch/squash
-//! drivers in C were each a unique unrolled function; the Rust port
-//! factors the shared "fill N pixels from src" inner loops into the
-//! generic `scale_nx`, `write_line_nx` and `write_blended_line_nx`
-//! helpers parameterized by a `const N: usize`.
+//! The scale/stretch/squash drivers: the frame statics, the pixel-doubling
+//! and aspect-correction driver functions, their line-writer helpers, the
+//! `draw_pixel*!` macros, and the fifteen `screen_mode_t` descriptors.
 
-#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
+#![allow(non_upper_case_globals)]
 
-use crate::doom::c_ffi::screen_mode_t;
-use crate::doom::crt::c_printf;
-use crate::doom::m_argv::M_CheckParm;
-use crate::doom::z_zone::{Z_Free, Z_Malloc};
-use std::ffi::{c_int, c_void};
+use std::ffi::c_int;
 use std::ptr;
 
+use super::blend::{half_stretch_table, init_squash_table, init_stretch_tables, stretch_tables};
+use crate::doom::c_ffi::screen_mode_t;
 use crate::doom::i_video::{SCREENHEIGHT, SCREENWIDTH};
-use crate::doom::z_zone::PU_STATIC;
-
-/// `stdout` for the progress-print flushes. UCRT exposes no `stdout`
-/// data symbol, so Windows flushes the NULL stream (i.e. all streams)
-/// instead of the POSIX `stdout` object.
-unsafe fn stdout_placeholder() -> *mut libc::FILE
-{
-    #[cfg(unix)]
-    {
-        extern "C" { static mut stdout: *mut libc::FILE; }
-        std::ptr::addr_of_mut!(stdout)
-    }
-    //* wasm32 is neither unix nor windows: without this branch the function
-    //* body would be empty on ILP32 (E0308). The wasm fflush shim ignores the
-    //* stream argument, so the null semantics match the windows branch.
-    #[cfg(not(unix))] { ptr::null_mut() }
-}
+use crate::doom::m_argv::M_CheckParm;
 
 /// Source framebuffer for the current scale call, set by
-/// [`I_InitScale`]. Points to Doom's `SCREENWIDTH * SCREENHEIGHT`
+/// [`init_scale_buffers`]. Points to Doom's `SCREENWIDTH * SCREENHEIGHT`
 /// paletted backbuffer (usually `I_VideoBuffer`).
 static mut src_buffer: *mut u8 = ptr::null_mut();
 
 /// Destination framebuffer for the current scale call, set by
-/// [`I_InitScale`]. Points to the platform surface pixels
+/// [`init_scale_buffers`]. Points to the platform surface pixels
 /// (e.g. `screen->pixels` in the SDL backend).
 static mut dest_buffer: *mut u8 = ptr::null_mut();
 
 /// Pitch (bytes per row) of [`dest_buffer`]. May exceed
 /// `width * bytes_per_pixel` when the surface has trailing padding.
 static mut dest_pitch: c_int = 0;
-
-/// 20/80 and 40/60 palette blend tables. `stretch_tables[0]` is the
-/// 20/80 mix, `stretch_tables[1]` is the 40/60 mix; the 60/40 and 80/20
-/// mixes are reached by swapping the two source pixels when indexing.
-/// Each table is `256 * 256` bytes mapped to the nearest palette index.
-/// Lazily populated by [`i_init_stretch_tables`].
-static mut stretch_tables: [*mut u8; 2] = [ptr::null_mut(); 2];
-
-/// 50/50 palette blend table used only by the `mode_squash_3x` mode
-/// (800x600). Lazily populated by [`i_init_squash_table`].
-static mut half_stretch_table: *mut u8 = ptr::null_mut();
 
 /// Records the source/destination buffers and destination pitch that
 /// every subsequent driver call in this module will operate on.
@@ -119,9 +42,14 @@ static mut half_stretch_table: *mut u8 = ptr::null_mut();
 ///   `_dest_pitch * height` bytes, where `height` is the target mode's
 ///   reported height.
 /// - The buffers must outlive every driver call until the next
-///   `I_InitScale` invocation.
-#[no_mangle]
-pub unsafe extern "C" fn I_InitScale(
+///   `init_scale_buffers` invocation.
+///
+/// Dead-but-exported (zero callers in the tree): kept for symbol-set
+/// byte-identity, retires with the freeze zone. The pre-move export
+/// symbol is kept with `#[export_name]` below.
+#[doc(alias = "I_InitScale")]
+#[export_name = "I_InitScale"]
+pub unsafe extern "C" fn init_scale_buffers(
     _src_buffer: *mut u8,
     _dest_buffer: *mut u8,
     _dest_pitch: c_int,
@@ -144,9 +72,9 @@ pub unsafe extern "C" fn I_InitScale(
 ///
 /// # Safety
 ///
-/// Callable only after [`I_InitScale`] has installed valid buffers; the
+/// Callable only after [`init_scale_buffers`] has installed valid buffers; the
 /// rectangle must lie within `[0, SCREENWIDTH) x [0, SCREENHEIGHT)`.
-unsafe extern "C" fn i_scale_1x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
+unsafe extern "C" fn scale_draw_1x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
     let w = (x2 - x1) as usize;
     let mut bufp = src_buffer.add((y1 * SCREENWIDTH + x1) as usize);
     let mut screenp = dest_buffer.add((y1 * dest_pitch + x1) as usize);
@@ -158,8 +86,8 @@ unsafe extern "C" fn i_scale_1x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
     1
 }
 
-/// Generic NxN nearest-neighbor scale-up shared by [`i_scale_2x`]
-/// through [`i_scale_5x`]. For each source pixel in the dirty
+/// Generic NxN nearest-neighbor scale-up shared by [`scale_draw_2x`]
+/// through [`scale_draw_5x`]. For each source pixel in the dirty
 /// rectangle, writes an `N x N` block of the same palette index into
 /// `dest_buffer`.
 ///
@@ -172,7 +100,7 @@ unsafe extern "C" fn i_scale_1x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
 ///
 /// # Safety
 ///
-/// Same preconditions as [`i_scale_1x`]; additionally `N` must be in
+/// Same preconditions as [`scale_draw_1x`]; additionally `N` must be in
 /// `1..=5` so the scratch row array is large enough.
 unsafe fn scale_nx<const N: usize>(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
     let multi_pitch = dest_pitch * N as c_int;
@@ -214,7 +142,7 @@ unsafe fn scale_nx<const N: usize>(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -
 /// # Safety
 ///
 /// See [`scale_nx`].
-unsafe extern "C" fn i_scale_2x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
+unsafe extern "C" fn scale_draw_2x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
     scale_nx::<2>(x1, y1, x2, y2)
 }
 
@@ -224,7 +152,7 @@ unsafe extern "C" fn i_scale_2x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
 /// # Safety
 ///
 /// See [`scale_nx`].
-unsafe extern "C" fn i_scale_3x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
+unsafe extern "C" fn scale_draw_3x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
     scale_nx::<3>(x1, y1, x2, y2)
 }
 
@@ -234,7 +162,7 @@ unsafe extern "C" fn i_scale_3x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
 /// # Safety
 ///
 /// See [`scale_nx`].
-unsafe extern "C" fn i_scale_4x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
+unsafe extern "C" fn scale_draw_4x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
     scale_nx::<4>(x1, y1, x2, y2)
 }
 
@@ -244,7 +172,7 @@ unsafe extern "C" fn i_scale_4x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
 /// # Safety
 ///
 /// See [`scale_nx`].
-unsafe extern "C" fn i_scale_5x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
+unsafe extern "C" fn scale_draw_5x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c_int {
     scale_nx::<5>(x1, y1, x2, y2)
 }
 
@@ -260,7 +188,7 @@ unsafe extern "C" fn i_scale_5x(x1: c_int, y1: c_int, x2: c_int, y2: c_int) -> c
 ///
 /// `dest` must point to at least `SCREENWIDTH * N` writable bytes;
 /// `src` must point to at least `SCREENWIDTH` readable bytes.
-unsafe fn write_line_nx<const N: usize>(dest: *mut u8, src: *mut u8) {
+unsafe fn write_hexpand_line<const N: usize>(dest: *mut u8, src: *mut u8) {
     let mut d = dest;
     let mut s = src;
     for _ in 0..SCREENWIDTH {
@@ -285,7 +213,7 @@ unsafe fn write_line_nx<const N: usize>(dest: *mut u8, src: *mut u8) {
 /// - `dest` must point to `SCREENWIDTH * N` writable bytes.
 /// - `src1` and `src2` must each point to `SCREENWIDTH` readable bytes.
 /// - `stretch_table` must point to a 65536-byte palette mix table.
-unsafe fn write_blended_line_nx<const N: usize>(
+unsafe fn write_blended_hexpand_line<const N: usize>(
     dest: *mut u8,
     src1: *mut u8,
     src2: *mut u8,
@@ -305,14 +233,14 @@ unsafe fn write_blended_line_nx<const N: usize>(
     }
 }
 
-/// 1x specialization of [`write_blended_line_nx`] used by
-/// [`i_stretch_1x`]. Identical algorithm without the inner expansion
+/// 1x specialization of [`write_blended_hexpand_line`] used by
+/// [`stretch_draw_1x`]. Identical algorithm without the inner expansion
 /// loop, mirroring the unrolled `WriteBlendedLine1x` in C.
 ///
 /// # Safety
 ///
-/// See [`write_blended_line_nx`].
-unsafe fn write_blended_line_1x(
+/// See [`write_blended_hexpand_line`].
+unsafe fn write_blended_line(
     dest: *mut u8,
     src1: *mut u8,
     src2: *mut u8,
@@ -329,136 +257,6 @@ unsafe fn write_blended_line_1x(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Lookup-table generation
-// ---------------------------------------------------------------------------
-
-/// Returns the palette index whose RGB triple has the smallest squared
-/// Euclidean distance to `(r, g, b)`. Exact matches short-circuit.
-///
-/// `palette` must point to 256 contiguous `(R, G, B)` byte triples.
-///
-/// # Safety
-///
-/// `palette` must point to at least `256 * 3` readable bytes.
-unsafe fn find_nearest_color(palette: *mut u8, r: c_int, g: c_int, b: c_int) -> c_int {
-    let mut best: c_int = 0;
-    let mut best_diff = c_int::MAX;
-    for i in 0..256 {
-        let col = palette.add(i * 3);
-        let dr = r - *col as c_int;
-        let dg = g - *col.add(1) as c_int;
-        let db = b - *col.add(2) as c_int;
-        let diff = dr * dr + dg * dg + db * db;
-        if diff == 0 {
-            return i as c_int;
-        }
-        if diff < best_diff {
-            best = i as c_int;
-            best_diff = diff;
-        }
-    }
-    best
-}
-
-/// Builds a 256x256 palette-mix lookup table whose `(x, y)` entry is
-/// the palette index closest to `pct` of palette colour `x` plus
-/// `100 - pct` of palette colour `y`.
-///
-/// The result is allocated from the zone heap (`Z_Malloc`, `PU_STATIC`)
-/// and returned as a raw owning pointer; callers are responsible for
-/// passing it to `Z_Free` when discarding it.
-///
-/// This is the same construction used in other Doom source ports for
-/// translucency tables.
-///
-/// # Safety
-///
-/// `palette` must satisfy [`find_nearest_color`]'s contract.
-unsafe fn generate_stretch_table(palette: *mut u8, pct: c_int) -> *mut u8 {
-    let result = Z_Malloc(256 * 256, PU_STATIC, ptr::null_mut()) as *mut u8;
-    for x in 0..256 {
-        for y in 0..256 {
-            let col1 = palette.add(x * 3);
-            let col2 = palette.add(y * 3);
-            let r = ((*col1 as c_int) * pct + (*col2 as c_int) * (100 - pct)) / 100;
-            let g = ((*col1.add(1) as c_int) * pct + (*col2.add(1) as c_int) * (100 - pct)) / 100;
-            let b = ((*col1.add(2) as c_int) * pct + (*col2.add(2) as c_int) * (100 - pct)) / 100;
-            *result.add(x * 256 + y) = find_nearest_color(palette, r, g, b) as u8;
-        }
-    }
-    result
-}
-
-/// `init_mode` callback for every `mode_stretch_*` and the 1x/2x/4x/5x
-/// `mode_squash_*` modes. Lazily generates the 20/80 and 40/60 palette
-/// blend tables, printing a one-line progress message. No-op once the
-/// tables exist; `I_ResetScaleTables` must be called first to force
-/// regeneration after a palette switch.
-///
-/// # Safety
-///
-/// See [`generate_stretch_table`].
-unsafe extern "C" fn i_init_stretch_tables(palette: *mut u8) {
-    if !stretch_tables[0].is_null() {
-        return;
-    }
-    c_printf(c"I_InitStretchTables: Generating lookup tables..".as_ptr());
-    libc::fflush(stdout_placeholder());
-    stretch_tables[0] = generate_stretch_table(palette, 20);
-    c_printf(c"..".as_ptr());
-    libc::fflush(stdout_placeholder());
-    stretch_tables[1] = generate_stretch_table(palette, 40);
-    libc::puts(c"".as_ptr());
-}
-
-/// `init_mode` callback for [`mode_squash_3x`] (800x600). Lazily
-/// generates only the 50/50 blend table used by that mode's column
-/// expansion. No-op once the table exists.
-///
-/// # Safety
-///
-/// See [`generate_stretch_table`].
-unsafe extern "C" fn i_init_squash_table(palette: *mut u8) {
-    if !half_stretch_table.is_null() {
-        return;
-    }
-    c_printf(c"I_InitSquashTable: Generating lookup table..".as_ptr());
-    libc::fflush(stdout_placeholder());
-    half_stretch_table = generate_stretch_table(palette, 50);
-    libc::puts(c"".as_ptr());
-}
-
-/// Frees whichever blend tables are currently populated and regenerates
-/// them from `palette`. Called by `i_video` after a palette switch (for
-/// example, exiting the palette-shifting menus) so that subsequent
-/// stretch/squash output stays close to the in-game colour set.
-///
-/// Tables that were never allocated stay null - this is not a forced
-/// generation, only a refresh.
-///
-/// # Safety
-///
-/// - `palette` must satisfy `find_nearest_color`'s contract.
-/// - Any pointers previously handed out from the `stretch_tables` /
-///   `half_stretch_table` statics are invalidated by this call.
-#[no_mangle]
-pub unsafe extern "C" fn I_ResetScaleTables(palette: *mut u8) {
-    if !stretch_tables[0].is_null() {
-        Z_Free(stretch_tables[0] as *mut c_void);
-        Z_Free(stretch_tables[1] as *mut c_void);
-        c_printf(c"I_ResetScaleTables: Regenerating lookup tables..\n".as_ptr());
-        stretch_tables[0] = generate_stretch_table(palette, 20);
-        stretch_tables[1] = generate_stretch_table(palette, 40);
-    }
-    if !half_stretch_table.is_null() {
-        Z_Free(half_stretch_table as *mut c_void);
-        c_printf(c"I_ResetScaleTables: Regenerating lookup table..\n".as_ptr());
-        half_stretch_table = generate_stretch_table(palette, 50);
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Aspect ratio correcting stretch functions
 // ---------------------------------------------------------------------------
 
@@ -474,9 +272,9 @@ pub unsafe extern "C" fn I_ResetScaleTables(palette: *mut u8) {
 ///
 /// # Safety
 ///
-/// See [`I_InitScale`]; additionally [`i_init_stretch_tables`] must
+/// See [`init_scale_buffers`]; additionally [`init_stretch_tables`] must
 /// have been called so [`stretch_tables`] is populated.
-unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+unsafe extern "C" fn stretch_draw_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
@@ -485,7 +283,7 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
     for _ in (0..SCREENHEIGHT).step_by(5) {
         ptr::copy_nonoverlapping(bufp, screenp, SCREENWIDTH as usize);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_1x(
+        write_blended_line(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -493,7 +291,7 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_blended_line_1x(
+        write_blended_line(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -501,7 +299,7 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_blended_line_1x(
+        write_blended_line(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -509,7 +307,7 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_blended_line_1x(
+        write_blended_line(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -531,19 +329,19 @@ unsafe extern "C" fn i_stretch_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`].
-unsafe extern "C" fn i_stretch_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+/// See [`stretch_draw_1x`].
+unsafe extern "C" fn stretch_draw_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
     let mut bufp = src_buffer;
     let mut screenp = dest_buffer;
     for _ in (0..SCREENHEIGHT).step_by(5) {
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<2>(
+        write_blended_hexpand_line::<2>(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -551,9 +349,9 @@ unsafe extern "C" fn i_stretch_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<2>(
+        write_blended_hexpand_line::<2>(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -561,11 +359,11 @@ unsafe extern "C" fn i_stretch_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<2>(
+        write_blended_hexpand_line::<2>(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -573,9 +371,9 @@ unsafe extern "C" fn i_stretch_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<2>(
+        write_blended_hexpand_line::<2>(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -583,9 +381,9 @@ unsafe extern "C" fn i_stretch_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<2>(screenp, bufp);
+        write_hexpand_line::<2>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
     }
@@ -600,21 +398,21 @@ unsafe extern "C" fn i_stretch_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`].
-unsafe extern "C" fn i_stretch_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+/// See [`stretch_draw_1x`].
+unsafe extern "C" fn stretch_draw_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
     let mut bufp = src_buffer;
     let mut screenp = dest_buffer;
     for _ in (0..SCREENHEIGHT).step_by(5) {
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<3>(
+        write_blended_hexpand_line::<3>(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -622,13 +420,13 @@ unsafe extern "C" fn i_stretch_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<3>(
+        write_blended_hexpand_line::<3>(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -636,11 +434,11 @@ unsafe extern "C" fn i_stretch_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<3>(
+        write_blended_hexpand_line::<3>(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -648,13 +446,13 @@ unsafe extern "C" fn i_stretch_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<3>(
+        write_blended_hexpand_line::<3>(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -662,11 +460,11 @@ unsafe extern "C" fn i_stretch_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<3>(screenp, bufp);
+        write_hexpand_line::<3>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
     }
@@ -683,23 +481,23 @@ unsafe extern "C" fn i_stretch_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`].
-unsafe extern "C" fn i_stretch_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+/// See [`stretch_draw_1x`].
+unsafe extern "C" fn stretch_draw_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
     let mut bufp = src_buffer;
     let mut screenp = dest_buffer;
     for _ in (0..SCREENHEIGHT).step_by(5) {
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<4>(
+        write_blended_hexpand_line::<4>(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -707,15 +505,15 @@ unsafe extern "C" fn i_stretch_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<4>(
+        write_blended_hexpand_line::<4>(
             screenp,
             bufp.add(SCREENWIDTH as usize),
             bufp,
@@ -723,15 +521,15 @@ unsafe extern "C" fn i_stretch_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<4>(
+        write_blended_hexpand_line::<4>(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -739,15 +537,15 @@ unsafe extern "C" fn i_stretch_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_blended_line_nx::<4>(
+        write_blended_hexpand_line::<4>(
             screenp,
             bufp,
             bufp.add(SCREENWIDTH as usize),
@@ -755,13 +553,13 @@ unsafe extern "C" fn i_stretch_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
         );
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<4>(screenp, bufp);
+        write_hexpand_line::<4>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
     }
@@ -779,25 +577,25 @@ unsafe extern "C" fn i_stretch_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`].
-unsafe extern "C" fn i_stretch_5x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+/// See [`stretch_draw_1x`].
+unsafe extern "C" fn stretch_draw_5x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
     let mut bufp = src_buffer;
     let mut screenp = dest_buffer;
     for _ in 0..SCREENHEIGHT {
-        write_line_nx::<5>(screenp, bufp);
+        write_hexpand_line::<5>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<5>(screenp, bufp);
+        write_hexpand_line::<5>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<5>(screenp, bufp);
+        write_hexpand_line::<5>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<5>(screenp, bufp);
+        write_hexpand_line::<5>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<5>(screenp, bufp);
+        write_hexpand_line::<5>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
-        write_line_nx::<5>(screenp, bufp);
+        write_hexpand_line::<5>(screenp, bufp);
         screenp = screenp.add(dest_pitch as usize);
         bufp = bufp.add(SCREENWIDTH as usize);
     }
@@ -1049,9 +847,9 @@ unsafe fn write_squashed_line_5x(dest: *mut u8, src: *mut u8) {
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`]; same preconditions plus
+/// See [`stretch_draw_1x`]; same preconditions plus
 /// [`write_squashed_line_1x`].
-unsafe extern "C" fn i_squash_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+unsafe extern "C" fn squash_draw_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
@@ -1072,9 +870,9 @@ unsafe extern "C" fn i_squash_1x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int)
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`]; same preconditions plus
+/// See [`stretch_draw_1x`]; same preconditions plus
 /// [`write_squashed_line_2x`].
-unsafe extern "C" fn i_squash_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+unsafe extern "C" fn squash_draw_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
@@ -1091,13 +889,13 @@ unsafe extern "C" fn i_squash_2x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int)
 /// 3x squash driver: 800x600 output. Each call to
 /// [`write_squashed_line_3x`] emits three output rows. This is the
 /// special case that relies on [`half_stretch_table`] (initialized by
-/// [`i_init_squash_table`]). Only supports full-screen updates.
+/// [`init_squash_table`]). Only supports full-screen updates.
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`]; additionally [`half_stretch_table`] must be
+/// See [`stretch_draw_1x`]; additionally [`half_stretch_table`] must be
 /// populated.
-unsafe extern "C" fn i_squash_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+unsafe extern "C" fn squash_draw_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
@@ -1117,9 +915,9 @@ unsafe extern "C" fn i_squash_3x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int)
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`]; same preconditions plus
+/// See [`stretch_draw_1x`]; same preconditions plus
 /// [`write_squashed_line_4x`].
-unsafe extern "C" fn i_squash_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+unsafe extern "C" fn squash_draw_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
@@ -1139,9 +937,9 @@ unsafe extern "C" fn i_squash_4x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int)
 ///
 /// # Safety
 ///
-/// See [`i_stretch_1x`]; same preconditions plus
+/// See [`stretch_draw_1x`]; same preconditions plus
 /// [`write_squashed_line_5x`].
-unsafe extern "C" fn i_squash_5x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
+unsafe extern "C" fn squash_draw_5x(_x1: c_int, _y1: c_int, _x2: c_int, _y2: c_int) -> c_int {
     if _x1 != 0 || _y1 != 0 || _x2 != SCREENWIDTH || _y2 != SCREENHEIGHT {
         return 0;
     }
@@ -1167,7 +965,7 @@ pub static mut mode_scale_1x: screen_mode_t = screen_mode_t {
     width: 320,
     height: 200,
     init_mode: None,
-    draw_screen: Some(i_scale_1x),
+    draw_screen: Some(scale_draw_1x),
     poor_quality: 0,
 };
 
@@ -1177,7 +975,7 @@ pub static mut mode_scale_2x: screen_mode_t = screen_mode_t {
     width: 640,
     height: 400,
     init_mode: None,
-    draw_screen: Some(i_scale_2x),
+    draw_screen: Some(scale_draw_2x),
     poor_quality: 0,
 };
 
@@ -1187,7 +985,7 @@ pub static mut mode_scale_3x: screen_mode_t = screen_mode_t {
     width: 960,
     height: 600,
     init_mode: None,
-    draw_screen: Some(i_scale_3x),
+    draw_screen: Some(scale_draw_3x),
     poor_quality: 0,
 };
 
@@ -1197,7 +995,7 @@ pub static mut mode_scale_4x: screen_mode_t = screen_mode_t {
     width: 1280,
     height: 800,
     init_mode: None,
-    draw_screen: Some(i_scale_4x),
+    draw_screen: Some(scale_draw_4x),
     poor_quality: 0,
 };
 
@@ -1207,21 +1005,21 @@ pub static mut mode_scale_5x: screen_mode_t = screen_mode_t {
     width: 1600,
     height: 1000,
     init_mode: None,
-    draw_screen: Some(i_scale_5x),
+    draw_screen: Some(scale_draw_5x),
     poor_quality: 0,
 };
 
 /// 320x240 aspect-corrected stretch mode. Flagged `poor_quality = 1`
 /// because the 200 -> 240 expansion only adds 40 rows, producing
 /// visible interpolation banding; consumers default to a pixel-doubled
-/// mode when possible. Uses `i_init_stretch_tables` to populate the
+/// mode when possible. Uses `init_stretch_tables` to populate the
 /// blend lookups on first selection. Exported for `i_video.c`.
 #[no_mangle]
 pub static mut mode_stretch_1x: screen_mode_t = screen_mode_t {
     width: 320,
     height: 240,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_stretch_1x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(stretch_draw_1x),
     poor_quality: 1,
 };
 
@@ -1231,8 +1029,8 @@ pub static mut mode_stretch_1x: screen_mode_t = screen_mode_t {
 pub static mut mode_stretch_2x: screen_mode_t = screen_mode_t {
     width: 640,
     height: 480,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_stretch_2x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(stretch_draw_2x),
     poor_quality: 0,
 };
 
@@ -1242,8 +1040,8 @@ pub static mut mode_stretch_2x: screen_mode_t = screen_mode_t {
 pub static mut mode_stretch_3x: screen_mode_t = screen_mode_t {
     width: 960,
     height: 720,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_stretch_3x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(stretch_draw_3x),
     poor_quality: 0,
 };
 
@@ -1253,8 +1051,8 @@ pub static mut mode_stretch_3x: screen_mode_t = screen_mode_t {
 pub static mut mode_stretch_4x: screen_mode_t = screen_mode_t {
     width: 1280,
     height: 960,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_stretch_4x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(stretch_draw_4x),
     poor_quality: 0,
 };
 
@@ -1264,8 +1062,8 @@ pub static mut mode_stretch_4x: screen_mode_t = screen_mode_t {
 pub static mut mode_stretch_5x: screen_mode_t = screen_mode_t {
     width: 1600,
     height: 1200,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_stretch_5x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(stretch_draw_5x),
     poor_quality: 0,
 };
 
@@ -1276,8 +1074,8 @@ pub static mut mode_stretch_5x: screen_mode_t = screen_mode_t {
 pub static mut mode_squash_1x: screen_mode_t = screen_mode_t {
     width: 256,
     height: 200,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_squash_1x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(squash_draw_1x),
     poor_quality: 1,
 };
 
@@ -1287,20 +1085,20 @@ pub static mut mode_squash_1x: screen_mode_t = screen_mode_t {
 pub static mut mode_squash_2x: screen_mode_t = screen_mode_t {
     width: 512,
     height: 400,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_squash_2x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(squash_draw_2x),
     poor_quality: 0,
 };
 
 /// 800x600 aspect-corrected squash mode (3x). The only mode that uses
 /// the 50/50 `half_stretch_table`, populated by
-/// `i_init_squash_table`. Exported for `i_video.c`.
+/// `init_squash_table`. Exported for `i_video.c`.
 #[no_mangle]
 pub static mut mode_squash_3x: screen_mode_t = screen_mode_t {
     width: 800,
     height: 600,
-    init_mode: Some(i_init_squash_table),
-    draw_screen: Some(i_squash_3x),
+    init_mode: Some(init_squash_table),
+    draw_screen: Some(squash_draw_3x),
     poor_quality: 0,
 };
 
@@ -1310,8 +1108,8 @@ pub static mut mode_squash_3x: screen_mode_t = screen_mode_t {
 pub static mut mode_squash_4x: screen_mode_t = screen_mode_t {
     width: 1024,
     height: 800,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_squash_4x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(squash_draw_4x),
     poor_quality: 0,
 };
 
@@ -1321,7 +1119,7 @@ pub static mut mode_squash_4x: screen_mode_t = screen_mode_t {
 pub static mut mode_squash_5x: screen_mode_t = screen_mode_t {
     width: 1280,
     height: 1000,
-    init_mode: Some(i_init_stretch_tables),
-    draw_screen: Some(i_squash_5x),
+    init_mode: Some(init_stretch_tables),
+    draw_screen: Some(squash_draw_5x),
     poor_quality: 0,
 };
