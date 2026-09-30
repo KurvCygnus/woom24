@@ -70,19 +70,11 @@ pub unsafe extern "C" fn clear_clip_segs() {
 #[doc(alias = "R_ClipSolidWallSegment")]
 #[export_name = "R_ClipSolidWallSegment"]
 pub unsafe extern "C" fn clip_solid_wall_segment(first: c_int, last: c_int) {
-    if first > last {
-        log::debug!(
-            "R_ClipSolidWallSegment INVALID: first={} > last={}",
-            first,
-            last
-        );
-    }
+    if first > last { log::debug!("R_ClipSolidWallSegment INVALID: first={} > last={}", first, last); }
     let solidsegs_base = std::ptr::addr_of_mut!(solidsegs[0]);
 
     let mut start = solidsegs_base;
-    while (*start).last < first - 1 {
-        start = start.add(1);
-    }
+    while(*start).last < first - 1 { start = start.add(1); }
 
     if first < (*start).first {
         if last < (*start).first - 1 {
@@ -103,16 +95,12 @@ pub unsafe extern "C" fn clip_solid_wall_segment(first: c_int, last: c_int) {
         (*start).first = first;
     }
 
-    if last <= (*start).last {
-        return;
-    }
+    if last <= (*start).last { return; }
 
     let mut next = start;
     loop {
         let next_plus_1 = next.add(1);
-        if last < (*next_plus_1).first - 1 {
-            break;
-        }
+        if last < (*next_plus_1).first - 1 { break; }
 
         R_StoreWallRange((*next).last + 1, (*next_plus_1).first - 1);
         next = next.add(1);
@@ -120,16 +108,12 @@ pub unsafe extern "C" fn clip_solid_wall_segment(first: c_int, last: c_int) {
         if last <= (*next).last {
             (*start).last = (*next).last;
             // "goto crunch"
-            if next == start {
-                return;
-            }
+            if next == start { return; }
             // C: while (next++ != newend) { *++start = *next; }
             loop {
                 let old_next = next;
                 next = next.add(1);
-                if old_next == newend {
-                    break;
-                }
+                if old_next == newend { break; }
                 start = start.add(1);
                 *start = *next;
             }
@@ -142,17 +126,13 @@ pub unsafe extern "C" fn clip_solid_wall_segment(first: c_int, last: c_int) {
     (*start).last = last;
 
     // crunch:
-    if next == start {
-        return;
-    }
+    if next == start { return; }
 
     // C: while (next++ != newend) { *++start = *next; }
     loop {
         let old_next = next;
         next = next.add(1);
-        if old_next == newend {
-            break;
-        }
+        if old_next == newend { break; }
         start = start.add(1);
         *start = *next;
     }
@@ -177,19 +157,11 @@ pub unsafe extern "C" fn clip_solid_wall_segment(first: c_int, last: c_int) {
 #[doc(alias = "R_ClipPassWallSegment")]
 #[export_name = "R_ClipPassWallSegment"]
 pub unsafe extern "C" fn clip_pass_wall_segment(first: c_int, last: c_int) {
-    if first > last {
-        log::debug!(
-            "R_ClipPassWallSegment INVALID: first={} > last={}",
-            first,
-            last
-        );
-    }
+    if first > last { log::debug!("R_ClipPassWallSegment INVALID: first={} > last={}", first, last); }
     let solidsegs_base = std::ptr::addr_of_mut!(solidsegs[0]);
 
     let mut start = solidsegs_base;
-    while (*start).last < first - 1 {
-        start = start.add(1);
-    }
+    while(*start).last < first - 1 { start = start.add(1); }
 
     if first < (*start).first {
         if last < (*start).first - 1 {
@@ -200,22 +172,16 @@ pub unsafe extern "C" fn clip_pass_wall_segment(first: c_int, last: c_int) {
         R_StoreWallRange(first, (*start).first - 1);
     }
 
-    if last <= (*start).last {
-        return;
-    }
+    if last <= (*start).last { return; }
 
     loop {
         let start_plus_1 = start.add(1);
-        if last < (*start_plus_1).first - 1 {
-            break;
-        }
+        if last < (*start_plus_1).first - 1 { break; }
 
         R_StoreWallRange((*start).last + 1, (*start_plus_1).first - 1);
         start = start.add(1);
 
-        if last <= (*start).last {
-            return;
-        }
+        if last <= (*start).last { return; }
     }
 
     R_StoreWallRange((*start).last + 1, last);
@@ -429,26 +395,16 @@ pub(super) unsafe fn add_line(line: *mut seg_t) {
 #[doc(alias = "R_CheckBBox")]
 #[export_name = "R_CheckBBox"]
 pub unsafe extern "C" fn check_bbox(bspcoord: *mut fixed_t) -> c_int {
-    let boxx = if viewx <= *bspcoord.add(BBox::LEFT) {
-        0
-    } else if viewx < *bspcoord.add(BBox::RIGHT) {
-        1
-    } else {
-        2
-    };
+    let boxx = if viewx <= *bspcoord.add(BBox::LEFT) { 0 }
+    else if viewx < *bspcoord.add(BBox::RIGHT) { 1 }
+    else { 2 };
 
-    let boxy = if viewy >= *bspcoord.add(BBox::TOP) {
-        0
-    } else if viewy > *bspcoord.add(BBox::BOTTOM) {
-        1
-    } else {
-        2
-    };
+    let boxy = if viewy >= *bspcoord.add(BBox::TOP) { 0 }
+    else if viewy > *bspcoord.add(BBox::BOTTOM) { 1 }
+    else { 2 };
 
     let boxpos = (boxy << 2) + boxx;
-    if boxpos == 5 {
-        return 1;
-    }
+    if boxpos == 5 { return 1; }
 
     let cc = CHECKCOORD[boxpos as usize];
     let x1 = *bspcoord.add(cc[0] as usize);
@@ -461,47 +417,35 @@ pub unsafe extern "C" fn check_bbox(bspcoord: *mut fixed_t) -> c_int {
 
     let span = angle1.wrapping_sub(angle2);
 
-    if span >= 0x8000_0000 {
-        return 1;
-    }
+    if span >= 0x8000_0000 { return 1; }
 
     let clipangle_d2 = clipangle.wrapping_mul(2);
 
     let mut tspan = angle1.wrapping_add(clipangle);
     if tspan > clipangle_d2 {
         tspan = tspan.wrapping_sub(clipangle_d2);
-        if tspan >= span {
-            return 0;
-        }
+        if tspan >= span { return 0; }
         angle1 = clipangle;
     }
 
     tspan = clipangle.wrapping_sub(angle2);
     if tspan > clipangle_d2 {
         tspan = tspan.wrapping_sub(clipangle_d2);
-        if tspan >= span {
-            return 0;
-        }
+        if tspan >= span { return 0; }
         angle2 = 0u32.wrapping_sub(clipangle);
     }
 
     let sx1 = viewangletox[((angle1.wrapping_add(ANG90)) >> ANGLETOFINESHIFT) as usize];
     let sx2 = viewangletox[((angle2.wrapping_add(ANG90)) >> ANGLETOFINESHIFT) as usize];
 
-    if sx1 == sx2 {
-        return 0;
-    }
+    if sx1 == sx2 { return 0; }
     let sx2 = sx2 - 1;
 
     let solidsegs_base = std::ptr::addr_of!(solidsegs[0]);
     let mut start = solidsegs_base;
-    while (*start).last < sx2 {
-        start = start.add(1);
-    }
+    while(*start).last < sx2 { start = start.add(1); }
 
-    if sx1 >= (*start).first && sx2 <= (*start).last {
-        return 0;
-    }
+    if sx1 >= (*start).first && sx2 <= (*start).last { return 0; }
 
     1
 }

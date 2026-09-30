@@ -29,9 +29,7 @@ use super::types::{node_t, seg_t, subsector_t};
 /// Must be called from the render thread. Mutates the global [`ds_p`].
 #[doc(alias = "R_ClearDrawSegs")]
 #[export_name = "R_ClearDrawSegs"]
-pub unsafe extern "C" fn clear_draw_segs() {
-    ds_p = std::ptr::addr_of_mut!(drawsegs[0]);
-}
+pub unsafe extern "C" fn clear_draw_segs() { ds_p = std::ptr::addr_of_mut!(drawsegs[0]); }
 
 /// Renders one BSP leaf subsector.
 ///
@@ -69,24 +67,14 @@ pub unsafe extern "C" fn subsector(num: c_int) {
     let interp_ceiling = r_interp::sector_ceiling(frontsector as *mut c_ffi::sector_t);
 
     if interp_floor < viewz {
-        floorplane = R_FindPlane(
-            interp_floor,
-            (*frontsector).floorpic as c_int,
-            (*frontsector).lightlevel as c_int,
-        );
-    } else {
-        floorplane = ptr::null_mut();
+        floorplane = R_FindPlane(interp_floor, (*frontsector).floorpic as c_int, (*frontsector).lightlevel as c_int,);
     }
+    else { floorplane = ptr::null_mut(); }
 
     if interp_ceiling > viewz || (*frontsector).ceilingpic as c_int == skyflatnum {
-        ceilingplane = R_FindPlane(
-            interp_ceiling,
-            (*frontsector).ceilingpic as c_int,
-            (*frontsector).lightlevel as c_int,
-        );
-    } else {
-        ceilingplane = ptr::null_mut();
+        ceilingplane = R_FindPlane(interp_ceiling, (*frontsector).ceilingpic as c_int, (*frontsector).lightlevel as c_int,);
     }
+    else { ceilingplane = ptr::null_mut(); }
 
     R_AddSprites(frontsector);
 
@@ -124,11 +112,7 @@ pub unsafe extern "C" fn subsector(num: c_int) {
 pub unsafe extern "C" fn render_bsp_node(bspnum: c_int) {
     // Found a subsector?
     if (bspnum as u32) & NF_SUBSECTOR != 0 {
-        let sub_num = if bspnum == -1 {
-            0
-        } else {
-            (bspnum as u32 & !NF_SUBSECTOR) as c_int
-        };
+        let sub_num = if bspnum == -1 { 0 } else { (bspnum as u32 & !NF_SUBSECTOR) as c_int };
         log::trace!(
             "R_RenderBSPNode: frame={} leaf subsector={} (bspnum={:#x})",
             { PROBE_FRAME },
@@ -166,7 +150,5 @@ pub unsafe extern "C" fn render_bsp_node(bspnum: c_int) {
         back_box[BBox::TOP],
         back_box[BBox::BOTTOM],
     );
-    if back_visible {
-        render_bsp_node(bsp.children[(side ^ 1) as usize] as c_int);
-    }
+    if back_visible { render_bsp_node(bsp.children[(side ^ 1) as usize] as c_int); }
 }
