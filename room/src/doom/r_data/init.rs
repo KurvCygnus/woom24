@@ -39,9 +39,7 @@ use super::types::{mappatch_t, maptexture_t, patch_t, texpatch_t, texture_t};
 ///
 /// `s` must be a valid, null-terminated C string for the lifetime of the call.
 #[doc(alias = "DEH_String")]
-unsafe fn deh_string(s: *const c_char) -> *const c_char {
-    s
-}
+unsafe fn deh_string(s: *const c_char) -> *const c_char { s }
 
 /// Build the hash table for O(1) texture name lookup.
 ///
@@ -66,9 +64,7 @@ unsafe fn generate_texture_hash_table() {
         ptr::null_mut(),
     ) as *mut *mut texture_t;
 
-    for i in 0..numtextures as usize {
-        *textures_hashtable.add(i) = ptr::null_mut();
-    }
+    for i in 0..numtextures as usize { *textures_hashtable.add(i) = ptr::null_mut(); }
 
     for i in 0..numtextures as usize {
         let tex = *textures.add(i);
@@ -77,9 +73,7 @@ unsafe fn generate_texture_hash_table() {
         let key = (W_LumpNameHash((*tex).name.as_ptr()) % numtextures as c_uint) as usize;
         let mut rover = textures_hashtable.add(key);
 
-        while !(*rover).is_null() {
-            rover = std::ptr::addr_of_mut!((**rover).next);
-        }
+        while !(*rover).is_null() { rover = std::ptr::addr_of_mut!((**rover).next); }
 
         (*tex).next = ptr::null_mut();
         *rover = tex;
@@ -188,13 +182,9 @@ pub unsafe extern "C" fn init_textures() {
 
     if I_ConsoleStdout() != 0 {
         c_printf(c"[".as_ptr());
-        for _ in 0..temp3 + 9 {
-            c_printf(c" ".as_ptr());
-        }
+        for _ in 0..temp3 + 9 { c_printf(c" ".as_ptr()); }
         c_printf(c"]".as_ptr());
-        for _ in 0..temp3 + 10 {
-            c_printf(c"\x08".as_ptr());
-        }
+        for _ in 0..temp3 + 10 { c_printf(c"\x08".as_ptr()); }
     }
 
     let mut maptex = maptex1;
@@ -202,9 +192,7 @@ pub unsafe extern "C" fn init_textures() {
     let mut directory = directory;
 
     for i in 0..numtextures as usize {
-        if (i & 63) == 0 {
-            c_printf(c".".as_ptr());
-        }
+        if (i & 63) == 0 { c_printf(c".".as_ptr()); }
 
         if i == numtextures1 as usize {
             maptex = maptex2;
@@ -215,9 +203,7 @@ pub unsafe extern "C" fn init_textures() {
         let offset = le_i32(*directory) as isize;
         directory = directory.add(1);
 
-        if offset > maxoff as isize {
-            i_error!("R_InitTextures: bad texture directory");
-        }
+        if offset > maxoff as isize { i_error!("R_InitTextures: bad texture directory"); }
 
         let mtexture = (maptex as *mut u8).offset(offset) as *mut maptexture_t;
         let patchcount = le_i16((*mtexture).patchcount) as c_int;
@@ -262,31 +248,23 @@ pub unsafe extern "C" fn init_textures() {
         ) as *mut c_ushort;
 
         let mut j = 1;
-        while j * 2 <= twidth {
-            j <<= 1;
-        }
+        while j * 2 <= twidth { j <<= 1; }
         *texturewidthmask.add(i) = j - 1;
         *textureheight.add(i) = ((*texture).height as c_int) << FRACBITS;
     }
 
     Z_Free(patchlookup as *mut c_void);
     W_ReleaseLumpName(deh_string(c"TEXTURE1".as_ptr()));
-    if !maptex2.is_null() {
-        W_ReleaseLumpName(deh_string(c"TEXTURE2".as_ptr()));
-    }
+    if !maptex2.is_null() { W_ReleaseLumpName(deh_string(c"TEXTURE2".as_ptr())); }
 
-    for i in 0..numtextures as usize {
-        generate_lookup(i as c_int);
-    }
+    for i in 0..numtextures as usize { generate_lookup(i as c_int); }
 
     texturetranslation = Z_Malloc(
         ((numtextures as usize + 1) * std::mem::size_of::<c_int>()) as c_int,
         PU_STATIC,
         ptr::null_mut(),
     ) as *mut c_int;
-    for i in 0..numtextures as usize {
-        *texturetranslation.add(i) = i as c_int;
-    }
+    for i in 0..numtextures as usize { *texturetranslation.add(i) = i as c_int; }
 
     generate_texture_hash_table();
 }
@@ -316,9 +294,7 @@ pub unsafe extern "C" fn init_flats() {
         ptr::null_mut(),
     ) as *mut c_int;
 
-    for i in 0..numflats as usize {
-        *flattranslation.add(i) = i as c_int;
-    }
+    for i in 0..numflats as usize { *flattranslation.add(i) = i as c_int; }
 }
 
 /// Load sprite lump header data and populate the sprite metric arrays.
@@ -363,9 +339,7 @@ pub unsafe extern "C" fn init_sprite_lumps() {
     ) as *mut c_int;
 
     for i in 0..numspritelumps as usize {
-        if (i & 63) == 0 {
-            c_printf(c".".as_ptr());
-        }
+        if (i & 63) == 0 { c_printf(c".".as_ptr()); }
 
         let patch = W_CacheLumpNum(firstspritelump + i as c_int, PU_CACHE) as *mut patch_t;
         *spritewidth.add(i) = (le_i16((*patch).width) as c_int) << FRACBITS;

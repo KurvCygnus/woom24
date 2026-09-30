@@ -31,9 +31,7 @@ pub(super) unsafe fn texture_index_for_name(name: *const c_char, head: *mut text
     let mut texture = head;
 
     while !texture.is_null() {
-        if strncasecmp((*texture).name.as_ptr(), name, 8) == 0 {
-            return (*texture).index;
-        }
+        if strncasecmp((*texture).name.as_ptr(), name, 8) == 0 { return (*texture).index; }
         texture = (*texture).next;
     }
 
@@ -61,9 +59,7 @@ mod tests {
     /// Build an 8-byte NUL-padded texture name from a byte string.
     fn tex_name(name: &[u8]) -> [c_char; 8] {
         let mut out = [0; 8];
-        for (i, &b) in name.iter().take(8).enumerate() {
-            out[i] = b as c_char;
-        }
+        for (i, &b) in name.iter().take(8).enumerate() { out[i] = b as c_char; }
         out
     }
 

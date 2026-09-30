@@ -45,15 +45,11 @@ use super::types::spritedef_t;
 #[doc(alias = "R_PrecacheLevel")]
 #[export_name = "R_PrecacheLevel"]
 pub unsafe extern "C" fn precache_level() {
-    if demoplayback != 0 {
-        return;
-    }
+    if demoplayback != 0 { return; }
 
     // Precache flats
     let flatpresent = Z_Malloc(numflats, PU_STATIC, ptr::null_mut()) as *mut u8;
-    for i in 0..numflats as usize {
-        *flatpresent.add(i) = 0;
-    }
+    for i in 0..numflats as usize { *flatpresent.add(i) = 0; }
 
     for i in 0..numsectors as usize {
         *flatpresent.add((*sectors.add(i)).floorpic as usize) = 1;
@@ -72,9 +68,7 @@ pub unsafe extern "C" fn precache_level() {
 
     // Precache textures
     let texturepresent = Z_Malloc(numtextures, PU_STATIC, ptr::null_mut()) as *mut u8;
-    for i in 0..numtextures as usize {
-        *texturepresent.add(i) = 0;
-    }
+    for i in 0..numtextures as usize { *texturepresent.add(i) = 0; }
 
     for i in 0..numsides as usize {
         *texturepresent.add((*sides.add(i)).toptexture as usize) = 1;
@@ -85,9 +79,7 @@ pub unsafe extern "C" fn precache_level() {
 
     texturememory = 0;
     for i in 0..numtextures as usize {
-        if *texturepresent.add(i) == 0 {
-            continue;
-        }
+        if *texturepresent.add(i) == 0 { continue; }
         let texture = *textures.add(i);
         for j in 0..(*texture).patchcount as usize {
             let lump = (*std::ptr::addr_of!((*texture).patches).add(j)).patch;
@@ -99,9 +91,7 @@ pub unsafe extern "C" fn precache_level() {
 
     // Precache sprites
     let spritepresent = Z_Malloc(numsprites, PU_STATIC, ptr::null_mut()) as *mut u8;
-    for i in 0..numsprites as usize {
-        *spritepresent.add(i) = 0;
-    }
+    for i in 0..numsprites as usize { *spritepresent.add(i) = 0; }
 
     let mut th = thinkercap.next;
     while !std::ptr::eq(th, std::ptr::addr_of!(thinkercap)) {
@@ -114,9 +104,7 @@ pub unsafe extern "C" fn precache_level() {
 
     spritememory = 0;
     for i in 0..numsprites as usize {
-        if *spritepresent.add(i) == 0 {
-            continue;
-        }
+        if *spritepresent.add(i) == 0 { continue; }
         let sprdef = (sprites as *mut spritedef_t).add(i);
         for j in 0..(*sprdef).numframes as usize {
             let sf = (*sprdef).spriteframes.add(j);
