@@ -164,20 +164,12 @@ pub extern "C" fn init() {
 /// r_draw background buffer, the status-bar refresh).
 #[doc(alias = "V_UseBuffer")]
 #[export_name = "V_UseBuffer"]
-pub extern "C" fn use_buffer(buffer: *mut u8) {
-    unsafe {
-        dest_screen = buffer;
-    }
-}
+pub extern "C" fn use_buffer(buffer: *mut u8) { unsafe { dest_screen = buffer; } }
 
 /// Returns the `V_*` drawing primitives to the primary framebuffer.
 #[doc(alias = "V_RestoreBuffer")]
 #[export_name = "V_RestoreBuffer"]
-pub extern "C" fn restore_buffer() {
-    unsafe {
-        dest_screen = I_VideoBuffer;
-    }
-}
+pub extern "C" fn restore_buffer() { unsafe { dest_screen = I_VideoBuffer; } }
 
 /// Retarget `dest_screen` after a `video_cfg` framebuffer swap: if the V_*
 /// layer was pointed at the freed primary framebuffer (its pre-swap pointer
@@ -185,8 +177,5 @@ pub extern "C" fn restore_buffer() {
 /// off-screen buffer survives untouched.
 pub(crate) unsafe fn retarget_after_framebuffer_swap(old_primary: *mut u8)
 {
-    if dest_screen == old_primary
-    {
-        dest_screen = I_VideoBuffer;
-    }
+    if dest_screen == old_primary { dest_screen = I_VideoBuffer; }
 }

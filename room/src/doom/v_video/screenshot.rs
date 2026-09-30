@@ -128,15 +128,11 @@ pub extern "C" fn screen_shot(_format: *mut c_char) {
         let mut i = 0;
         while i <= 99 {
             let mut lbmname = screenshot_filename(i);
-            if M_FileExists(lbmname.as_mut_ptr() as *mut c_char) == 0 {
-                break;
-            }
+            if M_FileExists(lbmname.as_mut_ptr() as *mut c_char) == 0 { break; }
             i += 1;
         }
 
-        if i == 100 {
-            i_error!("V_ScreenShot: Couldn't create a PCX");
-        }
+        if i == 100 { i_error!("V_ScreenShot: Couldn't create a PCX"); }
 
         let mut lbmname = screenshot_filename(i);
         write_pcx_file(
@@ -164,73 +160,37 @@ pub extern "C" fn draw_mouse_speed_box(speed: c_int) {
         let yellow = I_GetPaletteIndex(0xff, 0xff, 0x00);
         let white = I_GetPaletteIndex(0xff, 0xff, 0xff);
 
-        if usemouse == 0 || (mouse_acceleration - 1.0).abs() < 0.01 {
-            return;
-        }
+        if usemouse == 0 || (mouse_acceleration - 1.0).abs() < 0.01 { return; }
 
         let box_x = SCREENWIDTH - MOUSE_SPEED_BOX_WIDTH - 10;
         let box_y = 15;
 
-        draw_filled_box(
-            box_x,
-            box_y,
-            MOUSE_SPEED_BOX_WIDTH,
-            MOUSE_SPEED_BOX_HEIGHT,
-            bgcolor,
-        );
-        draw_box(
-            box_x,
-            box_y,
-            MOUSE_SPEED_BOX_WIDTH,
-            MOUSE_SPEED_BOX_HEIGHT,
-            bordercolor,
-        );
+        draw_filled_box(box_x, box_y, MOUSE_SPEED_BOX_WIDTH, MOUSE_SPEED_BOX_HEIGHT, bgcolor,);
+        draw_box(box_x, box_y, MOUSE_SPEED_BOX_WIDTH, MOUSE_SPEED_BOX_HEIGHT, bordercolor,);
 
         let redline_x = MOUSE_SPEED_BOX_WIDTH / 3;
 
-        let original_speed = if speed < mouse_threshold {
-            speed
-        } else {
+        let original_speed = if speed < mouse_threshold { speed }
+        else
+        {
             let mut s = speed - mouse_threshold;
             s = (s as f32 / mouse_acceleration) as c_int;
             s + mouse_threshold
         };
 
         let mut linelen = (original_speed * redline_x) / mouse_threshold;
-        if linelen > MOUSE_SPEED_BOX_WIDTH - 1 {
-            linelen = MOUSE_SPEED_BOX_WIDTH - 1;
-        }
+        if linelen > MOUSE_SPEED_BOX_WIDTH - 1 { linelen = MOUSE_SPEED_BOX_WIDTH - 1; }
 
         draw_horiz_line(box_x + 1, box_y + 4, MOUSE_SPEED_BOX_WIDTH - 2, black);
 
-        if linelen < redline_x {
-            draw_horiz_line(
-                box_x + 1,
-                box_y + MOUSE_SPEED_BOX_HEIGHT / 2,
-                linelen,
-                white,
-            );
-        } else {
-            draw_horiz_line(
-                box_x + 1,
-                box_y + MOUSE_SPEED_BOX_HEIGHT / 2,
-                redline_x,
-                white,
-            );
-            draw_horiz_line(
-                box_x + redline_x,
-                box_y + MOUSE_SPEED_BOX_HEIGHT / 2,
-                linelen - redline_x,
-                yellow,
-            );
+        if linelen < redline_x { draw_horiz_line(box_x + 1, box_y + MOUSE_SPEED_BOX_HEIGHT / 2, linelen, white,); }
+        else
+        {
+            draw_horiz_line(box_x + 1, box_y + MOUSE_SPEED_BOX_HEIGHT / 2, redline_x, white,);
+            draw_horiz_line(box_x + redline_x, box_y + MOUSE_SPEED_BOX_HEIGHT / 2, linelen - redline_x, yellow,);
         }
 
-        draw_vert_line(
-            box_x + redline_x,
-            box_y + 1,
-            MOUSE_SPEED_BOX_HEIGHT - 2,
-            red,
-        );
+        draw_vert_line(box_x + redline_x, box_y + 1, MOUSE_SPEED_BOX_HEIGHT - 2, red,);
     }
 }
 
@@ -241,11 +201,7 @@ pub extern "C" fn draw_mouse_speed_box(speed: c_int) {
 /// zone.
 #[doc(alias = "V_LoadTintTable")]
 #[export_name = "V_LoadTintTable"]
-pub extern "C" fn load_tint_table() {
-    unsafe {
-        tinttable = W_CacheLumpName(c"TINTTAB".as_ptr(), PU_STATIC) as *mut u8;
-    }
-}
+pub extern "C" fn load_tint_table() { unsafe { tinttable = W_CacheLumpName(c"TINTTAB".as_ptr(), PU_STATIC) as *mut u8; } }
 
 /// Loads the `XLATAB` translucent-draw lookup table.
 ///
@@ -254,11 +210,7 @@ pub extern "C" fn load_tint_table() {
 /// zone.
 #[doc(alias = "V_LoadXlaTable")]
 #[export_name = "V_LoadXlaTable"]
-pub extern "C" fn load_xla_table() {
-    unsafe {
-        xlatab = W_CacheLumpName(c"XLATAB".as_ptr(), PU_STATIC) as *mut u8;
-    }
-}
+pub extern "C" fn load_xla_table() { unsafe { xlatab = W_CacheLumpName(c"XLATAB".as_ptr(), PU_STATIC) as *mut u8; } }
 
 #[cfg(test)]
 mod tests {

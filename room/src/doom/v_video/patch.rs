@@ -13,11 +13,7 @@ use super::state::{column_t, dest_screen, patch_t, patchclip_callback, tinttable
 /// (the automap uses it to clip patches against the map viewport).
 #[doc(alias = "V_SetPatchClipCallback")]
 #[export_name = "V_SetPatchClipCallback"]
-pub extern "C" fn set_patch_clip_callback(func: vpatchclipfunc_t) {
-    unsafe {
-        patchclip_callback = func;
-    }
-}
+pub extern "C" fn set_patch_clip_callback(func: vpatchclipfunc_t) { unsafe { patchclip_callback = func; } }
 
 /// Draws a WAD patch to the current destination buffer.
 ///
@@ -33,9 +29,7 @@ pub extern "C" fn draw_patch(x: c_int, y: c_int, patch: *mut patch_t) {
         let x = x - (*patch).leftoffset as c_int;
 
         if let Some(cb) = patchclip_callback {
-            if cb(patch, x, y) == 0 {
-                return;
-            }
+            if cb(patch, x, y) == 0 { return; }
         }
 
         mark_rect(x, y, (*patch).width as c_int, (*patch).height as c_int);
@@ -80,9 +74,7 @@ pub extern "C" fn draw_patch_flipped(x: c_int, y: c_int, patch: *mut patch_t) {
         let x = x - (*patch).leftoffset as c_int;
 
         if let Some(cb) = patchclip_callback {
-            if cb(patch, x, y) == 0 {
-                return;
-            }
+            if cb(patch, x, y) == 0 { return; }
         }
 
         mark_rect(x, y, (*patch).width as c_int, (*patch).height as c_int);
@@ -124,9 +116,7 @@ pub extern "C" fn draw_patch_flipped(x: c_int, y: c_int, patch: *mut patch_t) {
 /// old sources). Kept as a separate symbol; do not merge the call sites.
 #[doc(alias = "V_DrawPatchDirect")]
 #[export_name = "V_DrawPatchDirect"]
-pub extern "C" fn draw_patch_direct(x: c_int, y: c_int, patch: *mut patch_t) {
-    draw_patch(x, y, patch);
-}
+pub extern "C" fn draw_patch_direct(x: c_int, y: c_int, patch: *mut patch_t) { draw_patch(x, y, patch); }
 
 /// Translucent (`TINTTAB`-indexed) patch draw.
 ///
@@ -182,9 +172,7 @@ pub extern "C" fn draw_xla_patch(x: c_int, y: c_int, patch: *mut patch_t) {
         let x = x - (*patch).leftoffset as c_int;
 
         if let Some(cb) = patchclip_callback {
-            if cb(patch, x, y) == 0 {
-                return;
-            }
+            if cb(patch, x, y) == 0 { return; }
         }
 
         let w = (*patch).width as c_int;
@@ -309,6 +297,4 @@ pub extern "C" fn draw_shadowed_patch(x: c_int, y: c_int, patch: *mut patch_t) {
 
 /// No-op clip callback used by the link anchor to create a symbol reference
 /// for [`set_patch_clip_callback`]'s function-pointer parameter.
-pub(super) extern "C" fn dummy_clip(_: *mut patch_t, _: c_int, _: c_int) -> c_int {
-    0
-}
+pub(super) extern "C" fn dummy_clip(_: *mut patch_t, _: c_int, _: c_int) -> c_int { 0 }
