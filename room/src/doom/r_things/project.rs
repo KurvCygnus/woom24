@@ -41,9 +41,7 @@ use super::state::numsprites;
 /// `r_main` imports the upstream name through the root shim.
 #[doc(alias = "R_ClearSprites")]
 #[export_name = "R_ClearSprites"]
-pub unsafe extern "C" fn clear_sprites() {
-    vissprite_p = std::ptr::addr_of_mut!(vissprites[0]);
-}
+pub unsafe extern "C" fn clear_sprites() { vissprite_p = std::ptr::addr_of_mut!(vissprites[0]); }
 
 /// Allocate the next vissprite slot from the pool and return a pointer to it.
 ///
@@ -61,9 +59,7 @@ pub unsafe extern "C" fn clear_sprites() {
 #[doc(alias = "R_NewVisSprite")]
 #[export_name = "R_NewVisSprite"]
 pub unsafe extern "C" fn new_vis_sprite() -> *mut vissprite_t {
-    if vissprite_p == std::ptr::addr_of_mut!(vissprites[0]).add(MAXVISSPRITES) {
-        return &raw mut overflowsprite;
-    }
+    if vissprite_p == std::ptr::addr_of_mut!(vissprites[0]).add(MAXVISSPRITES) { return &raw mut overflowsprite; }
     vissprite_p = vissprite_p.add(1);
     vissprite_p.sub(1)
 }
@@ -110,9 +106,7 @@ pub unsafe extern "C" fn project_sprite(thing: *mut c_void) {
     let tz = gxt - gyt;
 
     // Thing is behind view plane?
-    if tz < MINZ {
-        return;
-    }
+    if tz < MINZ { return; }
 
     let xscale = FixedDiv(projection, tz);
 
@@ -121,16 +115,12 @@ pub unsafe extern "C" fn project_sprite(thing: *mut c_void) {
     let tx = -(gyt + gxt);
 
     // Too far off the side?
-    if tx.abs() > (tz << 2) {
-        return;
-    }
+    if tx.abs() > (tz << 2) { return; }
 
     // Decide which patch to use for sprite relative to player.
     #[cfg(feature = "rangecheck")]
     {
-        if (*thing).sprite as u32 >= numsprites as u32 {
-            i_error!("R_ProjectSprite: invalid sprite number {}", (*thing).sprite);
-        }
+        if(*thing).sprite as u32 >= numsprites as u32 { i_error!("R_ProjectSprite: invalid sprite number {}", (*thing).sprite); }
     }
 
     let sprdef = &*(sprites as *mut spritedef_t).add((*thing).sprite as usize);
@@ -172,17 +162,13 @@ pub unsafe extern "C" fn project_sprite(thing: *mut c_void) {
     let x1 = (centerxfrac + FixedMul(tx, xscale)) >> FRACBITS;
 
     // Off the right side?
-    if x1 > viewwidth {
-        return;
-    }
+    if x1 > viewwidth { return; }
 
     tx += *spritewidth.add(lump as usize);
     let x2 = ((centerxfrac + FixedMul(tx, xscale)) >> FRACBITS) - 1;
 
     // Off the left side.
-    if x2 < 0 {
-        return;
-    }
+    if x2 < 0 { return; }
 
     // Store information in a vissprite.
     let vis = new_vis_sprite();
@@ -205,9 +191,7 @@ pub unsafe extern "C" fn project_sprite(thing: *mut c_void) {
         (*vis).xiscale = iscale;
     }
 
-    if (*vis).x1 > x1 {
-        (*vis).startfrac += (*vis).xiscale * ((*vis).x1 - x1);
-    }
+    if(*vis).x1 > x1 { (*vis).startfrac += (*vis).xiscale * ((*vis).x1 - x1); }
     (*vis).patch = lump;
 
     // Get light level.
@@ -223,9 +207,7 @@ pub unsafe extern "C" fn project_sprite(thing: *mut c_void) {
     } else {
         // Diminished light.
         let mut index = (xscale >> (LIGHTSCALESHIFT - detailshift as u32)) as usize;
-        if index >= MAXLIGHTSCALE {
-            index = MAXLIGHTSCALE - 1;
-        }
+        if index >= MAXLIGHTSCALE { index = MAXLIGHTSCALE - 1; }
         (*vis).colormap = *spritelights.add(index);
     }
 }
@@ -254,22 +236,16 @@ pub unsafe extern "C" fn add_sprites(sec: *mut sector_t) {
     // BSP is traversed by subsector.
     // A sector might have been split into several subsectors during BSP building.
     // Thus we check whether it's already added.
-    if sec.validcount == validcount {
-        return;
-    }
+    if sec.validcount == validcount { return; }
 
     // Well, now it will be done.
     (*(sec as *const sector_t as *mut sector_t)).validcount = validcount;
 
     let lightnum = (sec.lightlevel >> LIGHTSEGSHIFT as i16) as c_int + extralight;
 
-    if lightnum < 0 {
-        spritelights = scalelight[0].as_mut_ptr();
-    } else if lightnum >= LIGHTLEVELS as c_int {
-        spritelights = scalelight[LIGHTLEVELS - 1].as_mut_ptr();
-    } else {
-        spritelights = scalelight[lightnum as usize].as_mut_ptr();
-    }
+    if lightnum < 0 { spritelights = scalelight[0].as_mut_ptr(); }
+    else if lightnum >= LIGHTLEVELS as c_int { spritelights = scalelight[LIGHTLEVELS - 1].as_mut_ptr(); }
+    else { spritelights = scalelight[lightnum as usize].as_mut_ptr(); }
 
     // Handle all things in sector.
     let mut thing = sec.thinglist as *mut crate::doom::c_ffi::mobj_t;

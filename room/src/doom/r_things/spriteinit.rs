@@ -29,13 +29,9 @@ use super::state::{
 /// `lump`, `frame`, and `rotation` must be within the ranges enforced by
 /// the guards at the top of the function.
 unsafe fn install_sprite_lump(lump: c_int, frame: u32, rotation: u32, flipped: c_int) {
-    if frame >= 29 || rotation > 8 {
-        i_error!("R_InstallSpriteLump: Bad frame characters in lump {}", lump);
-    }
+    if frame >= 29 || rotation > 8 { i_error!("R_InstallSpriteLump: Bad frame characters in lump {}", lump); }
 
-    if frame as c_int > maxframe {
-        maxframe = frame as c_int;
-    }
+    if frame as c_int > maxframe { maxframe = frame as c_int; }
 
     if rotation == 0 {
         // The lump should be used for all rotations.
@@ -105,15 +101,11 @@ unsafe fn install_sprite_lump(lump: c_int, frame: u32, rotation: u32, flipped: c
 /// initialised before this function is called.
 unsafe fn init_sprite_defs(namelist: *mut *mut c_char) {
     let mut check = namelist;
-    while !(*check).is_null() {
-        check = check.add(1);
-    }
+    while !(*check).is_null() { check = check.add(1); }
 
     numsprites = check.offset_from(namelist) as c_int;
 
-    if numsprites == 0 {
-        return;
-    }
+    if numsprites == 0 { return; }
 
     sprites = Z_Malloc(
         (numsprites as usize * std::mem::size_of::<spritedef_t>()) as c_int,
@@ -226,8 +218,6 @@ unsafe fn init_sprite_defs(namelist: *mut *mut c_char) {
 #[doc(alias = "R_InitSprites")]
 #[export_name = "R_InitSprites"]
 pub unsafe extern "C" fn init_sprites(namelist: *mut *mut c_char) {
-    for i in 0..SCREENWIDTH {
-        negonearray[i as usize] = -1;
-    }
+    for i in 0..SCREENWIDTH { negonearray[i as usize] = -1; }
     init_sprite_defs(namelist);
 }

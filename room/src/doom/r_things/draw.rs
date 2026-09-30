@@ -95,20 +95,14 @@ pub unsafe extern "C" fn draw_masked_column(column: *mut c_void) {
         dc_yl = (topscreen + FRACUNIT - 1) >> FRACBITS;
         dc_yh = (bottomscreen - 1) >> FRACBITS;
 
-        if dc_yh >= *mfloorclip.add(dc_x as usize) as c_int {
-            dc_yh = *mfloorclip.add(dc_x as usize) as c_int - 1;
-        }
-        if dc_yl <= *mceilingclip.add(dc_x as usize) as c_int {
-            dc_yl = *mceilingclip.add(dc_x as usize) as c_int + 1;
-        }
+        if dc_yh >= *mfloorclip.add(dc_x as usize) as c_int { dc_yh = *mfloorclip.add(dc_x as usize) as c_int - 1; }
+        if dc_yl <= *mceilingclip.add(dc_x as usize) as c_int { dc_yl = *mceilingclip.add(dc_x as usize) as c_int + 1; }
 
         if dc_yl <= dc_yh {
             dc_source = (column as *mut u8).add(3);
             dc_texturemid = basetexturemid - (((*column).topdelta as c_int) << FRACBITS);
 
-            if let Some(func) = colfunc {
-                func();
-            }
+            if let Some(func) = colfunc { func(); }
         }
         column = (column as *mut u8).add((*column).length as usize + 4) as *mut column_t;
     }
@@ -151,7 +145,8 @@ pub unsafe extern "C" fn draw_vis_sprite(vis: *mut vissprite_t, _x1: c_int, _x2:
     if dc_colormap.is_null() {
         // NULL colormap = shadow draw.
         colfunc = fuzzcolfunc;
-    } else if (*vis).mobjflags & MF_TRANSLATION != 0 {
+    }
+    else if(*vis).mobjflags & MF_TRANSLATION != 0 {
         colfunc = transcolfunc;
         dc_translation = colormaps
             .sub(256)
@@ -171,9 +166,7 @@ pub unsafe extern "C" fn draw_vis_sprite(vis: *mut vissprite_t, _x1: c_int, _x2:
         #[cfg(feature = "rangecheck")]
         {
             let patch_width = (*patch).width as c_int;
-            if texturecolumn < 0 || texturecolumn >= patch_width {
-                i_error!("R_DrawSpriteRange: bad texturecolumn");
-            }
+            if texturecolumn < 0 || texturecolumn >= patch_width { i_error!("R_DrawSpriteRange: bad texturecolumn"); }
         }
 
         let columnofs = (patch as *mut u8).add(8) as *mut c_int;
@@ -214,18 +207,14 @@ pub unsafe extern "C" fn draw_psprite(psp: *mut PspdefT) {
     let psp = &*psp;
 
     // Decide which patch to use.
-    if psp.state.is_null() {
-        return;
-    }
+    if psp.state.is_null() { return; }
 
     let state = psp.state as *mut State;
 
     #[cfg(feature = "rangecheck")]
     {
         let sprite = (*state).sprite;
-        if sprite as u32 >= numsprites as u32 {
-            i_error!("R_ProjectSprite: invalid sprite number {}", sprite);
-        }
+        if sprite as u32 >= numsprites as u32 { i_error!("R_ProjectSprite: invalid sprite number {}", sprite); }
     }
 
     let sprdef = &*(sprites as *mut spritedef_t).add((*state).sprite as usize);
@@ -259,17 +248,13 @@ pub unsafe extern "C" fn draw_psprite(psp: *mut PspdefT) {
     let x1 = (centerxfrac + FixedMul(tx, pspritescale)) >> FRACBITS;
 
     // Off the right side.
-    if x1 > viewwidth {
-        return;
-    }
+    if x1 > viewwidth { return; }
 
     tx += *spritewidth.add(lump as usize);
     let x2 = ((centerxfrac + FixedMul(tx, pspritescale)) >> FRACBITS) - 1;
 
     // Off the left side.
-    if x2 < 0 {
-        return;
-    }
+    if x2 < 0 { return; }
 
     // Store information in a vissprite.
     let mut avis: vissprite_t = unsafe { std::mem::zeroed() };
@@ -289,9 +274,7 @@ pub unsafe extern "C" fn draw_psprite(psp: *mut PspdefT) {
         vis.startfrac = 0;
     }
 
-    if vis.x1 > x1 {
-        vis.startfrac += vis.xiscale * (vis.x1 - x1);
-    }
+    if vis.x1 > x1 { vis.startfrac += vis.xiscale * (vis.x1 - x1); }
 
     vis.patch = lump;
 
@@ -341,13 +324,9 @@ pub unsafe extern "C" fn draw_player_sprites() {
     let sec = (*sub).sector;
     let lightnum = ((*sec).lightlevel >> LIGHTSEGSHIFT as i16) as c_int + extralight;
 
-    if lightnum < 0 {
-        spritelights = scalelight[0].as_mut_ptr();
-    } else if lightnum >= LIGHTLEVELS as c_int {
-        spritelights = scalelight[LIGHTLEVELS - 1].as_mut_ptr();
-    } else {
-        spritelights = scalelight[lightnum as usize].as_mut_ptr();
-    }
+    if lightnum < 0 { spritelights = scalelight[0].as_mut_ptr(); }
+    else if lightnum >= LIGHTLEVELS as c_int { spritelights = scalelight[LIGHTLEVELS - 1].as_mut_ptr(); }
+    else { spritelights = scalelight[lightnum as usize].as_mut_ptr(); }
 
     // Clip to screen bounds.
     mfloorclip = std::ptr::addr_of_mut!(screenheightarray[0]);
@@ -357,9 +336,7 @@ pub unsafe extern "C" fn draw_player_sprites() {
     let psp = (*viewplayer).psprites.as_ptr() as *mut PspdefT;
     for i in 0..NUMPSPRITES {
         let psp_i = psp.add(i);
-        if !(*psp_i).state.is_null() {
-            draw_psprite(psp_i);
-        }
+        if !(*psp_i).state.is_null() { draw_psprite(psp_i); }
     }
 }
 
@@ -392,9 +369,7 @@ pub unsafe extern "C" fn sort_vis_sprites() {
     unsorted.next = &mut unsorted;
     unsorted.prev = &mut unsorted;
 
-    if count == 0 {
-        return;
-    }
+    if count == 0 { return; }
 
     for i in 0..count {
         let ds = std::ptr::addr_of_mut!(vissprites[0]).add(i as usize);
@@ -502,9 +477,7 @@ pub unsafe extern "C" fn draw_sprite(spr: *mut vissprite_t) {
             || (lowscale < spr.scale && R_PointOnSegSide(spr.gx, spr.gy, (*ds).curline) == 0)
         {
             // Masked mid texture?
-            if !(*ds).maskedtexturecol.is_null() {
-                R_RenderMaskedSegRange(ds, r1, r2);
-            }
+            if !(*ds).maskedtexturecol.is_null() { R_RenderMaskedSegRange(ds, r1, r2); }
             // Seg is behind sprite.
             ds = ds.sub(1);
             continue;
@@ -513,33 +486,19 @@ pub unsafe extern "C" fn draw_sprite(spr: *mut vissprite_t) {
         // Clip this piece of the sprite.
         let mut silhouette = (*ds).silhouette;
 
-        if spr.gz >= (*ds).bsilheight {
-            silhouette &= !SIL_BOTTOM;
-        }
-        if spr.gzt <= (*ds).tsilheight {
-            silhouette &= !SIL_TOP;
-        }
+        if spr.gz >= (*ds).bsilheight { silhouette &= !SIL_BOTTOM; }
+        if spr.gzt <= (*ds).tsilheight { silhouette &= !SIL_TOP; }
 
         if silhouette == SIL_BOTTOM {
+            for x in r1..=r2 { if CLIPBOT[x as usize] == -2 { CLIPBOT[x as usize] = *(*ds).sprbottomclip.add(x as usize); } }
+        }
+        else if silhouette == SIL_TOP {
+            for x in r1..=r2 { if CLIPTOP[x as usize] == -2 { CLIPTOP[x as usize] = *(*ds).sprtopclip.add(x as usize); } }
+        }
+        else if silhouette == (SIL_TOP | SIL_BOTTOM) {
             for x in r1..=r2 {
-                if CLIPBOT[x as usize] == -2 {
-                    CLIPBOT[x as usize] = *(*ds).sprbottomclip.add(x as usize);
-                }
-            }
-        } else if silhouette == SIL_TOP {
-            for x in r1..=r2 {
-                if CLIPTOP[x as usize] == -2 {
-                    CLIPTOP[x as usize] = *(*ds).sprtopclip.add(x as usize);
-                }
-            }
-        } else if silhouette == (SIL_TOP | SIL_BOTTOM) {
-            for x in r1..=r2 {
-                if CLIPBOT[x as usize] == -2 {
-                    CLIPBOT[x as usize] = *(*ds).sprbottomclip.add(x as usize);
-                }
-                if CLIPTOP[x as usize] == -2 {
-                    CLIPTOP[x as usize] = *(*ds).sprtopclip.add(x as usize);
-                }
+                if CLIPBOT[x as usize] == -2 { CLIPBOT[x as usize] = *(*ds).sprbottomclip.add(x as usize); }
+                if CLIPTOP[x as usize] == -2 { CLIPTOP[x as usize] = *(*ds).sprtopclip.add(x as usize); }
             }
         }
 
@@ -549,12 +508,8 @@ pub unsafe extern "C" fn draw_sprite(spr: *mut vissprite_t) {
     // All clipping has been performed, so draw the sprite.
     // Check for unclipped columns.
     for x in spr.x1..=spr.x2 {
-        if CLIPBOT[x as usize] == -2 {
-            CLIPBOT[x as usize] = viewheight as c_short;
-        }
-        if CLIPTOP[x as usize] == -2 {
-            CLIPTOP[x as usize] = -1;
-        }
+        if CLIPBOT[x as usize] == -2 { CLIPBOT[x as usize] = viewheight as c_short; }
+        if CLIPTOP[x as usize] == -2 { CLIPTOP[x as usize] = -1; }
     }
 
     mfloorclip = std::ptr::addr_of_mut!(CLIPBOT[0]);
@@ -603,14 +558,10 @@ pub unsafe extern "C" fn draw_masked() {
     let mut ds = ds_p.sub(1);
     let drawsegs_base = std::ptr::addr_of_mut!(drawsegs[0]);
     while ds >= drawsegs_base {
-        if !(*ds).maskedtexturecol.is_null() {
-            R_RenderMaskedSegRange(ds, (*ds).x1, (*ds).x2);
-        }
+        if !(*ds).maskedtexturecol.is_null() { R_RenderMaskedSegRange(ds, (*ds).x1, (*ds).x2); }
         ds = ds.sub(1);
     }
 
     // Draw the psprites on top of everything.
-    if viewangleoffset == 0 {
-        draw_player_sprites();
-    }
+    if viewangleoffset == 0 { draw_player_sprites(); }
 }
