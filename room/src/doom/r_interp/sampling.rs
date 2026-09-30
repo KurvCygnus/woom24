@@ -36,19 +36,10 @@ pub unsafe fn sample_camera(player: *mut PlayerT, mo: *mut c_ffi::mobj_t) -> Pos
 
     let idx = (player as usize - std::ptr::addr_of!(players) as usize)
         / std::mem::size_of::<PlayerT>();
-    if !enabled() || !board_active() || idx >= MAXPLAYERS
-    {
-        return live;
-    }
+    if !enabled() || !board_active() || idx >= MAXPLAYERS { return live; }
     let cam = CAM_SLOTS[idx];
-    if !cam.prev_valid || !cam.curr_valid || leveltime <= 1 || leveltime <= OLD_LEVELTIME
-    {
-        return live;
-    }
-    if teleported(cam.prev, cam.curr)
-    {
-        return live;
-    }
+    if !cam.prev_valid || !cam.curr_valid || leveltime <= 1 || leveltime <= OLD_LEVELTIME { return live; }
+    if teleported(cam.prev, cam.curr) { return live; }
 
     let frac = FRACTION;
     PosSample {
@@ -70,10 +61,7 @@ pub unsafe fn sample_mobj(mo: *mut c_ffi::mobj_t) -> PosSample
 {
     let live = PosSample { x: (*mo).x, y: (*mo).y, z: (*mo).z, angle: (*mo).angle };
 
-    if !enabled() || !board_active()
-    {
-        return live;
-    }
+    if !enabled() || !board_active() { return live; }
 
     let slot = mobj_lookup(mo);
     let slot = match slot
@@ -82,23 +70,14 @@ pub unsafe fn sample_mobj(mo: *mut c_ffi::mobj_t) -> PosSample
         None => return live,
     };
     let s = MOBJ_SLOTS[slot];
-    if !s.prev_valid || !s.curr_valid || leveltime <= OLD_LEVELTIME
-    {
-        return live;
-    }
+    if !s.prev_valid || !s.curr_valid || leveltime <= OLD_LEVELTIME { return live; }
     // Player missiles skip interpolation on their first pair (the render
     // right after their first full tic of travel). Woof! marks this with the
     // `interp == -1` sentinel in P_SpawnPlayerMissile; render-side we cannot
     // tell player missiles from enemy ones, so every missile snaps one render
     // — one frame of snap on enemy missiles, sim-neutral either way.
-    if (*mo).flags & MF_MISSILE != 0 && s.age == 2
-    {
-        return live;
-    }
-    if teleported(s.prev, s.curr)
-    {
-        return live;
-    }
+    if(*mo).flags & MF_MISSILE != 0 && s.age == 2 { return live; }
+    if teleported(s.prev, s.curr) { return live; }
 
     let frac = FRACTION;
     PosSample {
@@ -117,10 +96,7 @@ pub unsafe fn sample_mobj(mo: *mut c_ffi::mobj_t) -> PosSample
 pub unsafe fn sector_floor(sector: *mut c_ffi::sector_t) -> fixed_t
 {
     let idx = sector_index(sector);
-    if !enabled() || !board_active() || idx >= SECTOR_LEN || !SECTOR_PREV_VALID[idx]
-    {
-        return (*sector).floorheight;
-    }
+    if !enabled() || !board_active() || idx >= SECTOR_LEN || !SECTOR_PREV_VALID[idx] { return (*sector).floorheight; }
     lerp_fixed(SECTOR_PREV_FLOOR[idx], SECTOR_CURR_FLOOR[idx], FRACTION)
 }
 
@@ -131,10 +107,7 @@ pub unsafe fn sector_floor(sector: *mut c_ffi::sector_t) -> fixed_t
 pub unsafe fn sector_ceiling(sector: *mut c_ffi::sector_t) -> fixed_t
 {
     let idx = sector_index(sector);
-    if !enabled() || !board_active() || idx >= SECTOR_LEN || !SECTOR_PREV_VALID[idx]
-    {
-        return (*sector).ceilingheight;
-    }
+    if !enabled() || !board_active() || idx >= SECTOR_LEN || !SECTOR_PREV_VALID[idx] { return (*sector).ceilingheight; }
     lerp_fixed(SECTOR_PREV_CEIL[idx], SECTOR_CURR_CEIL[idx], FRACTION)
 }
 
@@ -157,34 +130,19 @@ unsafe fn sector_index(sector: *mut c_ffi::sector_t) -> usize
 pub unsafe fn sample_psp(psp: *mut PspdefT) -> (fixed_t, fixed_t)
 {
     let live = ((*psp).sx, (*psp).sy);
-    if !enabled() || !board_active()
-    {
-        return live;
-    }
+    if !enabled() || !board_active() { return live; }
 
     let vp = crate::doom::r_main::viewplayer;
-    if vp.is_null()
-    {
-        return live;
-    }
+    if vp.is_null() { return live; }
 
     let player_idx = (vp as usize - std::ptr::addr_of!(players) as usize)
         / std::mem::size_of::<PlayerT>();
-    if player_idx >= MAXPLAYERS
-    {
-        return live;
-    }
+    if player_idx >= MAXPLAYERS { return live; }
 
     // Slot 1 mirrors slot 0; both draw from the weapon pair.
     let ps = PSPR_SLOTS[player_idx];
-    if !ps.prev_valid || !ps.curr_valid || leveltime <= OLD_LEVELTIME
-    {
-        return live;
-    }
-    if ps.prev_state != ps.curr_state
-    {
-        return live;
-    }
+    if !ps.prev_valid || !ps.curr_valid || leveltime <= OLD_LEVELTIME { return live; }
+    if ps.prev_state != ps.curr_state { return live; }
 
     let frac = FRACTION;
     (

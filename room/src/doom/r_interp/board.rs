@@ -165,13 +165,7 @@ pub fn enabled() -> bool
 }
 
 /// Flip the master gate (F7 will own this; tests use it too).
-pub fn set_enabled(on: bool)
-{
-    unsafe
-    {
-        r_interp_enabled = on as c_int;
-    }
-}
+pub fn set_enabled(on: bool) { unsafe { r_interp_enabled = on as c_int; } }
 
 /// Whether [`begin_frame`] has run for the frame being presented. The legacy
 /// `doomgeneric_Tick` path never sets it, keeping that path bit-exact.
@@ -237,10 +231,7 @@ pub unsafe fn begin_tic()
     let curr_ceil = std::ptr::addr_of!(SECTOR_CURR_CEIL) as *const c_int;
     std::ptr::copy_nonoverlapping(curr_floor, prev_floor, sector_len);
     std::ptr::copy_nonoverlapping(curr_ceil, prev_ceil, sector_len);
-    for i in 0..sector_len
-    {
-        *prev_valid.add(i) = true;
-    }
+    for i in 0..sector_len { *prev_valid.add(i) = true; }
 
     let cam_slots = std::ptr::addr_of_mut!(CAM_SLOTS);
     for cam in (*cam_slots).iter_mut()
@@ -277,10 +268,7 @@ pub unsafe fn begin_tic()
 /// game-loop contract applies.
 pub unsafe fn end_tic_and_capture()
 {
-    if leveltime < LAST_CAPTURE_LEVELTIME
-    {
-        reset_board();
-    }
+    if leveltime < LAST_CAPTURE_LEVELTIME { reset_board(); }
     LAST_CAPTURE_LEVELTIME = leveltime;
 
     capture_mobjs();
@@ -309,10 +297,7 @@ pub unsafe fn reset_board()
     }
     SECTOR_LEN = 0;
     let sector_valid = std::ptr::addr_of_mut!(SECTOR_PREV_VALID);
-    for v in (*sector_valid).iter_mut()
-    {
-        *v = false;
-    }
+    for v in (*sector_valid).iter_mut() { *v = false; }
     let cam_slots = std::ptr::addr_of_mut!(CAM_SLOTS);
     for cam in (*cam_slots).iter_mut()
     {
@@ -346,10 +331,7 @@ unsafe fn capture_mobjs()
     // array and must survive the rebuild; only the pointer->slot index is
     // regenerated each capture).
     MOBJ_HASH = [MOBJ_HASH_EMPTY; MOBJ_HASH_SIZE];
-    for i in 0..MOBJ_LEN
-    {
-        mobj_hash_insert(MOBJ_SLOTS[i].ptr, i);
-    }
+    for i in 0..MOBJ_LEN { mobj_hash_insert(MOBJ_SLOTS[i].ptr, i); }
 
     let cap = &raw mut thinkercap;
     let want = mobj_thinker_addr();
@@ -357,10 +339,7 @@ unsafe fn capture_mobjs()
 
     // An uninitialised list (boot tics before the first P_InitThinkers) reads
     // as an empty board — engine state must never panic the render side.
-    if node.is_null()
-    {
-        return;
-    }
+    if node.is_null() { return; }
 
     while node != cap
     {
@@ -398,10 +377,7 @@ unsafe fn capture_mobjs()
 unsafe fn mobj_hash_insert(mo: *mut c_ffi::mobj_t, idx: usize)
 {
     let mut h = mobj_hash(mo);
-    while MOBJ_HASH[h] != MOBJ_HASH_EMPTY
-    {
-        h = (h + 1) % MOBJ_HASH_SIZE;
-    }
+    while MOBJ_HASH[h] != MOBJ_HASH_EMPTY { h = (h + 1) % MOBJ_HASH_SIZE; }
     MOBJ_HASH[h] = idx as u16;
 }
 
@@ -430,10 +406,7 @@ unsafe fn mobj_find_or_insert(mo: *mut c_ffi::mobj_t) -> usize
             MOBJ_HASH[h] = idx as u16;
             return idx;
         }
-        if MOBJ_SLOTS[entry as usize].ptr == mo
-        {
-            return entry as usize;
-        }
+        if MOBJ_SLOTS[entry as usize].ptr == mo { return entry as usize; }
         h = (h + 1) % MOBJ_HASH_SIZE;
     }
 }
@@ -445,23 +418,14 @@ pub(super) unsafe fn mobj_lookup(mo: *mut c_ffi::mobj_t) -> Option<usize>
     loop
     {
         let entry = MOBJ_HASH[h];
-        if entry == MOBJ_HASH_EMPTY
-        {
-            return None;
-        }
-        if MOBJ_SLOTS[entry as usize].ptr == mo
-        {
-            return Some(entry as usize);
-        }
+        if entry == MOBJ_HASH_EMPTY { return None; }
+        if MOBJ_SLOTS[entry as usize].ptr == mo { return Some(entry as usize); }
         h = (h + 1) % MOBJ_HASH_SIZE;
     }
 }
 
 /// Pointer hash (multiplicative, address granularity 16).
-fn mobj_hash(mo: *mut c_ffi::mobj_t) -> usize
-{
-    (mo as usize >> 4).wrapping_mul(0x9E37_79B9) % MOBJ_HASH_SIZE
-}
+fn mobj_hash(mo: *mut c_ffi::mobj_t) -> usize { (mo as usize >> 4).wrapping_mul(0x9E37_79B9) % MOBJ_HASH_SIZE }
 
 /// Capture every sector's floor/ceiling pair, keyed by sector index. Sector
 /// heights that did not move produce an identity pair, which lerps to

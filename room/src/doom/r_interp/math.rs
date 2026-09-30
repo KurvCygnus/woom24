@@ -9,20 +9,11 @@ use crate::doom::m_fixed::{fixed_t, FRACUNIT};
 
 /// Fractional part of the current tic, as set by
 /// [`crate::doom::r_interp::board::begin_frame`].
-pub fn fraction() -> fixed_t
-{
-    unsafe { super::board::FRACTION }
-}
+pub fn fraction() -> fixed_t { unsafe { super::board::FRACTION } }
 
 /// Test hook: set the fraction directly (production derives it from the
 /// engine clock via [`crate::doom::r_interp::board::begin_frame`]).
-pub fn set_fraction(frac: fixed_t)
-{
-    unsafe
-    {
-        super::board::FRACTION = frac;
-    }
-}
+pub fn set_fraction(frac: fixed_t) { unsafe { super::board::FRACTION = frac; } }
 
 /// Pure fraction math, split out for unit tests: `rel_ms` is milliseconds
 /// since the engine clock's BASETIME (the same domain `I_GetTime` uses), so
@@ -41,20 +32,11 @@ pub(super) fn fraction_from_rel_ms(rel_ms: u32) -> fixed_t
 /// the same `DG_GetTicksMs` heartbeat the frame path derives from) — no new
 /// time source. M1's wipe iterations render no 3-D view, so today this closes
 /// the contract and keeps the fraction fresh for any wipe-path consumer.
-pub fn refresh_fraction()
-{
-    unsafe
-    {
-        super::board::FRACTION = fraction_from_rel_ms(crate::doom::i_timer::I_GetTimeMS() as u32);
-    }
-}
+pub fn refresh_fraction() { unsafe { super::board::FRACTION = fraction_from_rel_ms(crate::doom::i_timer::I_GetTimeMS() as u32); } }
 
 /// `LerpFixed` from `woof/src/r_main.h:133-157`: `old + FixedMul(new - old,
 /// frac)`, entirely in 16.16 fixed point.
-pub fn lerp_fixed(old: fixed_t, new: fixed_t, frac: fixed_t) -> fixed_t
-{
-    old.wrapping_add(crate::doom::m_fixed::FixedMul(new.wrapping_sub(old), frac))
-}
+pub fn lerp_fixed(old: fixed_t, new: fixed_t, frac: fixed_t) -> fixed_t { old.wrapping_add(crate::doom::m_fixed::FixedMul(new.wrapping_sub(old), frac)) }
 
 /// Short-arc angle lerp over BAM angles (`angle_t` wraps at 2^32). The
 /// threshold is ANG180: the pair (o, n) always travels the arc shorter than
@@ -62,10 +44,7 @@ pub fn lerp_fixed(old: fixed_t, new: fixed_t, frac: fixed_t) -> fixed_t
 /// way round; the F1 contract text specifies the short arc.)
 pub fn lerp_angle(old: u32, new: u32, frac: fixed_t) -> u32
 {
-    if new == old
-    {
-        return new;
-    }
+    if new == old { return new; }
     let forward = new.wrapping_sub(old);
     if forward < crate::doom::tables::ANG180
     {
