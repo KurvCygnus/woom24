@@ -36,6 +36,7 @@ pub(super) const DIR_SEPARATOR_S: &[u8] = b"/\0";
 /// null-terminated C strings. The strings must remain valid for the duration
 /// of the call. The function passes these pointers directly to the C FFI
 /// functions `strlen` and `strcasecmp`, which impose the same requirements.
+#[doc(alias = "DirIsFile")]
 pub(super) unsafe fn dir_is_file(path: *mut c_char, filename: *mut c_char) -> c_int
 {
     let path_len = strlen(path);
@@ -67,6 +68,7 @@ pub(super) unsafe fn dir_is_file(path: *mut c_char, filename: *mut c_char) -> c_
 /// and `free` via C FFI, all of which require the same pointer-validity
 /// guarantee. The heap-allocated string returned on success must be freed by
 /// the caller using `free`.
+#[doc(alias = "CheckDirectoryHasIWAD")]
 pub(super) unsafe fn check_directory_has_iwad(
     dir: *mut c_char,
     iwadname: *mut c_char,
@@ -105,6 +107,7 @@ pub(super) unsafe fn check_directory_has_iwad(
 ///
 /// # Safety
 /// `mission` must be a valid, non-null pointer.
+#[doc(alias = "SearchDirectoryForIWAD")]
 pub(super) unsafe fn search_directory_for_iwad(
     dir: *mut c_char,
     mask: c_int,
@@ -142,6 +145,7 @@ pub(super) unsafe fn search_directory_for_iwad(
 /// FFI functions `strrchr` and `strcasecmp`, which require a valid
 /// null-terminated string. The pointer returned by `strrchr` (if non-null) is
 /// an interior pointer into the same string and is used only within this call.
+#[doc(alias = "IdentifyIWADByName")]
 pub(super) unsafe fn identify_iwad_by_name(mut name: *mut c_char, mask: c_int) -> c_int
 {
     let p = strrchr(name, DIR_SEPARATOR as c_int);

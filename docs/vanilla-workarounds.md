@@ -111,7 +111,7 @@ if numspechit as usize >= MAXSPECIALCROSS
   `addr = baseaddr + (ld - lines) * 0x3e` and, per `numspechit`, writes the
   address into `tmbbox[(numspechit - 9)]` for 9..=12, `crushchange` for 13,
   and `nofit` for 14. `baseaddr` defaults to `DEFAULT_SPECHIT_MAGIC`
-  (`0x01C09C98`, `room/src/doom/c_ffi.rs:680-683`) overridable with
+  (`0x01C09C98`, `room/src/doom/c_ffi/consts.rs:246-247`) overridable with
   `-spechit <n>`. The pure halves are extracted to `p_map/dtmc.rs:48`
   (`spechit_trample_addr`, the addr formula) and `:70` (`trample_target`,
   the case-table target selection); the whole-body baseline drives are

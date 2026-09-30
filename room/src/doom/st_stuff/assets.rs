@@ -36,6 +36,7 @@ type LoadCallback = unsafe extern "C" fn(*mut c_char, *mut *mut patch_t);
 /// must pass a callback that respects those pointers' validity and only
 /// reads/writes the single patch slot supplied. The WAD subsystem must be
 /// initialised before the load variant is invoked.
+#[doc(alias = "ST_loadUnloadGraphics")]
 unsafe fn load_unload_graphics(callback: LoadCallback) {
     let mut namebuf = [0i8; 9];
 

@@ -104,6 +104,7 @@ pub(super) static mut texturecomposite: *mut *mut u8 = ptr::null_mut();
 /// - `cache` must have at least `cacheheight` bytes of writable storage.
 /// - `originy + post.topdelta` must not underflow past `i32::MIN` (safe for
 ///   all legal WAD data).
+#[doc(alias = "R_DrawColumnInCache")]
 unsafe fn draw_column_in_cache(
     patch: *mut column_t,
     cache: *mut u8,

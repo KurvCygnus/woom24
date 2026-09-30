@@ -38,6 +38,7 @@ pub(super) static mut num_iwad_dirs: c_int = 0;
 /// only invoke this function from the single-threaded game-startup path, as it
 /// writes to the mutable globals `iwad_dirs` and `num_iwad_dirs` without
 /// synchronisation.
+#[doc(alias = "AddIWADDir")]
 unsafe fn add_iwad_dir(dir: *mut c_char)
 {
     if num_iwad_dirs < MAX_IWAD_DIRS as c_int
@@ -60,6 +61,7 @@ unsafe fn add_iwad_dir(dir: *mut c_char)
 /// function writes to the mutable globals `iwad_dirs`, `num_iwad_dirs`, and
 /// `iwad_dirs_built` without synchronisation, and calls `add_iwad_dir` which
 /// imposes the same requirement.
+#[doc(alias = "BuildIWADDirList")]
 pub(super) unsafe fn build_iwad_dir_list()
 {
     add_iwad_dir(c".".as_ptr().cast_mut());

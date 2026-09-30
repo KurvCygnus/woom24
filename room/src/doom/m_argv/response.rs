@@ -49,6 +49,7 @@ extern "C"
 ///   character is `'@'`; the response-file path is the remainder.
 /// - All entries in `myargv` must remain readable for the duration of the
 ///   call.
+#[doc(alias = "LoadResponseFile")]
 unsafe fn load_response_file(argv_index: c_int)
 {
     let response_filename: *mut c_char = (*myargv.offset(argv_index as isize)).offset(1);

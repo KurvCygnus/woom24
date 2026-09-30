@@ -28,6 +28,7 @@ use super::state::{
 /// `spritename` must be a valid, null-terminated C string pointer.
 /// `lump`, `frame`, and `rotation` must be within the ranges enforced by
 /// the guards at the top of the function.
+#[doc(alias = "R_InstallSpriteLump")]
 unsafe fn install_sprite_lump(lump: c_int, frame: u32, rotation: u32, flipped: c_int) {
     if frame >= 29 || rotation > 8 { i_error!("R_InstallSpriteLump: Bad frame characters in lump {}", lump); }
 
@@ -99,6 +100,7 @@ unsafe fn install_sprite_lump(lump: c_int, frame: u32, rotation: u32, flipped: c
 /// `namelist` must be a null-terminated array of valid C string pointers.
 /// `firstspritelump` and `lastspritelump` from `r_data` must already be
 /// initialised before this function is called.
+#[doc(alias = "R_InitSpriteDefs")]
 unsafe fn init_sprite_defs(namelist: *mut *mut c_char) {
     let mut check = namelist;
     while !(*check).is_null() { check = check.add(1); }
