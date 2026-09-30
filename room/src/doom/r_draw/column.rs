@@ -47,9 +47,7 @@ pub extern "C" fn draw_column() {
         let count = dc_yh - dc_yl;
 
         // Zero length, column does not exceed a pixel.
-        if count < 0 {
-            return;
-        }
+        if count < 0 { return; }
 
         // Runtime raster stride (F1 M2): hoisted out of the inner loop.
         let stride = SCREENWIDTH as usize;
@@ -75,9 +73,7 @@ pub extern "C" fn draw_column() {
             *dest = *dc_colormap.add(*dc_source.add(((frac >> FRACBITS) & 127) as usize) as usize);
             dest = dest.add(stride);
             frac += fracstep;
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -104,9 +100,7 @@ pub extern "C" fn draw_column_low() {
         let count = dc_yh - dc_yl;
 
         // Zero length.
-        if count < 0 {
-            return;
-        }
+        if count < 0 { return; }
 
         // Blocky mode, need to multiply by 2.
         let x = dc_x << 1;
@@ -137,9 +131,7 @@ pub extern "C" fn draw_column_low() {
             dest = dest.add(stride);
             dest2 = dest2.add(stride);
             frac += fracstep;
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -167,21 +159,15 @@ pub extern "C" fn draw_column_low() {
 pub extern "C" fn draw_fuzz_column() {
     unsafe {
         // Adjust borders. Low...
-        if dc_yl == 0 {
-            dc_yl = 1;
-        }
+        if dc_yl == 0 { dc_yl = 1; }
 
         // .. and high.
-        if dc_yh == viewheight - 1 {
-            dc_yh = viewheight - 2;
-        }
+        if dc_yh == viewheight - 1 { dc_yh = viewheight - 2; }
 
         let count = dc_yh - dc_yl;
 
         // Zero length.
-        if count < 0 {
-            return;
-        }
+        if count < 0 { return; }
 
         // Runtime raster stride (F1 M2): fuzzoffset entries are +/-1
         // direction units (crispy r_draw.c:409 scales by SCREENWIDTH here).
@@ -208,14 +194,10 @@ pub extern "C" fn draw_fuzz_column() {
 
             // Clamp table lookup index.
             fuzzpos += 1;
-            if fuzzpos == FUZZTABLE as c_int {
-                fuzzpos = 0;
-            }
+            if fuzzpos == FUZZTABLE as c_int { fuzzpos = 0; }
 
             dest = dest.offset(stride);
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -238,21 +220,15 @@ pub extern "C" fn draw_fuzz_column() {
 pub extern "C" fn draw_fuzz_column_low() {
     unsafe {
         // Adjust borders. Low...
-        if dc_yl == 0 {
-            dc_yl = 1;
-        }
+        if dc_yl == 0 { dc_yl = 1; }
 
         // .. and high.
-        if dc_yh == viewheight - 1 {
-            dc_yh = viewheight - 2;
-        }
+        if dc_yh == viewheight - 1 { dc_yh = viewheight - 2; }
 
         let count = dc_yh - dc_yl;
 
         // Zero length.
-        if count < 0 {
-            return;
-        }
+        if count < 0 { return; }
 
         // low detail mode, need to multiply by 2
         let x = dc_x << 1;
@@ -282,15 +258,11 @@ pub extern "C" fn draw_fuzz_column_low() {
 
             // Clamp table lookup index.
             fuzzpos += 1;
-            if fuzzpos == FUZZTABLE as c_int {
-                fuzzpos = 0;
-            }
+            if fuzzpos == FUZZTABLE as c_int { fuzzpos = 0; }
 
             dest = dest.offset(stride);
             dest2 = dest2.offset(stride);
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -315,9 +287,7 @@ pub extern "C" fn draw_fuzz_column_low() {
 pub extern "C" fn draw_translated_column() {
     unsafe {
         let count = dc_yh - dc_yl;
-        if count < 0 {
-            return;
-        }
+        if count < 0 { return; }
 
         // Runtime raster stride (F1 M2): hoisted out of the inner loop.
         let stride = SCREENWIDTH as usize;
@@ -342,9 +312,7 @@ pub extern "C" fn draw_translated_column() {
             *dest = *dc_colormap.add(trans_idx);
             dest = dest.add(stride);
             frac += fracstep;
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -366,9 +334,7 @@ pub extern "C" fn draw_translated_column() {
 pub extern "C" fn draw_translated_column_low() {
     unsafe {
         let count = dc_yh - dc_yl;
-        if count < 0 {
-            return;
-        }
+        if count < 0 { return; }
 
         // low detail, need to scale by 2
         let x = dc_x << 1;
@@ -400,9 +366,7 @@ pub extern "C" fn draw_translated_column_low() {
             dest = dest.add(stride);
             dest2 = dest2.add(stride);
             frac += fracstep;
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -437,21 +401,13 @@ mod tests {
         unsafe {
             let mut framebuffer = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
             let mut source = vec![0u8; 128];
-            for i in 0..128 {
-                source[i] = i as u8;
-            }
+            for i in 0..128 { source[i] = i as u8; }
             let mut colormap = vec![0u8; 256];
-            for i in 0..256 {
-                colormap[i] = (i ^ 0x55) as u8;
-            }
+            for i in 0..256 { colormap[i] = (i ^ 0x55) as u8; }
 
             // Set up ylookup and columnofs for a full-screen buffer
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             dc_colormap = colormap.as_mut_ptr();
             dc_source = source.as_mut_ptr();
@@ -480,12 +436,8 @@ mod tests {
         let _g = LOCK.lock().unwrap();
         unsafe {
             let mut framebuffer = vec![0xABu8; (SCREENWIDTH * SCREENHEIGHT) as usize];
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             dc_x = 5;
             dc_yl = 10;
@@ -496,9 +448,7 @@ mod tests {
             R_DrawColumn();
 
             // Framebuffer should be untouched
-            for i in 0..framebuffer.len() {
-                assert_eq!(framebuffer[i], 0xAB, "framebuffer[{i}] was modified");
-            }
+            for i in 0..framebuffer.len() { assert_eq!(framebuffer[i], 0xAB, "framebuffer[{i}] was modified"); }
         }
     }
 
@@ -514,12 +464,8 @@ mod tests {
             let mut colormap = vec![0u8; 256];
             colormap[42] = 99;
 
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             dc_colormap = colormap.as_mut_ptr();
             dc_source = source.as_mut_ptr();
@@ -552,12 +498,8 @@ mod tests {
             let mut colormap = vec![0u8; 256];
             colormap[7] = 99;
 
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             dc_colormap = colormap.as_mut_ptr();
             dc_source = source.as_mut_ptr();
@@ -590,12 +532,8 @@ mod tests {
             let mut colormaps_buf = vec![0u8; 32 * 256];
             colormaps_buf[6 * 256 + 3] = 77;
 
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             colormaps = colormaps_buf.as_mut_ptr();
             dc_x = 10;
@@ -625,12 +563,8 @@ mod tests {
             let mut framebuffer = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
             let mut colormaps_buf = vec![0u8; 32 * 256];
 
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             colormaps = colormaps_buf.as_mut_ptr();
             dc_x = 0;

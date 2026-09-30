@@ -65,9 +65,7 @@ pub extern "C" fn draw_span() {
             dest = dest.add(1);
 
             position = position.wrapping_add(step);
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -134,9 +132,7 @@ pub extern "C" fn draw_span_low() {
             dest = dest.add(1);
 
             position = position.wrapping_add(step);
-            if count == 0 {
-                break;
-            }
+            if count == 0 { break; }
             count -= 1;
         }
     }
@@ -163,20 +159,12 @@ mod tests {
         unsafe {
             let mut framebuffer = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
             let mut source = vec![0u8; 64 * 64];
-            for i in 0..(64 * 64) {
-                source[i] = (i % 256) as u8;
-            }
+            for i in 0..(64 * 64) { source[i] = (i % 256) as u8; }
             let mut colormap = vec![0u8; 256];
-            for i in 0..256 {
-                colormap[i] = (i ^ 0xAA) as u8;
-            }
+            for i in 0..256 { colormap[i] = (i ^ 0xAA) as u8; }
 
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             ds_colormap = colormap.as_mut_ptr();
             ds_source = source.as_mut_ptr();
@@ -216,12 +204,8 @@ mod tests {
             let mut colormap = vec![0u8; 256];
             colormap[77] = 88;
 
-            for i in 0..SCREENHEIGHT {
-                ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize);
-            }
-            for i in 0..SCREENWIDTH {
-                columnofs[i as usize] = i;
-            }
+            for i in 0..SCREENHEIGHT { ylookup[i as usize] = framebuffer.as_mut_ptr().add((i * SCREENWIDTH) as usize); }
+            for i in 0..SCREENWIDTH { columnofs[i as usize] = i; }
 
             ds_colormap = colormap.as_mut_ptr();
             ds_source = source.as_mut_ptr();

@@ -75,21 +75,14 @@ pub extern "C" fn init_buffer(width: c_int, height: c_int) {
         viewwindowx = (SCREENWIDTH - width) >> 1;
 
         // Column offset. For windows.
-        for i in 0..width {
-            columnofs[i as usize] = viewwindowx + i;
-        }
+        for i in 0..width { columnofs[i as usize] = viewwindowx + i; }
 
         // Same with base row offset.
-        if width == SCREENWIDTH {
-            viewwindowy = 0;
-        } else {
-            viewwindowy = (SCREENHEIGHT - SBARHEIGHT - height) >> 1;
-        }
+        if width == SCREENWIDTH { viewwindowy = 0; }
+        else { viewwindowy = (SCREENHEIGHT - SBARHEIGHT - height) >> 1; }
 
         // Precalculate all row offsets.
-        for i in 0..height {
-            ylookup[i as usize] = I_VideoBuffer.add(((i + viewwindowy) * SCREENWIDTH) as usize);
-        }
+        for i in 0..height { ylookup[i as usize] = I_VideoBuffer.add(((i + viewwindowy) * SCREENWIDTH) as usize); }
     }
 }
 
@@ -107,9 +100,7 @@ pub extern "C" fn init_buffer(width: c_int, height: c_int) {
 /// `s` must be a valid, non-null pointer to a NUL-terminated C string for the duration of
 /// any downstream C FFI call that receives the returned pointer.
 #[doc(alias = "DEH_String")]
-unsafe fn deh_string(s: *const c_char) -> *const c_char {
-    s
-}
+unsafe fn deh_string(s: *const c_char) -> *const c_char { s }
 
 /// Fills the background buffer with a tiled flat texture and draws the beveled viewport border.
 ///
@@ -190,24 +181,16 @@ pub extern "C" fn fill_back_screen() {
         V_UseBuffer(background_buffer);
 
         let mut patch = W_CacheLumpName(deh_string(c"brdr_t".as_ptr()), 8) as *mut patch_t;
-        for x in (0..scaledviewwidth).step_by(8) {
-            V_DrawPatch(viewwindowx + x, viewwindowy - 8, patch);
-        }
+        for x in (0..scaledviewwidth).step_by(8) { V_DrawPatch(viewwindowx + x, viewwindowy - 8, patch); }
 
         patch = W_CacheLumpName(deh_string(c"brdr_b".as_ptr()), 8) as *mut patch_t;
-        for x in (0..scaledviewwidth).step_by(8) {
-            V_DrawPatch(viewwindowx + x, viewwindowy + viewheight, patch);
-        }
+        for x in (0..scaledviewwidth).step_by(8) { V_DrawPatch(viewwindowx + x, viewwindowy + viewheight, patch); }
 
         patch = W_CacheLumpName(deh_string(c"brdr_l".as_ptr()), 8) as *mut patch_t;
-        for y in (0..viewheight).step_by(8) {
-            V_DrawPatch(viewwindowx - 8, viewwindowy + y, patch);
-        }
+        for y in (0..viewheight).step_by(8) { V_DrawPatch(viewwindowx - 8, viewwindowy + y, patch); }
 
         patch = W_CacheLumpName(deh_string(c"brdr_r".as_ptr()), 8) as *mut patch_t;
-        for y in (0..viewheight).step_by(8) {
-            V_DrawPatch(viewwindowx + scaledviewwidth, viewwindowy + y, patch);
-        }
+        for y in (0..viewheight).step_by(8) { V_DrawPatch(viewwindowx + scaledviewwidth, viewwindowy + y, patch); }
 
         // Draw beveled edge.
         V_DrawPatch(
@@ -253,7 +236,7 @@ pub fn background_buffer_bytes() -> c_int {
 /// Copies raw bytes between `background_buffer` and `I_VideoBuffer`; the
 /// caller owns the offset arithmetic (`hu_lib`'s erase ladder and
 /// [`draw_view_border`] both drive it). The pre-move export symbol is kept
-/// with `#[export_name]` below; `hu_lib.rs:156` imports the upstream name
+/// with `#[export_name]` below; `hu_lib/mod.rs:97` imports the upstream name
 /// through its own extern block, so the pin is mandatory there.
 #[doc(alias = "R_VideoErase")]
 #[export_name = "R_VideoErase"]
@@ -289,9 +272,7 @@ pub extern "C" fn video_erase(ofs: u32, count: c_int) {
 #[export_name = "R_DrawViewBorder"]
 pub extern "C" fn draw_view_border() {
     unsafe {
-        if scaledviewwidth == SCREENWIDTH {
-            return;
-        }
+        if scaledviewwidth == SCREENWIDTH { return; }
 
         let top = ((SCREENHEIGHT - SBARHEIGHT) - viewheight) / 2;
         let side = (SCREENWIDTH - scaledviewwidth) / 2;
@@ -329,7 +310,8 @@ mod tests {
         R_DrawViewBorder, R_InitBuffer, R_VideoErase,
     };
 
-    extern "C" {
+    extern "C"
+    {
         static mut I_VideoBuffer: *mut u8;
     }
 
@@ -352,16 +334,8 @@ mod tests {
 
             assert_eq!(viewwindowx, 0);
             assert_eq!(viewwindowy, 0);
-            for i in 0..sw {
-                assert_eq!(columnofs[i as usize], i, "columnofs[{i}] mismatch");
-            }
-            for i in 0..168 {
-                assert_eq!(
-                    ylookup[i as usize],
-                    I_VideoBuffer.add((i * sw) as usize),
-                    "ylookup[{i}] mismatch"
-                );
-            }
+            for i in 0..sw { assert_eq!(columnofs[i as usize], i, "columnofs[{i}] mismatch"); }
+            for i in 0..168 { assert_eq!(ylookup[i as usize], I_VideoBuffer.add((i * sw) as usize), "ylookup[{i}] mismatch"); }
 
             I_VideoBuffer = orig_buf;
         }
@@ -381,9 +355,7 @@ mod tests {
 
             assert_eq!(viewwindowx, (sw - 256) >> 1); // 32
             assert_eq!(viewwindowy, (sh - SBARHEIGHT - 168) >> 1); // 0
-            for i in 0..256 {
-                assert_eq!(columnofs[i as usize], viewwindowx + i);
-            }
+            for i in 0..256 { assert_eq!(columnofs[i as usize], viewwindowx + i); }
 
             I_VideoBuffer = orig_buf;
         }
@@ -403,9 +375,7 @@ mod tests {
 
             assert_eq!(viewwindowx, (sw - 200) >> 1); // 60
             assert_eq!(viewwindowy, (sh - SBARHEIGHT - 100) >> 1); // 34
-            for i in 0..200 {
-                assert_eq!(columnofs[i as usize], viewwindowx + i);
-            }
+            for i in 0..200 { assert_eq!(columnofs[i as usize], viewwindowx + i); }
             for i in 0..100 {
                 let expected = I_VideoBuffer.add(((i + viewwindowy) * SCREENWIDTH) as usize);
                 assert_eq!(ylookup[i as usize], expected, "ylookup[{i}] mismatch");
@@ -427,9 +397,7 @@ mod tests {
         unsafe {
             let mut video = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
             let mut bg = vec![0u8; (SCREENWIDTH * SCREENHEIGHT) as usize];
-            for i in 0..bg.len() {
-                bg[i] = (i % 256) as u8;
-            }
+            for i in 0..bg.len() { bg[i] = (i % 256) as u8; }
 
             let orig_video = I_VideoBuffer;
             I_VideoBuffer = video.as_mut_ptr();
@@ -437,9 +405,7 @@ mod tests {
 
             R_VideoErase(100, 10);
 
-            for i in 100..110 {
-                assert_eq!(video[i as usize], bg[i as usize]);
-            }
+            for i in 100..110 { assert_eq!(video[i as usize], bg[i as usize]); }
             // Ensure surrounding bytes are untouched
             assert_eq!(video[99], 0);
             assert_eq!(video[110], 0);
@@ -461,9 +427,7 @@ mod tests {
 
             R_VideoErase(0, 10);
 
-            for i in 0..10 {
-                assert_eq!(video[i], 0xCC);
-            }
+            for i in 0..10 { assert_eq!(video[i], 0xCC); }
 
             I_VideoBuffer = orig_video;
         }
