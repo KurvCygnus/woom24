@@ -61,9 +61,7 @@ pub extern "C" fn clear_planes() {
         lastopening = std::ptr::addr_of_mut!(openings[0]);
 
         // Reset cache heights
-        for h in std::slice::from_raw_parts_mut(std::ptr::addr_of_mut!(cachedheight[0]), 200) {
-            *h = 0;
-        }
+        for h in std::slice::from_raw_parts_mut(std::ptr::addr_of_mut!(cachedheight[0]), 200) { *h = 0; }
 
         // Left to right mapping
         let angle = (crate::doom::r_main::viewangle.wrapping_sub(ANG90)) >> ANGLETOFINESHIFT;
@@ -117,9 +115,7 @@ pub extern "C" fn find_plane(
         let end = lastvisplane;
 
         while check < end {
-            if h == (*check).height && picnum == (*check).picnum && ll == (*check).lightlevel {
-                return check;
-            }
+            if h == (*check).height && picnum == (*check).picnum && ll == (*check).lightlevel { return check; }
             check = check.add(1);
         }
 
@@ -142,9 +138,7 @@ pub extern "C" fn find_plane(
         (*new_vp).maxx = -1;
 
         // memset top to 0xFF
-        for t in (*new_vp).top.iter_mut() {
-            *t = 0xFF;
-        }
+        for t in (*new_vp).top.iter_mut() { *t = 0xFF; }
 
         new_vp
     }
@@ -168,16 +162,8 @@ pub extern "C" fn find_plane(
 #[export_name = "R_CheckPlane"]
 pub extern "C" fn check_plane(pl: *mut visplane_t, start: c_int, stop: c_int) -> *mut visplane_t {
     unsafe {
-        let intrl = if start < (*pl).minx {
-            (*pl).minx
-        } else {
-            start
-        };
-        let unionl = if start < (*pl).minx {
-            start
-        } else {
-            (*pl).minx
-        };
+        let intrl = if start < (*pl).minx { (*pl).minx } else { start };
+        let unionl = if start < (*pl).minx { start } else { (*pl).minx };
 
         let intrh = if stop > (*pl).maxx { (*pl).maxx } else { stop };
         let unionh = if stop > (*pl).maxx { stop } else { (*pl).maxx };
@@ -185,9 +171,7 @@ pub extern "C" fn check_plane(pl: *mut visplane_t, start: c_int, stop: c_int) ->
         // Check for overlap in the intersection range
         let mut x = intrl;
         while x <= intrh {
-            if (*pl).top[x as usize] != 0xFF {
-                break;
-            }
+            if(*pl).top[x as usize] != 0xFF { break; }
             x += 1;
         }
 
@@ -208,9 +192,7 @@ pub extern "C" fn check_plane(pl: *mut visplane_t, start: c_int, stop: c_int) ->
         (*new_vp).minx = start;
         (*new_vp).maxx = stop;
 
-        for t in (*new_vp).top.iter_mut() {
-            *t = 0xFF;
-        }
+        for t in (*new_vp).top.iter_mut() { *t = 0xFF; }
 
         new_vp
     }

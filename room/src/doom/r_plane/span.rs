@@ -86,13 +86,11 @@ pub extern "C" fn map_plane(y: c_int, x1: c_int, x2: c_int) {
             length,
         ));
 
-        if !fixedcolormap.is_null() {
-            ds_colormap = fixedcolormap;
-        } else {
+        if !fixedcolormap.is_null() { ds_colormap = fixedcolormap; }
+        else
+        {
             let mut index = (distance >> LIGHTZSHIFT) as usize;
-            if index >= MAXLIGHTZ {
-                index = MAXLIGHTZ - 1;
-            }
+            if index >= MAXLIGHTZ { index = MAXLIGHTZ - 1; }
             ds_colormap = *planezlight.add(index) as *mut u8;
         }
 
@@ -100,9 +98,7 @@ pub extern "C" fn map_plane(y: c_int, x1: c_int, x2: c_int) {
         ds_x1 = x1;
         ds_x2 = x2;
 
-        if let Some(func) = spanfunc {
-            func();
-        }
+        if let Some(func) = spanfunc { func(); }
     }
 }
 
@@ -201,9 +197,7 @@ pub extern "C" fn draw_planes() {
                             viewangle.wrapping_add(xtoviewangle[x as usize]) >> ANGLETOSKYSHIFT;
                         dc_x = x;
                         dc_source = R_GetColumn(skytexture, angle as c_int);
-                        if let Some(func) = colfunc {
-                            func();
-                        }
+                        if let Some(func) = colfunc { func(); }
                     }
                 }
                 pl = pl.add(1);
@@ -218,57 +212,29 @@ pub extern "C" fn draw_planes() {
             planeheight = ((*pl).height.wrapping_sub(viewz)).abs();
             let mut light = ((*pl).lightlevel >> LIGHTSEGSHIFT) as c_int + extralight;
 
-            if light >= LIGHTLEVELS as c_int {
-                light = LIGHTLEVELS as c_int - 1;
-            }
-            if light < 0 {
-                light = 0;
-            }
+            if light >= LIGHTLEVELS as c_int { light = LIGHTLEVELS as c_int - 1; }
+            if light < 0 { light = 0; }
 
             // Set planezlight — in the full implementation this would be
             // a pointer into zlight[light]
             let light_usize = light as usize;
-            if light_usize < LIGHTLEVELS {
-                planezlight = zlight[light_usize].as_ptr() as *const *const lighttable_t;
-            }
+            if light_usize < LIGHTLEVELS { planezlight = zlight[light_usize].as_ptr() as *const *const lighttable_t; }
 
             // Set sentinel values at the visplane boundaries. The C code does
             // pl->top[pl->maxx+1] = 0xff and pl->top[pl->minx-1] = 0xff, which
             // relies on padding bytes when at screen edges.
-            if (*pl).minx > 0 {
-                (*pl).top[((*pl).minx - 1) as usize] = 0xFF;
-            } else {
-                (*pl).pad1 = 0xFF;
-            }
-            if (*pl).maxx < SCREENWIDTH as c_int - 1 {
-                (*pl).top[((*pl).maxx + 1) as usize] = 0xFF;
-            } else {
-                (*pl).pad2 = 0xFF;
-            }
+            if(*pl).minx > 0 { (*pl).top[((*pl).minx - 1) as usize] = 0xFF; }
+            else { (*pl).pad1 = 0xFF; }
+            if(*pl).maxx < SCREENWIDTH as c_int - 1 { (*pl).top[((*pl).maxx + 1) as usize] = 0xFF; }
+            else { (*pl).pad2 = 0xFF; }
 
             let stop = (*pl).maxx + 1;
             for x in (*pl).minx..=stop {
                 let prev_x = x - 1;
-                let t_top = if prev_x < 0 {
-                    (*pl).pad1
-                } else {
-                    (*pl).top[prev_x as usize]
-                };
-                let t_bottom = if prev_x < 0 {
-                    (*pl).pad3
-                } else {
-                    (*pl).bottom[prev_x as usize]
-                };
-                let b_top = if x == SCREENWIDTH as c_int {
-                    (*pl).pad2
-                } else {
-                    (*pl).top[x as usize]
-                };
-                let b_bottom = if x == SCREENWIDTH as c_int {
-                    (*pl).pad4
-                } else {
-                    (*pl).bottom[x as usize]
-                };
+                let t_top = if prev_x < 0 { (*pl).pad1 } else { (*pl).top[prev_x as usize] };
+                let t_bottom = if prev_x < 0 { (*pl).pad3 } else { (*pl).bottom[prev_x as usize] };
+                let b_top = if x == SCREENWIDTH as c_int { (*pl).pad2 } else { (*pl).top[x as usize] };
+                let b_bottom = if x == SCREENWIDTH as c_int { (*pl).pad4 } else { (*pl).bottom[x as usize] };
                 make_spans(
                     x,
                     t_top as c_int,
