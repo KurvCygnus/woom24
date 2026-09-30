@@ -64,16 +64,12 @@ unsafe fn render_seg_loop() {
         let clip_floor = floorclip[rw_x as usize] as c_int;
 
         let mut yl = ((topfrac + HEIGHTUNIT - 1) >> HEIGHTBITS) as c_int;
-        if yl < clip_ceil + 1 {
-            yl = clip_ceil + 1;
-        }
+        if yl < clip_ceil + 1 { yl = clip_ceil + 1; }
 
         if markceiling != 0 {
             let top = clip_ceil + 1;
             let mut bottom = yl - 1;
-            if bottom >= clip_floor {
-                bottom = clip_floor - 1;
-            }
+            if bottom >= clip_floor { bottom = clip_floor - 1; }
             if top <= bottom {
                 (*ceilingplane).top[rw_x as usize] = top as u8;
                 (*ceilingplane).bottom[rw_x as usize] = bottom as u8;
@@ -81,16 +77,12 @@ unsafe fn render_seg_loop() {
         }
 
         let mut yh = (bottomfrac >> HEIGHTBITS) as c_int;
-        if yh >= clip_floor {
-            yh = clip_floor - 1;
-        }
+        if yh >= clip_floor { yh = clip_floor - 1; }
 
         if markfloor != 0 {
             let mut top = yh + 1;
             let bottom = clip_floor - 1;
-            if top <= clip_ceil {
-                top = clip_ceil + 1;
-            }
+            if top <= clip_ceil { top = clip_ceil + 1; }
             if top <= bottom {
                 (*floorplane).top[rw_x as usize] = top as u8;
                 (*floorplane).bottom[rw_x as usize] = bottom as u8;
@@ -105,24 +97,19 @@ unsafe fn render_seg_loop() {
                 rw_offset - FixedMul(tables::finetangent[angle as usize & FINEMASK], rw_distance);
 
             let mut index = (rw_scale as u32) >> LIGHTSCALESHIFT;
-            if index >= MAXLIGHTSCALE as u32 {
-                index = (MAXLIGHTSCALE - 1) as u32;
-            }
+            if index >= MAXLIGHTSCALE as u32 { index = (MAXLIGHTSCALE - 1) as u32; }
             dc_colormap = *walllights.add(index as usize);
             dc_x = rw_x;
             dc_iscale = (0xffffffff_u32 / (rw_scale as u32)) as c_int;
-        } else {
-            texturecolumn = 0;
         }
+        else { texturecolumn = 0; }
 
         if midtexture != 0 {
             dc_yl = yl;
             dc_yh = yh;
             dc_texturemid = rw_midtexturemid;
             dc_source = R_GetColumn(midtexture, texturecolumn >> FRACBITS);
-            if let Some(func) = colfunc {
-                func();
-            }
+            if let Some(func) = colfunc { func(); }
             ceilingclip[rw_x as usize] = viewheight as c_short;
             floorclip[rw_x as usize] = -1;
         } else {
@@ -131,58 +118,40 @@ unsafe fn render_seg_loop() {
                 pixhigh += pixhighstep;
 
                 let clip_floor = floorclip[rw_x as usize] as c_int;
-                if mid >= clip_floor {
-                    mid = clip_floor - 1;
-                }
+                if mid >= clip_floor { mid = clip_floor - 1; }
 
                 if mid >= yl {
                     dc_yl = yl;
                     dc_yh = mid;
                     dc_texturemid = rw_toptexturemid;
                     dc_source = R_GetColumn(toptexture, texturecolumn >> FRACBITS);
-                    if let Some(func) = colfunc {
-                        func();
-                    }
+                    if let Some(func) = colfunc { func(); }
                     ceilingclip[rw_x as usize] = mid as c_short;
-                } else {
-                    ceilingclip[rw_x as usize] = (yl - 1) as c_short;
                 }
-            } else {
-                if markceiling != 0 {
-                    ceilingclip[rw_x as usize] = (yl - 1) as c_short;
-                }
+                else { ceilingclip[rw_x as usize] = (yl - 1) as c_short; }
             }
+            else { if markceiling != 0 { ceilingclip[rw_x as usize] = (yl - 1) as c_short; } }
 
             if bottomtexture != 0 {
                 let mut mid = ((pixlow + HEIGHTUNIT - 1) >> HEIGHTBITS) as c_int;
                 pixlow += pixlowstep;
 
                 let clip_ceil = ceilingclip[rw_x as usize] as c_int;
-                if mid <= clip_ceil {
-                    mid = clip_ceil + 1;
-                }
+                if mid <= clip_ceil { mid = clip_ceil + 1; }
 
                 if mid <= yh {
                     dc_yl = mid;
                     dc_yh = yh;
                     dc_texturemid = rw_bottomtexturemid;
                     dc_source = R_GetColumn(bottomtexture, texturecolumn >> FRACBITS);
-                    if let Some(func) = colfunc {
-                        func();
-                    }
+                    if let Some(func) = colfunc { func(); }
                     floorclip[rw_x as usize] = mid as c_short;
-                } else {
-                    floorclip[rw_x as usize] = (yh + 1) as c_short;
                 }
-            } else {
-                if markfloor != 0 {
-                    floorclip[rw_x as usize] = (yh + 1) as c_short;
-                }
+                else { floorclip[rw_x as usize] = (yh + 1) as c_short; }
             }
+            else { if markfloor != 0 { floorclip[rw_x as usize] = (yh + 1) as c_short; } }
 
-            if maskedtexture != 0 {
-                *maskedtexturecol.add(rw_x as usize) = (texturecolumn >> FRACBITS) as c_short;
-            }
+            if maskedtexture != 0 { *maskedtexturecol.add(rw_x as usize) = (texturecolumn >> FRACBITS) as c_short; }
         }
 
         rw_scale += rw_scalestep;
@@ -223,9 +192,7 @@ unsafe fn render_seg_loop() {
 #[doc(alias = "R_StoreWallRange")]
 #[export_name = "R_StoreWallRange"]
 pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
-    if ds_p == std::ptr::addr_of_mut!(drawsegs[0]).add(MAXDRAWSEGS) {
-        return;
-    }
+    if ds_p == std::ptr::addr_of_mut!(drawsegs[0]).add(MAXDRAWSEGS) { return; }
 
     #[cfg(feature = "rangecheck")]
     {
@@ -243,9 +210,7 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
     rw_normalangle = (*curline).angle.wrapping_add(ANG90);
     let mut offsetangle = (rw_normalangle.wrapping_sub(rw_angle1) as i32).unsigned_abs();
 
-    if offsetangle > ANG90 {
-        offsetangle = ANG90;
-    }
+    if offsetangle > ANG90 { offsetangle = ANG90; }
 
     let distangle = ANG90 - offsetangle;
     let hyp = R_PointToDist((*(*curline).v1).x, (*(*curline).v1).y);
@@ -268,9 +233,8 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
         (*ds_p).scalestep = rw_scalestep;
         rw_scalestep = ((*ds_p).scale2 - rw_scale) / (stop - start);
         (*ds_p).scalestep = rw_scalestep;
-    } else {
-        (*ds_p).scale2 = (*ds_p).scale1;
     }
+    else { (*ds_p).scale2 = (*ds_p).scale1; }
 
     // F1 M1: all wall-span geometry reads the interpolation board's sampled
     // sector heights (live heights when the board is off/uncovered), so the
@@ -295,12 +259,11 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
         markfloor = 1;
         markceiling = 1;
 
-        if (*linedef).flags & (LinedefFlag::DONTPEGBOTTOM as c_short) != 0 {
+        if(*linedef).flags & (LinedefFlag::DONTPEGBOTTOM as c_short) != 0 {
             let vtop = ffh + *textureheight.add((*sidedef).midtexture as usize);
             rw_midtexturemid = vtop - viewz;
-        } else {
-            rw_midtexturemid = worldtop;
         }
+        else { rw_midtexturemid = worldtop; }
         rw_midtexturemid += (*sidedef).rowoffset;
 
         (*ds_p).silhouette = SIL_BOTH;
@@ -348,29 +311,21 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
         worldhigh = bch - viewz;
         worldlow = bfh - viewz;
 
-        if (*frontsector).ceilingpic as c_int == skyflatnum
+        if(*frontsector).ceilingpic as c_int == skyflatnum
             && (*backsector).ceilingpic as c_int == skyflatnum
-        {
-            worldtop = worldhigh;
-        }
+        { worldtop = worldhigh; }
 
         if worldlow != worldbottom
             || (*backsector).floorpic != (*frontsector).floorpic
             || (*backsector).lightlevel != (*frontsector).lightlevel
-        {
-            markfloor = 1;
-        } else {
-            markfloor = 0;
-        }
+        { markfloor = 1; }
+        else { markfloor = 0; }
 
         if worldhigh != worldtop
             || (*backsector).ceilingpic != (*frontsector).ceilingpic
             || (*backsector).lightlevel != (*frontsector).lightlevel
-        {
-            markceiling = 1;
-        } else {
-            markceiling = 0;
-        }
+        { markceiling = 1; }
+        else { markceiling = 0; }
 
         if bch <= ffh || bfh >= fch
         {
@@ -380,9 +335,9 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
 
         if worldhigh < worldtop {
             toptexture = *texturetranslation.add((*sidedef).toptexture as usize);
-            if (*linedef).flags & (LinedefFlag::DONTPEGTOP as c_short) != 0 {
-                rw_toptexturemid = worldtop;
-            } else {
+            if(*linedef).flags & (LinedefFlag::DONTPEGTOP as c_short) != 0 { rw_toptexturemid = worldtop; }
+            else
+            {
                 let vtop = bch + *textureheight.add((*sidedef).toptexture as usize);
                 rw_toptexturemid = vtop - viewz;
             }
@@ -390,11 +345,8 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
 
         if worldlow > worldbottom {
             bottomtexture = *texturetranslation.add((*sidedef).bottomtexture as usize);
-            if (*linedef).flags & (LinedefFlag::DONTPEGBOTTOM as c_short) != 0 {
-                rw_bottomtexturemid = worldtop;
-            } else {
-                rw_bottomtexturemid = worldlow;
-            }
+            if(*linedef).flags & (LinedefFlag::DONTPEGBOTTOM as c_short) != 0 { rw_bottomtexturemid = worldtop; }
+            else { rw_bottomtexturemid = worldlow; }
         }
 
         rw_toptexturemid += (*sidedef).rowoffset;
@@ -412,19 +364,13 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
 
     if segtextured != 0 {
         let mut offsetangle = rw_normalangle.wrapping_sub(rw_angle1);
-        if offsetangle > ANG180 {
-            offsetangle = offsetangle.wrapping_neg();
-        }
-        if offsetangle > ANG90 {
-            offsetangle = ANG90;
-        }
+        if offsetangle > ANG180 { offsetangle = offsetangle.wrapping_neg(); }
+        if offsetangle > ANG90 { offsetangle = ANG90; }
 
         let sineval = tables::finesine[(offsetangle >> ANGLETOFINESHIFT) as usize];
         rw_offset = FixedMul(hyp, sineval);
 
-        if rw_normalangle.wrapping_sub(rw_angle1) < ANG180 {
-            rw_offset = -rw_offset;
-        }
+        if rw_normalangle.wrapping_sub(rw_angle1) < ANG180 { rw_offset = -rw_offset; }
 
         rw_offset += (*sidedef).textureoffset + (*curline).offset;
         rw_centerangle = ANG90.wrapping_add(viewangle).wrapping_sub(rw_normalangle);
@@ -433,29 +379,18 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
             let mut lightnum =
                 (((*frontsector).lightlevel as u32) >> LIGHTSEGSHIFT) as c_int + extralight;
 
-            if (*(*curline).v1).y == (*(*curline).v2).y {
-                lightnum -= 1;
-            } else if (*(*curline).v1).x == (*(*curline).v2).x {
-                lightnum += 1;
-            }
+            if(*(*curline).v1).y == (*(*curline).v2).y { lightnum -= 1; }
+            else if(*(*curline).v1).x == (*(*curline).v2).x { lightnum += 1; }
 
-            if lightnum < 0 {
-                walllights = scalelight[0].as_mut_ptr();
-            } else if lightnum >= LIGHTLEVELS as c_int {
-                walllights = scalelight[LIGHTLEVELS - 1].as_mut_ptr();
-            } else {
-                walllights = scalelight[lightnum as usize].as_mut_ptr();
-            }
+            if lightnum < 0 { walllights = scalelight[0].as_mut_ptr(); }
+            else if lightnum >= LIGHTLEVELS as c_int { walllights = scalelight[LIGHTLEVELS - 1].as_mut_ptr(); }
+            else { walllights = scalelight[lightnum as usize].as_mut_ptr(); }
         }
     }
 
-    if ffh >= viewz {
-        markfloor = 0;
-    }
+    if ffh >= viewz { markfloor = 0; }
 
-    if fch <= viewz && (*frontsector).ceilingpic as c_int != skyflatnum {
-        markceiling = 0;
-    }
+    if fch <= viewz && (*frontsector).ceilingpic as c_int != skyflatnum { markceiling = 0; }
 
     worldtop >>= 4;
     worldbottom >>= 4;
@@ -481,19 +416,13 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
         }
     }
 
-    if markceiling != 0 {
-        ceilingplane = R_CheckPlane(ceilingplane, rw_x, rw_stopx - 1);
-    }
-    if markfloor != 0 {
-        floorplane = R_CheckPlane(floorplane, rw_x, rw_stopx - 1);
-    }
+    if markceiling != 0 { ceilingplane = R_CheckPlane(ceilingplane, rw_x, rw_stopx - 1); }
+    if markfloor != 0 { floorplane = R_CheckPlane(floorplane, rw_x, rw_stopx - 1); }
 
     render_seg_loop();
 
     if (((*ds_p).silhouette & SIL_TOP) != 0 || maskedtexture != 0) && (*ds_p).sprtopclip.is_null() {
-        for i in 0..(rw_stopx - start) {
-            *lastopening.add(i as usize) = ceilingclip[(start + i) as usize];
-        }
+        for i in 0..(rw_stopx - start) { *lastopening.add(i as usize) = ceilingclip[(start + i) as usize]; }
         (*ds_p).sprtopclip = lastopening.sub(start as usize);
         lastopening = lastopening.add((rw_stopx - start) as usize);
     }
@@ -501,9 +430,7 @@ pub unsafe extern "C" fn store_wall_range(start: c_int, stop: c_int) {
     if (((*ds_p).silhouette & SIL_BOTTOM) != 0 || maskedtexture != 0)
         && (*ds_p).sprbottomclip.is_null()
     {
-        for i in 0..(rw_stopx - start) {
-            *lastopening.add(i as usize) = floorclip[(start + i) as usize];
-        }
+        for i in 0..(rw_stopx - start) { *lastopening.add(i as usize) = floorclip[(start + i) as usize]; }
         (*ds_p).sprbottomclip = lastopening.sub(start as usize);
         lastopening = lastopening.add((rw_stopx - start) as usize);
     }

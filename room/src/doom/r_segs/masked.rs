@@ -47,19 +47,12 @@ pub unsafe extern "C" fn render_masked_seg_range(ds: *mut drawseg_t, x1: c_int, 
     let mut lightnum: c_int =
         (((*frontsector).lightlevel as u32) >> LIGHTSEGSHIFT) as c_int + extralight;
 
-    if (*(*curline).v1).y == (*(*curline).v2).y {
-        lightnum -= 1;
-    } else if (*(*curline).v1).x == (*(*curline).v2).x {
-        lightnum += 1;
-    }
+    if(*(*curline).v1).y == (*(*curline).v2).y { lightnum -= 1; }
+    else if(*(*curline).v1).x == (*(*curline).v2).x { lightnum += 1; }
 
-    if lightnum < 0 {
-        walllights = scalelight[0].as_mut_ptr();
-    } else if lightnum >= LIGHTLEVELS as c_int {
-        walllights = scalelight[LIGHTLEVELS - 1].as_mut_ptr();
-    } else {
-        walllights = scalelight[lightnum as usize].as_mut_ptr();
-    }
+    if lightnum < 0 { walllights = scalelight[0].as_mut_ptr(); }
+    else if lightnum >= LIGHTLEVELS as c_int { walllights = scalelight[LIGHTLEVELS - 1].as_mut_ptr(); }
+    else { walllights = scalelight[lightnum as usize].as_mut_ptr(); }
 
     maskedtexturecol = (*ds).maskedtexturecol;
     rw_scalestep = (*ds).scalestep;
@@ -85,18 +78,14 @@ pub unsafe extern "C" fn render_masked_seg_range(ds: *mut drawseg_t, x1: c_int, 
     }
     dc_texturemid += (*(*curline).sidedef).rowoffset;
 
-    if !fixedcolormap.is_null() {
-        dc_colormap = fixedcolormap;
-    }
+    if !fixedcolormap.is_null() { dc_colormap = fixedcolormap; }
 
     dc_x = x1;
     while dc_x <= x2 {
         if *maskedtexturecol.add(dc_x as usize) != c_short::MAX {
             if fixedcolormap.is_null() {
                 let mut index = (crate::doom::r_things::spryscale as u32) >> LIGHTSCALESHIFT;
-                if index >= MAXLIGHTSCALE as u32 {
-                    index = (MAXLIGHTSCALE - 1) as u32;
-                }
+                if index >= MAXLIGHTSCALE as u32 { index = (MAXLIGHTSCALE - 1) as u32; }
                 dc_colormap = *walllights.add(index as usize);
             }
 
