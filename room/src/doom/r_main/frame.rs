@@ -110,13 +110,10 @@ pub unsafe extern "C" fn setup_frame(player: *mut PlayerT) {
         fixedcolormap = colormaps
             .add((*player).fixedcolormap as usize * 256 * std::mem::size_of::<lighttable_t>());
 
-        for i in 0..MAXLIGHTSCALE {
-            scalelightfixed[i] = fixedcolormap;
-        }
+        for i in 0..MAXLIGHTSCALE { scalelightfixed[i] = fixedcolormap; }
         walllights = std::ptr::addr_of_mut!(scalelightfixed[0]);
-    } else {
-        fixedcolormap = ptr::null_mut();
     }
+    else { fixedcolormap = ptr::null_mut(); }
 
     framecount += 1;
     validcount += 1;

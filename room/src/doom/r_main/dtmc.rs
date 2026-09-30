@@ -47,9 +47,7 @@ pub(super) const DBITS: u32 = 5;
 /// including between a read and a use of the view position.
 #[doc(alias = "point_to_angle_from_delta")]
 pub fn angle_from_delta(mut dx: fixed_t, mut dy: fixed_t) -> angle_t {
-    if dx == 0 && dy == 0 {
-        return 0;
-    }
+    if dx == 0 && dy == 0 { return 0; }
 
     if dx >= 0 {
         // dx >= 0
@@ -151,9 +149,7 @@ mod tests {
     /// computes completely wrong distances, causing wall-offset /
     /// sprite-clipping glitches.
     #[test]
-    fn dbits_is_five() {
-        assert_eq!(DBITS, 5, "DBITS must be FRACBITS - SLOPEBITS = 5");
-    }
+    fn dbits_is_five() { assert_eq!(DBITS, 5, "DBITS must be FRACBITS - SLOPEBITS = 5"); }
 
     /// For a 45-degree line (dy == dx), FixedDiv(dy, dx) returns FRACUNIT.
     /// With DBITS = 5 the index into tantoangle is FRACUNIT >> 5 == 2048,

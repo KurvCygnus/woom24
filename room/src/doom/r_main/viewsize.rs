@@ -115,9 +115,7 @@ pub unsafe extern "C" fn execute_set_view_size() {
     pspriteiscale = FRACUNIT * SCREENWIDTH / viewwidth;
 
     // thing clipping
-    for i in 0..viewwidth as usize {
-        screenheightarray[i] = viewheight as c_short;
-    }
+    for i in 0..viewwidth as usize { screenheightarray[i] = viewheight as c_short; }
 
     // planes
     for i in 0..viewheight as usize {
@@ -143,12 +141,8 @@ pub unsafe extern "C" fn execute_set_view_size() {
                     / (viewwidth << detailshift)
                     / DISTMAP as c_int;
 
-            if level < 0 {
-                level = 0;
-            }
-            if level >= NUMCOLORMAPS as c_int {
-                level = NUMCOLORMAPS as c_int - 1;
-            }
+            if level < 0 { level = 0; }
+            if level >= NUMCOLORMAPS as c_int { level = NUMCOLORMAPS as c_int - 1; }
 
             scalelight[i][j] = colormaps.add(level as usize * 256);
         }
@@ -193,13 +187,9 @@ pub unsafe extern "C" fn init_texture_mapping() {
         } else {
             let mut tt = FixedMul(tables::finetangent[i], focallength);
             tt = (centerxfrac - tt + FRACUNIT - 1) >> FRACBITS;
-            if tt < -1 {
-                t = -1;
-            } else if tt > viewwidth + 1 {
-                t = viewwidth + 1;
-            } else {
-                t = tt;
-            }
+            if tt < -1 { t = -1; }
+            else if tt > viewwidth + 1 { t = viewwidth + 1; }
+            else { t = tt; }
         }
         viewangletox[i] = t;
     }
@@ -208,9 +198,7 @@ pub unsafe extern "C" fn init_texture_mapping() {
     //  xtoviewangle will give the smallest view angle that maps to x.
     for x in 0..=viewwidth as usize {
         let mut i = 0usize;
-        while viewangletox[i] > x as c_int {
-            i += 1;
-        }
+        while viewangletox[i] > x as c_int { i += 1; }
         xtoviewangle[x] = ((i as u32) << ANGLETOFINESHIFT).wrapping_sub(ANG90);
     }
 
@@ -219,11 +207,8 @@ pub unsafe extern "C" fn init_texture_mapping() {
         let mut t = FixedMul(tables::finetangent[i], focallength);
         t = centerx - t;
 
-        if viewangletox[i] == -1 {
-            viewangletox[i] = 0;
-        } else if viewangletox[i] == viewwidth + 1 {
-            viewangletox[i] = viewwidth;
-        }
+        if viewangletox[i] == -1 { viewangletox[i] = 0; }
+        else if viewangletox[i] == viewwidth + 1 { viewangletox[i] = viewwidth; }
     }
 
     clipangle = xtoviewangle[0];
@@ -259,12 +244,8 @@ pub unsafe extern "C" fn init_light_tables() {
             scale >>= LIGHTSCALESHIFT;
             let mut level = startmap - scale / DISTMAP as c_int;
 
-            if level < 0 {
-                level = 0;
-            }
-            if level >= NUMCOLORMAPS as c_int {
-                level = NUMCOLORMAPS as c_int - 1;
-            }
+            if level < 0 { level = 0; }
+            if level >= NUMCOLORMAPS as c_int { level = NUMCOLORMAPS as c_int - 1; }
 
             zlight[i][j] = colormaps.add(level as usize * 256);
         }

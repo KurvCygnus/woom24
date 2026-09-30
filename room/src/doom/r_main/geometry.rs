@@ -34,15 +34,11 @@ use super::state::{detailshift, projection, viewangle, viewx, viewy};
 #[export_name = "R_PointOnSide"]
 pub unsafe extern "C" fn point_on_side(x: fixed_t, y: fixed_t, node: *const node_t) -> c_int {
     if (*node).dx == 0 {
-        if x <= (*node).x {
-            return ((*node).dy > 0) as c_int;
-        }
+        if x <= (*node).x { return ((*node).dy > 0) as c_int; }
         return ((*node).dy < 0) as c_int;
     }
     if (*node).dy == 0 {
-        if y <= (*node).y {
-            return ((*node).dx < 0) as c_int;
-        }
+        if y <= (*node).y { return ((*node).dx < 0) as c_int; }
         return ((*node).dx > 0) as c_int;
     }
 
@@ -51,9 +47,7 @@ pub unsafe extern "C" fn point_on_side(x: fixed_t, y: fixed_t, node: *const node
 
     // Try to quickly decide by looking at sign bits.
     if (((*node).dy ^ (*node).dx ^ dx ^ dy) as u32) & 0x80000000 != 0 {
-        if (((*node).dy ^ dx) as u32) & 0x80000000 != 0 {
-            return 1;
-        }
+        if (((*node).dy ^ dx) as u32) & 0x80000000 != 0 { return 1; }
         return 0;
     }
 
@@ -90,15 +84,11 @@ pub unsafe extern "C" fn point_on_seg_side(x: fixed_t, y: fixed_t, line: *const 
     let ldy = (*(*line).v2).y - ly;
 
     if ldx == 0 {
-        if x <= lx {
-            return (ldy > 0) as c_int;
-        }
+        if x <= lx { return (ldy > 0) as c_int; }
         return (ldy < 0) as c_int;
     }
     if ldy == 0 {
-        if y <= ly {
-            return (ldx < 0) as c_int;
-        }
+        if y <= ly { return (ldx < 0) as c_int; }
         return (ldx > 0) as c_int;
     }
 
@@ -107,9 +97,7 @@ pub unsafe extern "C" fn point_on_seg_side(x: fixed_t, y: fixed_t, line: *const 
 
     // Try to quickly decide by looking at sign bits.
     if ((ldy ^ ldx ^ dx ^ dy) as u32) & 0x80000000 != 0 {
-        if ((ldy ^ dx) as u32) & 0x80000000 != 0 {
-            return 1;
-        }
+        if ((ldy ^ dx) as u32) & 0x80000000 != 0 { return 1; }
         return 0;
     }
 
@@ -142,9 +130,7 @@ pub unsafe extern "C" fn point_on_seg_side(x: fixed_t, y: fixed_t, line: *const 
 /// name through the root shim.
 #[doc(alias = "R_PointToAngle")]
 #[export_name = "R_PointToAngle"]
-pub unsafe extern "C" fn point_to_angle(x: fixed_t, y: fixed_t) -> angle_t {
-    angle_from_delta(x - viewx, y - viewy)
-}
+pub unsafe extern "C" fn point_to_angle(x: fixed_t, y: fixed_t) -> angle_t { angle_from_delta(x - viewx, y - viewy) }
 
 /// Compute the BAM angle from map point `(x1, y1)` to map point `(x2, y2)`.
 ///
@@ -196,9 +182,7 @@ pub unsafe extern "C" fn point_to_dist(x: fixed_t, y: fixed_t) -> fixed_t {
     let mut dx = (x - viewx).wrapping_abs();
     let mut dy = (y - viewy).wrapping_abs();
 
-    if dy > dx {
-        std::mem::swap(&mut dx, &mut dy);
-    }
+    if dy > dx { std::mem::swap(&mut dx, &mut dy); }
 
     let frac = if dx != 0 { FixedDiv(dy, dx) } else { 0 };
 
@@ -275,9 +259,8 @@ pub unsafe extern "C" fn scale_from_global_angle(visangle: angle_t) -> fixed_t {
         let mut scale = FixedDiv(num, den);
         scale = scale.clamp(256, 64 * FRACUNIT);
         scale
-    } else {
-        64 * FRACUNIT
     }
+    else { 64 * FRACUNIT }
 }
 
 /// Node flag indicating the child index refers to a subsector, not another
@@ -305,9 +288,7 @@ pub(super) const NF_SUBSECTOR: u32 = 0x8000;
 #[export_name = "R_PointInSubsector"]
 pub unsafe extern "C" fn point_in_subsector(x: fixed_t, y: fixed_t) -> *mut subsector_t {
     // single subsector is a special case
-    if numnodes == 0 {
-        return subsectors as *mut subsector_t;
-    }
+    if numnodes == 0 { return subsectors as *mut subsector_t; }
 
     let mut nodenum = numnodes - 1;
 
@@ -336,18 +317,10 @@ pub unsafe extern "C" fn point_in_subsector(x: fixed_t, y: fixed_t) -> *mut subs
 #[doc(alias = "R_AddPointToBox")]
 #[export_name = "R_AddPointToBox"]
 pub unsafe extern "C" fn add_point_to_box(x: c_int, y: c_int, box_: *mut fixed_t) {
-    if x < *box_.add(BBox::LEFT) {
-        *box_.add(BBox::LEFT) = x;
-    }
-    if x > *box_.add(BBox::RIGHT) {
-        *box_.add(BBox::RIGHT) = x;
-    }
-    if y < *box_.add(BBox::BOTTOM) {
-        *box_.add(BBox::BOTTOM) = y;
-    }
-    if y > *box_.add(BBox::TOP) {
-        *box_.add(BBox::TOP) = y;
-    }
+    if x < *box_.add(BBox::LEFT) { *box_.add(BBox::LEFT) = x; }
+    if x > *box_.add(BBox::RIGHT) { *box_.add(BBox::RIGHT) = x; }
+    if y < *box_.add(BBox::BOTTOM) { *box_.add(BBox::BOTTOM) = y; }
+    if y > *box_.add(BBox::TOP) { *box_.add(BBox::TOP) = y; }
 }
 
 #[cfg(test)]
